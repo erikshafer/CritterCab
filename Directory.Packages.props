@@ -1,0 +1,21 @@
+<Project>
+    <PropertyGroup>
+        <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    </PropertyGroup>
+    <!-- Wolverine -->
+    <ItemGroup>
+        <PackageVersion Include="WolverineFx" Version="5.32.0" />
+        <PackageVersion Include="WolverineFx.Http" Version="5.32.0" />
+        <PackageVersion Include="WolverineFx.Grpc" Version="5.32.0" />
+    </ItemGroup>
+    <!-- Test packages -->
+    <ItemGroup>
+        <PackageVersion Include="Alba" Version="8.5.2" />
+        <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.4.0" />
+        <PackageVersion Include="Testcontainers.MsSql" Version="4.11.0" />
+        <PackageVersion Include="Testcontainers.PostgreSql" Version="4.11.0" />
+        <PackageVersion Include="xunit" Version="2.9.3" />
+        <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
+        <PackageVersion Include="Shouldly" Version="4.3.0" />
+    </ItemGroup>
+</Project>
