@@ -7,3 +7,4 @@ For the template and guidelines on when to write an ADR, see [ADR-001](./001-rec
 | ADR | Title | Status |
 |-----|-------|--------|
 | [001](./001-record-architecture-decisions.md) | Record Architecture Decisions | Accepted |
+| [002](./002-distributed-services-per-bounded-context.md) | Distributed Services per Bounded Context | Accepted |
