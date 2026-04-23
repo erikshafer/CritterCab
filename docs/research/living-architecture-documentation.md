@@ -1,6 +1,7 @@
 # Living Architecture Documentation — Notes for CritterCab
 
-> **Source series:** Two blog posts by Nick Tune, October 2025.
+> **Source series:** Three blog posts, October 2025.
+> - [Reverse Engineering Your Software Architecture with Claude Code](https://nick-tune.me/blog/2025-10-19-reverse-engineering-your-software-architecture-with-claude-c/) — Oct 19
 > - [Defining a DSL for Extracting Software Architecture as Living Documentation](https://nick-tune.me/blog/2025-10-31-defining-a-dsl-for-extracting-software-architecture-as-livin/) — Oct 31
 > - [Enforcing Software Architecture Living Documentation Conventions](https://nick-tune.me/blog/2025-10-31-enforcing-software-architecture-living-documentation-convent/) — Oct 31
 
@@ -13,6 +14,69 @@ CritterCab is designed as a reference architecture — a showcase of DDD-aligned
 Tune's series addresses exactly this: how to extract architectural information from code automatically, and — critically — how to ensure that the conventions the extraction relies on are actually present and enforced. The second step is what makes the first trustworthy.
 
 The series was developed in TypeScript, but every concept is directly transferable to C# with .NET-native equivalents.
+
+---
+
+## Part 0: Reverse Engineering Architecture with Claude Code First
+
+*Source: Reverse Engineering Your Software Architecture with Claude Code (Oct 19, 2025)*
+
+Before building extraction DSLs or enforcement lint rules, there is a lower-ceremony starting point: using Claude Code itself to read across multiple repositories and produce flow diagrams and architectural documentation. This article precedes the DSL articles and motivates them — it shows what is achievable with raw AI analysis, and where the limits of that approach are.
+
+### The Problem
+
+Claude performs well on isolated, single-repository tasks — diagnosing a stack trace, summarizing a module. It struggles with complex, multi-repository challenges: an end-to-end flow that spans a UI, a BFF, backend services, events, and a workflow engine requires context that no single repository provides. Without that context, Claude's suggestions about complex issues are often superficially plausible but structurally wrong.
+
+The insight: the more Claude understands about the domain and the flows that connect the system's pieces, the more useful its analysis becomes for hard problems.
+
+### The Process
+
+**Step 1 — Requirements document.** A single document defines the extraction objective, the output format, and the rules Claude must follow when generating documentation. This document grows over time as edge cases and format violations are discovered and codified. In the article, it reached 449 lines covering Mermaid syntax requirements, step type validation rules, and workflow tracing rules.
+
+Example rule accumulation:
+> *"When encountering workflows, read the entire `.asl.json` file to identify all published events in sequence."*
+
+**Step 2 — Multi-repository access.** Claude is configured to read across all relevant repositories:
+```
+"Read(//Users/nicktune/code/**)"
+```
+Claude can search locally or use GitHub when the local clone is absent. Key artifacts (OpenAPI specs, domain entity definitions) are referenced explicitly in the requirements document.
+
+**Step 3 — Iterative flow mapping.** The first flow requires significant iteration — establishing the right diagram style (horizontal swimlane flowcharts, not sequence diagrams), the right level of granularity (higher-level operations, not individual method calls), and the right output structure. Subsequent flows are generated much faster as the requirements document matures.
+
+**Efficiency:** First flow ~2 hours; subsequent flows ~15 minutes each.
+
+### Output Format
+
+Each flow produces two files:
+- `README.md` — overview, flow boundaries, quick-reference tables (endpoints, events, database operations), step-by-step narrative, event producers/consumers, related flows
+- `diagram.mermaid` — swimlane flowchart, one swimlane per repository
+
+Mermaid conventions:
+- Swimlane = repository boundary
+- Node types: HTTP endpoints, aggregate methods, database operations (cylinder), event publications, workflow triggers
+- Dotted lines: asynchronous event flows
+- Color coding: green (start), red (end), yellow (events), blue (database)
+
+### Validation
+
+The article tests accuracy by asking an investigation agent to analyze a support ticket using the generated flow documentation as context. The agent identifies the affected flows, proposes investigation steps based on expected behaviors, and queries events to verify actual versus expected system behavior. The approach proves more effective than raw codebase analysis for complex issues.
+
+### The Accuracy Problem — and Why DSLs Follow
+
+Tune acknowledges significant inaccuracies requiring manual correction. The generated diagrams reflect Claude's best interpretation of the code, not a guaranteed ground truth. His proposed mitigations:
+- Accept imperfect accuracy if agents consistently navigate to the correct flows
+- Build CI verification systems
+- Quarterly regeneration of flows
+- Verification swarms (multiple agents validating each other's outputs)
+
+But the deeper answer is the DSL and enforcement approach developed in the articles that follow: if the code itself encodes its architectural structure through conventions (decorators, interface implementations, namespaces), extraction becomes deterministic rather than interpretive. The raw Claude approach reveals what is worth automating and verifying; the DSL approach is how you make it trustworthy.
+
+### The Platform Engineering Vision
+
+Rather than reverse-engineering architecture from unstructured code, the long-term goal is to build frameworks that expose system architecture as a discoverable graph from the start. Platforms following "paved paths" make their topology transparent to both AI agents and engineers. Tools like Event Catalog position themselves for this role — they are not documentation side-cars, they are structural metadata about the system that both humans and agents can query.
+
+For CritterCab: Wolverine's message routing, Marten's projection registrations, and the Protobuf contract layer are all structural metadata. Exposing them through a queryable interface rather than relying on Claude to infer them from code is the paved-path version of this approach.
 
 ---
 
