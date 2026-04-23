@@ -6,7 +6,7 @@ CritterCab is a reference architecture for a ride-sharing platform, built on the
 
 Where CritterSupply explores a modular monolith for e-commerce and CritterBids explores saga-driven auction orchestration, CritterCab focuses on distributed, event-driven services communicating over gRPC. The project exists in large part to showcase Wolverine's gRPC feature set, which shipped in Wolverine 5.32. The ride-sharing domain was chosen because its natural shape (driver location streaming, rider-driver matching, trip lifecycle) exercises every mode of gRPC communication while providing room for event sourcing, high-volume telemetry, and multi-transport messaging.
 
-This document captures the current state of our thinking as **version 0.2**. Bounded contexts, technology choices, and design principles will shift as Event Modeling and real implementation pressure the design. When they do, this document gets updated, and significant decisions get recorded as ADRs in [docs/decisions](../decisions).
+This document captures the current state of our thinking as **version 0.3**. Bounded contexts, technology choices, and design principles will shift as Event Modeling and real implementation pressure the design. When they do, this document gets updated, and significant decisions get recorded as ADRs in [docs/decisions](../decisions).
 
 ## Goals
 
@@ -36,7 +36,7 @@ Specific differentiators:
 
 **Deployment boundary.** CritterCab is the first showcase in the series where each (or most) bounded context becomes a separately deployable service. The number of services is deliberately modest (target 6 to 8, not 20+) to keep the project maintainable by a small team, but the boundary is real: each service owns its own data store and communicates with others exclusively through messages or gRPC calls.
 
-**Transport diversity.** CritterCab is the first project in the series to use Wolverine's Kafka transport, and likely the first to combine multiple transports (gRPC, Kafka, and possibly Azure Service Bus) in one system. The choice of transport per flow is a deliberate design concern, not a default.
+**Transport diversity.** CritterCab is the first project in the series to use Wolverine's Kafka transport, and the first to combine multiple transports (gRPC, Kafka, and Azure Service Bus) in one system. The choice of transport per flow is a deliberate design concern, not a default.
 
 **Polyglot services.** A non-.NET service (Go, most likely) participates in the system as a peer over gRPC. This is a first for the series and a direct consequence of leaning into gRPC as a design choice.
 
