@@ -1,4 +1,4 @@
-# CritterCab Vision
+- **v0.3** (2026-04-23): Cross-referenced ADRs 001–009 throughout. Committed Azure as the deployment platform (ADR-007) and Azure Service Bus as a planned transport (ADR-005). Removed resolved items from Open Questions and Explicitly Parked. Added ADR references to Design Principles.# CritterCab Vision
 
 ## What This Is
 
@@ -26,7 +26,7 @@ This document captures the current state of our thinking as **version 0.2**. Bou
 
 ### Tertiary
 
-1. **Build a credible Azure story.** Entra External ID for rider and driver identity, Azure Service Bus (with the ASB emulator for local development) for a business-event backbone, and potentially Azure as a deployment target. This supports a future Omaha Azure User Group talk and broadens the project's audience beyond the Critter Stack community.
+1. **Build a credible Azure story.** Entra External ID for rider and driver identity, Azure Service Bus (with the ASB emulator for local development) for a business-event backbone, and Azure as the deployment platform (ADR-007). This supports a future Omaha Azure User Group talk and broadens the project's audience beyond the Critter Stack community.
 
 ## How CritterCab Differs from CritterSupply and CritterBids
 
@@ -44,7 +44,7 @@ Specific differentiators:
 
 **Observability as a feature.** Distributed tracing across gRPC, Wolverine, Kafka, and ASB is part of the story from day one rather than bolted on at the end. The trace itself becomes demo material.
 
-**Actual deployment.** CritterSupply and CritterBids are primarily local-development showcases. CritterCab aims to run somewhere reachable (Hetzner or Azure, TBD) so that conference demos can include a link the audience can hit.
+**Actual deployment.** CritterSupply and CritterBids are primarily local-development showcases. CritterCab aims to run somewhere reachable in Azure (ADR-007) so that conference demos can include a link the audience can hit.
 
 **Methodology intensity.** Event Modeling more thoroughly, Domain Storytelling as a new addition, DDD context maps as a leading artifact, and an NDD-informed narrative layer sitting between workshop output and prompts. The methodology work is a deliverable in its own right, not scaffolding around the code.
 
@@ -97,10 +97,9 @@ Planned:
 
 - **gRPC** via Wolverine 5.32, for service-to-service and client-to-service streaming. Unary for commands and queries, server-streaming for offer delivery and ops dashboards, client-streaming for GPS ingest, and bidirectional where interactive flows justify it.
 - **Kafka** via Wolverine's Kafka transport, for high-volume telemetry (GPS pings, breadcrumb trails) and as the likely input path for stream-processing concerns (surge pricing signals).
+- **Azure Service Bus** (with the ASB emulator used for local development) for the business-event backbone. Sign-up events flowing from Entra via Microsoft Graph notifications into ASB is a natural landing pattern.
 
-Likely but not yet committed:
-
-- **Azure Service Bus** (with the ASB emulator used for local development) for the business-event backbone. Sign-up events flowing from Entra via Microsoft Graph notifications into ASB is a natural landing pattern and the strongest argument for including ASB alongside Kafka.
+Transport selection by flow type is governed by ADR-005.
 
 ### Data Stores
 
@@ -145,12 +144,7 @@ The resulting document layers, each with a clear job:
 
 ### Deployment
 
-Not yet decided. Two plausible targets:
-
-- **Hetzner VPS**, matching the CritterBids deployment story
-- **Azure** (App Service, Container Apps, or AKS), leaning into the ASB and Entra story
-
-Whichever target is chosen, actually-deployed is a stated goal. Conference demos include a reachable URL.
+Azure (ADR-007). The specific hosting model — Container Apps, App Service, or AKS — is deferred until the first cross-service integration is demonstrable end-to-end. Actually-deployed is a stated goal. Conference demos include a reachable URL.
 
 ### Deliberately Not Using
 
@@ -162,21 +156,21 @@ Whichever target is chosen, actually-deployed is a stated goal. Conference demos
 
 The following principles guide decisions when they come up. They are descriptive rather than prescriptive: they capture the reasoning we have already used, so that future decisions can apply the same reasoning consistently.
 
-**Services per bounded context, not per whim.** A service exists when a bounded context justifies a separate deployment. Splits are motivated by domain boundaries, independent scaling requirements, or ownership boundaries, not by the number of services being a virtue in itself. When in doubt, contexts stay inside a single service until a reason to split them appears.
+**Services per bounded context, not per whim** (ADR-002). A service exists when a bounded context justifies a separate deployment. Splits are motivated by domain boundaries, independent scaling requirements, or ownership boundaries, not by the number of services being a virtue in itself. When in doubt, contexts stay inside a single service until a reason to split them appears.
 
-**Transport split by flow type, not by convenience.** The choice between gRPC, Kafka, and ASB (if adopted) follows the shape of the flow. High-volume append-only telemetry goes to Kafka. Business events that want topics, dead-lettering, and session ordering go to ASB. Service-to-service calls and streaming client interactions go to gRPC. A transport is not chosen because it is familiar; it is chosen because the flow fits it.
+**Transport split by flow type, not by convenience** (ADR-005). The choice between gRPC, Kafka, and ASB follows the shape of the flow. High-volume append-only telemetry goes to Kafka. Business events that want topics, dead-lettering, and session ordering go to ASB. Service-to-service calls and streaming client interactions go to gRPC. A transport is not chosen because it is familiar; it is chosen because the flow fits it.
 
-**Identity provider is swappable.** The Identity BC is an anti-corruption layer. Provider-specific events are translated into domain events at the boundary so that no other service knows or cares who issues tokens or emits user-lifecycle events. In production the provider is Entra External ID. For local development, Keycloak is the expected alternative. For demos, OpenIddict issues short-lived tokens.
+**Identity provider is swappable** (ADR-006). The Identity BC is an anti-corruption layer. Provider-specific events are translated into domain events at the boundary so that no other service knows or cares who issues tokens or emits user-lifecycle events. In production the provider is Entra External ID. For local development, Keycloak is the expected alternative. For demos, OpenIddict issues short-lived tokens.
 
-**Contracts are first-class.** Protobuf service and message definitions are design artifacts, not implementation detail. They are reviewed with the care given to API contracts and evolved with intention.
+**Contracts are first-class** (ADR-009). Protobuf service and message definitions are design artifacts, not implementation detail. They are reviewed with the care given to API contracts and evolved with intention.
 
-**Capture intent in durable, structured form.** Design decisions, domain behavior, and user journeys are captured as first-class artifacts in the repository, not in chat windows or ticketing systems. The principle is familiar to event-sourcing practitioners: durable, append-only records of intent outlive any particular implementation, and the current state of the system becomes reconstructible from them. In CritterCab, narratives play this role at the journey level and skills play it at the component level. Prompts are transient build orders that reference them; code is transient implementation that satisfies them. When intent lives only in a chat window or a closed ticket, it evaporates, and the next contributor (human or AI) has to re-derive it from scratch.
+**Capture intent in durable, structured form** (ADR-003). Design decisions, domain behavior, and user journeys are captured as first-class artifacts in the repository, not in chat windows or ticketing systems. The principle is familiar to event-sourcing practitioners: durable, append-only records of intent outlive any particular implementation, and the current state of the system becomes reconstructible from them. In CritterCab, narratives play this role at the journey level and skills play it at the component level. Prompts are transient build orders that reference them; code is transient implementation that satisfies them. When intent lives only in a chat window or a closed ticket, it evaporates, and the next contributor (human or AI) has to re-derive it from scratch.
 
-**Event Modeling first, code second.** Workshops produce artifacts. Artifacts produce narratives. Narratives produce prompt documents. Prompt documents produce implementation. Code that does not trace back to a modeled scenario is treated with suspicion.
+**Event Modeling first, code second** (ADR-004). Workshops produce artifacts. Artifacts produce narratives. Narratives produce prompt documents. Prompt documents produce implementation. Code that does not trace back to a modeled scenario is treated with suspicion.
 
 **Observability from day one.** Tracing, metrics, and log correlation are part of the first slice, not the last. The question "where did this request go?" should be answerable without writing custom instrumentation after the fact.
 
-**Tradeoffs are explicit.** When a decision involves a tradeoff (and most do), the tradeoff is named. ADRs capture the options considered, not just the winner. The surrounding design docs acknowledge costs, not just benefits.
+**Tradeoffs are explicit** (ADR-001). When a decision involves a tradeoff (and most do), the tradeoff is named. ADRs capture the options considered, not just the winner. The surrounding design docs acknowledge costs, not just benefits.
 
 ## Explicitly Parked
 
@@ -188,8 +182,6 @@ The following decisions are intentionally deferred. Revisiting them too early ri
 
 **Operations tenant.** Real workforce Entra tenant setup is deferred. For now, the Operations side is stubbed. The trigger is: Operations BC is actively being built, and the auth story for ops users becomes load-bearing.
 
-**Deployment target.** Hetzner versus Azure is open. The trigger is: the first deployable service is ready and a deployment target becomes necessary for demo or integration reasons.
-
 **Map library for frontend.** Parked alongside the rest of the frontend.
 
 **Rust as a second polyglot language.** Go is the first polyglot service. Rust remains a candidate for a second service if and when one is motivated by actual need.
@@ -198,7 +190,6 @@ The following decisions are intentionally deferred. Revisiting them too early ri
 
 Questions that are currently unresolved and that will resolve through Event Modeling, early implementation, or a future session of explicit decision-making:
 
-- Is the Kafka plus ASB split justified for this project's scope, or is Kafka-only sufficient?
 - Final mapping of the 11 bounded contexts to deployable services. Target range is 6 to 8.
 - Does Pricing remain inside Trips or split from day one?
 - Does Ratings remain inside Trips or split from day one?
@@ -225,3 +216,4 @@ Cross-cutting:
 
 - **v0.1** (2026-04-21): Initial capture of project vision, goals, tentative bounded contexts, tentative technology stack, design principles, and parked decisions.
 - **v0.2** (2026-04-21): Committed to an NDD-informed approach to spec-driven development, acknowledging Sam Hatoum's work at Xolvio on Narrative-Driven Development. Added `docs/narratives/` as a distinct document layer alongside workshops, skills, prompts, and retrospectives. Added the "Capture intent in durable, structured form" design principle, with a note on its kinship with event-sourcing philosophy. Clarified the layered structure of the project's documentation in the Related Documents section.
+- **v0.3** (2026-04-23): Cross-referenced ADRs 001–009 throughout. Committed Azure as the deployment platform (ADR-007) and Azure Service Bus as a planned transport (ADR-005). Removed resolved items from Open Questions and Explicitly Parked. Added ADR references to Design Principles.
