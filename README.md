@@ -35,6 +35,7 @@ The rest of the documentation is organized as layered artifacts:
 - [Workshops](docs/workshops): Event Modeling and Domain Storytelling session output.
 - [Narratives](docs/narratives): journey-scoped domain specs (NDD-informed).
 - [Skills](docs/skills): component-scoped implementation patterns and conventions.
+- [Rules](docs/rules): AI-optimized encodings of structural constraints for implementation sessions.
 - [Prompts](docs/prompts) and [Retrospectives](docs/retrospectives): the session-driven implementation workflow.
 - [ADRs](docs/decisions): significant architectural decisions with rationale.
 - [Research](docs/research): exploratory work and spikes.

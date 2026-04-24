@@ -49,18 +49,20 @@ For AI-optimized rule encodings of these decisions, see [`docs/rules/structural-
 
 ---
 
-## Preferred Tools and Stack
+## Technology Stack
 
-See the vision doc for the tentative stack in full. Key facts, to save a trip:
+The Critter Stack is CritterCab's committed foundational technology (ADR-011). Key facts for implementation sessions:
 
 | Concern | Tool |
 |---|---|
 | Language | C# 14 / .NET 10+ |
-| Messaging, gRPC, handlers | Wolverine 5.32+ |
+| Messaging, gRPC, handlers, transports | Wolverine 5.32+ |
 | Event sourcing and document store (PostgreSQL) | Marten |
 | Document store (SQL Server) | Polecat |
+| Database schema management | Weasel (implicit via Marten/Polecat) |
+| Integration test host | Alba |
 | High-volume telemetry transport | Kafka (via Wolverine's Kafka transport) |
-| Business-event transport (likely) | Azure Service Bus |
+| Business-event transport | Azure Service Bus |
 | Polyglot service | Go (first non-.NET service, participates over gRPC) |
 
 ---
