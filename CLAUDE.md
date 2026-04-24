@@ -15,10 +15,11 @@ The project is currently in the design phase. No runnable code yet.
    - **Workshops** (`docs/workshops/`) capture Event Modeling and Domain Storytelling session output.
    - **Narratives** (`docs/narratives/`) are journey-scoped domain specs (NDD-informed).
    - **Skills** (`docs/skills/`) are component-scoped implementation patterns and conventions.
+   - **Rules** (`docs/rules/`) are AI-optimized encodings of structural constraints for implementation sessions.
    - **Prompts** (`docs/prompts/`) and **Retrospectives** (`docs/retrospectives/`) capture the session-driven implementation workflow.
    - **ADRs** (`docs/decisions/`) capture significant architectural decisions.
    - **Research** (`docs/research/`) captures exploratory work and spikes.
-3. **Before implementing anything**, load the relevant skill file(s) from `docs/skills/` and reference the narrative(s) the prompt is satisfying.
+3. **Before implementing anything**, load the relevant skill file(s) from `docs/skills/`, the relevant rule file(s) from `docs/rules/`, and reference the narrative(s) the prompt is satisfying.
 
 ---
 
@@ -44,7 +45,7 @@ These are structural rules already committed. More will be added as bounded cont
 - **Identity provider is swappable.** The Identity BC is an anti-corruption layer between the provider (Entra External ID in production, alternatives in local dev) and domain events. Other services do not couple to provider-specific types.
 - **Protobuf contracts are first-class artifacts.** Reviewed and evolved with the care given to API contracts.
 
-See [`docs/vision/README.md`](./docs/vision/README.md) for the full set of design principles and their rationale.
+For AI-optimized rule encodings of these decisions, see [`docs/rules/structural-constraints.md`](./docs/rules/structural-constraints.md). See [`docs/vision/README.md`](./docs/vision/README.md) for the full set of design principles and their rationale.
 
 ---
 
