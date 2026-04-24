@@ -1,10 +1,15 @@
 # Agent Workflow Patterns — Notes for CritterCab
 
-> **Source series:** Four blog posts by Nick Tune, January–March 2026.
+> **Source series A:** Four blog posts by Nick Tune, January–March 2026.
 > - [Coding Agent Development Workflows](https://nick-tune.me/blog/2026-01-07-coding-agent-development-workflows/) — Jan 7
 > - [Dev Workflows as Code](https://nick-tune.me/blog/2026-01-17-dev-workflows-as-code/) — Jan 17
 > - [Hook-driven Dev Workflows with Claude Code](https://nick-tune.me/blog/2026-02-28-hook-driven-dev-workflows-with-claude-code/) — Feb 28
 > - [Event-sourced Claude Code Workflows](https://nick-tune.me/blog/2026-03-04-event-sourced-claude-code-workflows/) — Mar 4
+>
+> **Source series B:** Three Anthropic blog posts on multi-agent architecture, 2025.
+> - [Common Workflow Patterns for AI Agents and When to Use Them](https://claude.com/blog/common-workflow-patterns-for-ai-agents-and-when-to-use-them)
+> - [Building Multi-Agent Systems: When and How to Use Them](https://claude.com/blog/building-multi-agent-systems-when-and-how-to-use-them)
+> - [Multi-Agent Coordination Patterns](https://claude.com/blog/multi-agent-coordination-patterns)
 
 ---
 
@@ -161,9 +166,45 @@ This turns the workflow engine from a guardrail into an **observability instrume
 
 ---
 
+## The Cost Constraint: When Multi-Agent Systems Earn Their Keep
+
+The Tune series focuses on making agent pipelines reliable. The Anthropic series adds the dimension Tune does not address: **cost**. Multi-agent systems typically consume 3–10× more tokens than a single-agent approach. That is not a reason to avoid them — it is a reason to have a deliberate justification before introducing them.
+
+Three scenarios genuinely justify the overhead:
+
+**Context protection.** When information accumulated by one subtask pollutes the reasoning quality of the next, isolated subagents with separate context windows improve output. The example from the Anthropic series: a support agent retrieving 2,000+ tokens of order history while simultaneously diagnosing a technical problem — the retrieval context degrades the diagnostic reasoning. CritterCab's analogy: an agent holding full Event Modeling session output while simultaneously writing a specific handler. Separating those tasks protects the handler-writing context from irrelevant noise.
+
+**Parallelisation.** Some search spaces are too large for a single agent to cover serially within a useful time budget. Parallel subagents exploring different facets simultaneously — for example, independent review passes for security, coverage, style, and architecture — produce better aggregate coverage than a single agent asked to do all four.
+
+**Specialisation.** An agent with 20+ tools or asked to switch between conflicting behavioural modes (empathetic support versus precise code review) produces inconsistent results. Focused subagents with scoped toolsets and single-purpose system prompts are more reliable. This directly supports the principle from Tune's Stage 2: `code-review` and `bug-scanner` are separate agents, not modes of a single agent.
+
+The heuristic: reach for a single agent first. Move to multi-agent when you can name which of these three scenarios applies. If none applies, the architecture is complexity for its own sake.
+
+---
+
+## A Practitioner Vocabulary for Coordination Patterns
+
+The Tune series describes *how to build* reliable agent workflows. The Anthropic coordination patterns series names *what you are building* when you reach a certain structural shape. Having the names matters: they make design conversations precise and make it possible to recognise when a workflow has evolved past the pattern it started with.
+
+**Generator-Verifier.** A generator produces output; a verifier evaluates it against explicit criteria and either accepts or returns feedback for revision. Use when output quality is critical and evaluation criteria can be made explicit. Key failure mode: the verifier is only as good as its criteria — vague criteria fail silently. Implement maximum iteration limits with a fallback (human escalation, or return best attempt with caveats). This maps to CritterCab's code-review and task-check subagents in Stage 1 of the Tune series.
+
+**Orchestrator-Subagent.** A lead agent plans work, delegates bounded tasks to specialised subagents, and synthesises results. Subagents terminate after one task; their context resets between invocations. Use when decomposition is clear and subtasks have minimal interdependence. The widest-applicability starting pattern — handle most workflows here before escalating to something more complex.
+
+**Agent Teams.** A coordinator spawns persistent workers who claim tasks from a shared queue and retain context across multiple assignments. Use when parallel work benefits from sustained, multi-step context accumulation — a framework migration where each worker handles one service independently, for example. Independence between workers is the critical requirement; shared resources introduce conflict risk.
+
+**Message Bus.** Agents publish and subscribe to event topics; a router delivers matching messages. Workflow emerges from events rather than from orchestration logic. Use when the pipeline is genuinely event-driven and the agent ecosystem is likely to grow. Failure mode: misclassified events produce no visible error — the system fails silently. This pattern requires careful logging and event tracing from the start.
+
+**Shared State.** Agents read and write to a persistent store autonomously, with no central coordinator. Each agent's discoveries become available to others without explicit handoff. Use when agents must share intermediate findings and decentralised coordination is an advantage. Failure mode: reactive loops without explicit termination conditions. Requires a convergence threshold or time limit.
+
+**Evolution guidance.** Start with Orchestrator-Subagent — it handles the widest range with the least overhead. Move to Agent Teams when subagents need accumulated state across invocations. Move to Message Bus when the orchestrator's conditional routing logic has grown complex enough to obscure the workflow. Move to Shared State when agents must inform each other's reasoning without sequential handoffs.
+
+Production systems often compose these: an Orchestrator-Subagent outer loop with Shared-State inner coordination, or a Message Bus routing to Agent Team workers.
+
+---
+
 ## Synthesized Patterns
 
-These are the patterns that appear consistently across all four articles and warrant direct consideration for CritterCab:
+These are the patterns that appear consistently across all sources and warrant direct consideration for CritterCab:
 
 ### 1. Separate reasoning from orchestration
 Agents reason well. They orchestrate poorly. Any multi-step mechanical sequence (run build, wait, collect results, branch on status) should be code, not a prompt instruction. Agents should receive a single entry point, do their reasoning, and hand back a structured result.
@@ -179,6 +220,18 @@ Rather than relying on the conversation history to carry forward what the agent 
 
 ### 5. Event-source the process for observability
 When the workflow is event-sourced, every decision and transition is permanently recorded. This enables retrospective analysis (mapping well to CritterCab's existing retrospective practice), identification of recurring failure patterns, and AI-assisted process improvement.
+
+### 6. Decompose by context required, not by problem type
+This principle from the Anthropic series is the most directly applicable to domain-model-aware agent design. When deciding where to draw agent task boundaries, ask what context each task requires — not what category of problem it is. A task that writes a feature handler and a task that writes that handler's tests share context (the narrative, the bounded context's ubiquitous language, the aggregate's interface). Separating them creates constant coordination overhead and telephone-game degradation at the handoff. A task that writes a Telemetry handler and a task that writes a Dispatch handler do not share context — they belong to different bounded contexts and should be separate agents.
+
+The implication: bounded context boundaries are natural agent task partitioning boundaries. An agent working within a single bounded context operates with coherent, non-polluting context. An agent asked to span multiple bounded contexts either needs a very broad context window or should be decomposed into per-context subagents coordinated by an orchestrator.
+
+### 7. Trust, failure modes, and verification quality are first-class design concerns
+The Anthropic series introduces two failure modes not named by Tune that warrant explicit treatment:
+
+**The telephone game.** At each handoff between agents, fidelity degrades. A detail accurate in the generator's output becomes slightly distorted in the verifier's feedback, and further distorted in the next iteration. Long chains of sequential agents accumulate this degradation. Minimise handoff depth; favour parallel over serial decomposition when the tasks are independent.
+
+**The early victory problem.** A verification subagent asked "did the tests pass?" will confirm passing tests without running the full suite. A verification subagent asked "does this implementation satisfy all acceptance criteria?" will affirm satisfaction after minimal inspection. Verifier prompts must specify the complete scope of verification explicitly. "Run the complete test suite" is a requirement, not a courtesy. For CritterCab's task-check subagent, this means acceptance criteria must enumerate the verification steps, not just the expected outcomes.
 
 ---
 
@@ -208,6 +261,16 @@ Once implementation begins, Wolverine provides its own hook points (middleware, 
 
 CritterCab currently captures design decisions in ADRs and retrospectives. Applying event sourcing to the session workflow would allow cross-session analysis: which narratives led to the most design pivots? Which bounded contexts generated the most retrospective notes? This kind of analysis becomes trivial if session transitions are stored as a queryable event log.
 
+### The domain architecture mirrors agent coordination patterns
+
+CritterCab's technical choices map onto two of the five coordination patterns in ways worth naming explicitly.
+
+**Azure Service Bus as a Message Bus for agents.** CritterCab's business-event backbone (ADR-005) is an Azure Service Bus topic subscription model: producers publish, consumers subscribe, the broker routes by topic. A Message Bus coordination pattern for agents uses the same structure. If CritterCab adopts multi-agent coordination for implementation or analysis tasks, the same ASB infrastructure could serve as the agent coordination medium — domain events and agent coordination events travelling on the same bus, distinguished by topic. This is not a recommendation to do it, but a recognition that the plumbing is already committed.
+
+**Marten's event store as Shared State for agents.** The Shared State pattern requires a persistent store that multiple agents can read and write without central coordination. Marten's event stream is exactly this: an append-only, queryable log accessible to any consumer with a projection. An agent that analyses Telemetry event patterns and an agent that analyses Dispatch matching outcomes could share a Marten projection as their coordination surface, each appending observations that the other can consume. Again — not a current action item, but a natural affordance of the chosen stack.
+
+The broader observation: a system designed around event-driven bounded contexts is already structured the way sound multi-agent coordination is structured. The domain boundaries are agent task boundaries. The event streams are agent communication channels. The Wolverine bus is an agent dispatch mechanism. If and when CritterCab moves beyond single-agent implementation sessions toward multi-agent workflows, the architecture will not need to be retrofitted to support it.
+
 ---
 
 ## Actionable Recommendations
@@ -223,3 +286,7 @@ These are concrete steps worth considering for CritterCab, ordered by implementa
 4. **Model the session workflow as a state machine.** Even informally, naming the states (Planning, Implementing, Reviewing, Closed) and defining what can happen in each state makes the workflow enforceable and communicable.
 
 5. **Consider a session event log.** Even a simple append-only JSONL file per session capturing phase transitions and key decisions gives you a retrospective foundation that is both human-readable and machine-queryable.
+
+6. **Start with Orchestrator-Subagent before reaching for more complex coordination.** When CritterCab moves toward multi-agent implementation sessions, the orchestrator-subagent pattern handles the widest range of tasks with the least overhead. Only evolve toward Agent Teams, Message Bus, or Shared State when you can name a specific constraint the simpler pattern is failing to handle.
+
+7. **Write verifier acceptance criteria as explicit verification steps, not outcomes.** Any subagent asked to verify correctness (task-check, code-review) must have its criteria expressed as a checklist of actions to perform, not just conditions to confirm. "Run the complete test suite and confirm all pass" rather than "confirm the implementation is correct." This is the direct mitigation for the early victory problem.
