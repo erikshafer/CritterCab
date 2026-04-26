@@ -1,9 +1,184 @@
-# CritterCab Narratives Index
+# CritterCab Narratives
 
-Narratives are the journey-scoped domain specs for CritterCab. Following the NDD-informed approach described in the [vision doc](../vision/README.md), each narrative captures a user journey as a sequence of moments through time: context, interaction, and system response at each step.
+Narratives are the journey-scoped domain specs for CritterCab. Each narrative captures a user journey as a sequence of moments through time, told from a single user's perspective: context, interaction, and system response at each moment. Narratives sit between Event Modeling workshop output and implementation prompt documents.
 
-Narratives are the canonical answer to "what is this feature supposed to do, from the user's perspective?" They sit between Event Modeling workshop output and prompt documents. Prompts reference narratives; narratives persist after prompts close.
+This README is the operational manual for authoring narratives. For the rationale behind the document layer and CritterCab's NDD-informed framing, see [`docs/vision/README.md`](../vision/README.md). For the canonical example, see [`001-rider-books-a-ride.md`](./001-rider-books-a-ride.md) and its retrospective.
 
-A narrative describes behavior, not implementation. For implementation patterns and technical conventions, see [skills](../skills).
+## Where narratives sit in the document layering
 
-This is a work in progress.
+```
+Workshop (event model + slices, ubiquitous language)
+        │
+        ▼
+Narrative (journey-scoped, user-perspective spec)
+        │
+        ▼
+Prompt document (implementation build order)
+        │
+        ▼
+Code (implementation)
+```
+
+Workshops produce point-in-time event-model artifacts. Narratives thread multiple workshop slices into one user's coherent experience. Implementation prompt documents reference narratives; prompts close after their session, narratives persist.
+
+Per the vision doc's *"Capture intent in durable, structured form"* principle, narratives outlive the prompts and code that satisfy them. They are the most stable artifact in the chain.
+
+## Format
+
+CritterCab pilots an **NDD-informed structured-markdown format**. No NDK / Auto-platform dependency. Format dialect locked at narrative 001's authoring; the rationale is captured in that narrative's retrospective.
+
+### File naming
+
+Numeric prefix + slug, mirroring workshops:
+
+- `001-rider-books-a-ride.md`
+- `002-driver-accepts-and-starts-trip.md` *(planned)*
+
+The numeric prefix sorts narratives chronologically by *authoring*, not by journey ordering.
+
+### Frontmatter — v1 bounded schema
+
+YAML frontmatter has a **bounded vocabulary** (guardrail #2). The keys below are the entire v1 set; adding a key requires revising this README first.
+
+```yaml
+---
+slug: <numeric-slug>                  # e.g., 001-rider-books-a-ride
+status: draft | accepted | superseded
+journey: <protagonist-role>           # rider, driver, operator
+perspective: single-rider | single-driver | single-operator | <named>
+scope: happy-path | <named-failure> | <named-edge-case>
+bounded_contexts: [<BC>, ...]         # primary BCs the journey lives in
+boundaries_touched: [<BC>, ...]       # other BCs whose state the journey crosses
+slices_implemented: [<slice-num>, ...] # workshop slice numbers covered
+canonical_id: <field-name>            # the ID that carries the journey across BCs
+---
+```
+
+### Body structure
+
+Top-level sections, in order:
+
+1. **Title heading and intro paragraph.** What this narrative is; what's in scope; what isn't.
+2. **`## Cast`** — bulleted list of actors. Single named protagonist; other actors named with onstage/offstage status.
+3. **`## Setting`** — paragraphs establishing time, place, policy posture, and inherited conditions that subsequent Moments reference without re-stating.
+4. **`## Moment N — <one-line beat>`** — one section per Moment, in journey order.
+5. **`## Deferred from this narrative`** — cumulative aggregation of per-Moment deferred items, bucketed by disposition.
+6. **`## Retrospective`** — session retrospective in the workshop §12 shape.
+7. **`## Document History`** — version log.
+
+### Moment body structure
+
+Each Moment is composed of **prose paragraphs labeled by phase** (guardrail #1) — not bulleted fields:
+
+```
+## Moment N — <one-line beat>
+
+**Implements:** slice X.Y[, slice X.Z…].
+
+**Context.** What is true going in. Prior events, view contents the
+protagonist sees, policy posture inherited from Setting.
+
+**Interaction.** What happens this beat. May be a user action (protagonist
+taps, types, submits) or a system trigger (an automation reacts to a prior
+event, an external boundary returns a value).
+
+**Response.** What the system does in response — events emitted, views
+updated, state visible to the protagonist on screen. May span multiple
+paragraphs when the Moment covers multiple workshop slices (see
+"Multi-slice Moments" below).
+
+**Why this matters to the <protagonist>.** *(optional)* Used only when this
+Moment encodes a protagonist-visible invariant or constraint worth
+surfacing. Skip when the Moment is self-explanatory.
+```
+
+**Bullets are not allowed inside a Moment body.** Bulleted fields turn the narrative into a JSON document with extra steps and break the journey voice.
+
+### Multi-slice Moments
+
+When the protagonist experiences multiple workshop slices as a single beat (e.g., narrative 001's Moment 5 spans slices 5.5 and 5.10), **the Moment body grows in paragraphs, not in section labels.** The `Response.` block becomes multiple paragraphs under one label; new labels are not introduced. The `Implements:` line cites both slices.
+
+## Voice and perspective
+
+Single-named-protagonist by default. The protagonist is named in Cast, observed throughout, and is the only actor whose experience is dramatized.
+
+The narrator is **omniscient about the system** — it can name facts the protagonist doesn't perceive (events committed, projections updated, downstream BCs notified) — but governs *what is dramatized as user experience* by what the protagonist actually perceives. This is what permits Moments where the system does most of the work (automation-driven slices) while keeping the journey voice intact.
+
+Multi-perspective (named POV switches) and parallel (two-column / two-narrative-pair) approaches are deliberate deviations from the default. Use only when single-perspective genuinely fails to render the journey faithfully. Document the deviation in the narrative's intro paragraph and update this README if it becomes a recurring pattern.
+
+## Slice citations
+
+Every Moment cites the workshop slice(s) it implements via the `Implements:` line. Workshop slice numbers are stable; lean on them.
+
+**Do not restate the workshop's Given/When/Then scenarios.** The workshop is the test specification; the narrative is the journey. Restating GWT in narrative form duplicates the workshop and pulls the narrative into the wrong artifact layer.
+
+### Bidirectional referencing (forward-looking)
+
+Workshop slices may cite the narratives that implement them via a `Narratives:` cross-reference line, mirroring the slice-citation discipline in reverse. Workshop 001 was authored before any narrative existed; its slices do not yet carry narrative back-references. Future workshops should adopt the convention from authoring time.
+
+## Notation conventions
+
+- **Code-style backticks** for domain event names and named projection/view names: `RideRequested`, `OfferAccepted`, `ActiveOffersForDriver`, `OffersAwaitingExpiry*`.
+- **Plain text** for ordinary domain nouns from the workshop's Ubiquitous Language: Ride Request, Trip, Offer, Dispatch Round, Fare Quote.
+- The `*` suffix on todo-list projections (Bruun convention) is preserved in narratives.
+
+Domain language uses the workshop's Ubiquitous Language. Drift into generic software vocabulary is a smell.
+
+## What narratives carry, and don't
+
+**Carry:** domain meaning, user-perspective story, journey arc, moment-level state transitions, system-fact-as-observed-by-protagonist.
+
+**Do not carry:**
+
+- Code or pseudocode.
+- Implementation choices — transport (gRPC, ASB, Kafka), projection mechanism, aggregate shape, library primitives. Those belong to skill files.
+- Architectural decisions — flag any that surface during authoring as ADR candidates; do not resolve in-narrative.
+- GWT test specifications — reference workshop slices by number; do not restate.
+- UX / UI design — note app behavior at the rider-experience grain ("status screen ticks forward to…"); don't design the screens.
+
+## Per-Moment and cumulative deferral discipline
+
+Every Moment carries (in its proposal phase) a *"Things deliberately not included"* subsection that names what was consciously omitted with a disposition tag. At session close, those omissions consolidate into a **`## Deferred from this narrative`** section, bucketed by disposition. The section mirrors workshop 001's `§10 Parking Lot` and `§11 ADR Candidates` at the narrative layer — it is a project-level backlog feeder, not a transparency footnote.
+
+### Disposition tags (v1)
+
+| Tag | Meaning |
+|---|---|
+| `defer` | Will revisit; trigger not yet known. |
+| `post-MVP` | Beyond v1 scope; flagged for later release. |
+| `separate-narrative` | Belongs to a different journey. |
+| `separate-workshop` | Belongs to a BC not yet event-modeled. |
+| `implementation-detail` | Skill file or ADR territory. |
+| `alternate-path-failure` | A failure mode of the same journey; warrants its own narrative. |
+| `UX-or-UI-detail` | App design; belongs to design artifacts. |
+
+## When a new narrative is warranted
+
+A new narrative is warranted when:
+
+- The protagonist is different (rider vs. driver vs. operator).
+- The journey's terminal outcome is different (assigned vs. cancelled vs. abandoned).
+- The journey crosses a *new* set of BCs that prior narratives don't cover.
+- The journey exercises a structurally distinct flow (e.g., scheduled rides, pooled rides, multi-leg trips).
+
+A new narrative is *not* warranted for:
+
+- A different policy posture along the same journey (Setting absorbs this).
+- A different specific failure mode of the same Moment (per-Moment deferral / cumulative section captures this).
+- A different concrete protagonist with the same role and journey shape (named protagonist in Cast carries variability).
+
+When in doubt, prefer extending an existing narrative's Setting or per-Moment alternate-path subsection over forking a new narrative.
+
+## Retrospective convention
+
+Every narrative ships its retrospective in the same file, appended after the `## Deferred from this narrative` section. The retrospective shape mirrors workshop 001's §12 with narrative-flavored content. See narrative 001's retrospective for the canonical structure.
+
+## Index
+
+| # | Status | Journey | Scope | Slices |
+|---|---|---|---|---|
+| [001](./001-rider-books-a-ride.md) | Accepted | Rider | Happy path | 5.1, 5.2, 5.3, 5.4, 5.5, 5.10 |
+
+## Document history
+
+- **v0.1** (2026-04-25): Initial authoring conventions established alongside narrative 001. Format dialect locked (NDD-informed structured markdown; no NDK dependency). Frontmatter schema v1 bounded. Moment body structure (prose-paragraph labels) locked. Single-named-protagonist voice convention locked. Cumulative deferral discipline established with seven disposition tags. Bidirectional referencing convention proposed (forward-looking; not yet adopted in workshops).
