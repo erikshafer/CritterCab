@@ -173,7 +173,7 @@ The `_UNSPECIFIED = 0` value is required by proto3 semantics — proto3 has no w
 | Identifier (UUID v7) | `string` | Stringified UUID. Stored as the canonical UUID string format. |
 | Timestamp | `google.protobuf.Timestamp` | Maps to `DateTimeOffset` via protoc-gen-csharp helpers. |
 | Duration | `google.protobuf.Duration` | Maps to `TimeSpan` via helpers. |
-| Money amount | `int64` (cents) or a custom `Money` message | Never use `float`/`double` for money. See `csharp-coding-standards` § Decimal Calculations. |
+| Money amount | Custom `Money` message (in `common/v1/money.proto`) | Never use `float`/`double` for money. See `csharp-coding-standards` § Decimal Calculations. |
 | Geographic coordinate | Custom `GeoLocation` (in `common/v1/geo.proto`) | Two `double` fields; validation lives in the consumer's value object. |
 | Free-text string | `string` | UTF-8. |
 | Binary blob | `bytes` | Avoid for primary identifiers. |
@@ -212,6 +212,36 @@ message RequestRideRequest {
 ```
 
 Shared messages are governed exactly as service-specific ones — every change classified as breaking or non-breaking. A breaking change to a shared message has more consumers, not fewer; the bar is higher, not lower.
+
+### Money as a canonical shared type
+
+Monetary values appear across Pricing, Payments, and Trips. Modeling them as primitives invites the `float`/`double` mistake at every reference site, and propagates rounding errors across calculation chains. Use a custom `Money` message in the shared package:
+
+```protobuf
+// /protos/common/v1/money.proto
+syntax = "proto3";
+
+package crittercab.common.v1;
+
+option csharp_namespace = "CritterCab.Common.V1";
+
+// A monetary amount with explicit currency. Never use `float` or `double`
+// for money; rounding errors accumulate across calculation chains.
+message Money {
+  // Currency code, ISO 4217 (e.g., "USD", "EUR"). Required.
+  string currency_code = 1;
+
+  // Whole units of currency. Combined with `nanos` for the full value.
+  // Example: $5.50 = { units: 5, nanos: 500_000_000 }
+  int64 units = 2;
+
+  // Fractional units in nanos (10^-9). Range -999_999_999 to +999_999_999.
+  // Must have the same sign as `units`.
+  int32 nanos = 3;
+}
+```
+
+This shape mirrors `google.type.Money` from googleapis. Cab's version lives in the project's own `common/v1` package rather than importing googleapis, so the shared-type governance stays inside the project's `buf breaking` scope.
 
 ### Optional fields
 
@@ -286,6 +316,8 @@ Naming guidance:
 - **Bidirectional:** `Subscribe<X>`, `Connect<X>`, or domain-specific. `SubscribeTripUpdates`.
 
 Implementation patterns and backpressure considerations are covered by `wolverine-grpc-services` and `wolverine-grpc-client-streaming` (Phase 3). The proto file declares the shape; the C# handler implements it.
+
+**Note on buf lint defaults.** Buf's default style guide warns against streaming RPCs as a general practice (`RPC_NO_STREAMING_RESPONSES`, `RPC_NO_STREAMING_REQUESTS`) on the grounds that they require special infrastructure configuration. CritterCab uses streaming RPCs deliberately — the project exists in part to exercise Wolverine 5.32's streaming support. The lint rules will be relaxed in `buf.yaml` for the streaming-bearing services. The `buf.yaml` configuration lives in `cli-grpc-tooling` (Phase 3); the streaming methods themselves are a deliberate design choice, not a buf-rule violation.
 
 ---
 
@@ -384,7 +416,7 @@ When designing a new proto today, optimize for gRPC use. If the unified-schema e
 - **Reusing a removed field number.** Catastrophic. Always `reserved`. `buf breaking` catches this; reading buf's output is part of the workflow.
 - **Defining a shared type inside a service's package.** `GeoLocation` defined in `crittercab.dispatch.v1` and imported by `crittercab.trips.v1` puts Trips in a position where a Dispatch contract change affects it. Shared types live in `crittercab.common.v<n>`.
 - **Skipping `_UNSPECIFIED = 0` on enums.** proto3 requires the zero value to be unspecified. Without it, a default-valued enum field is indistinguishable from one explicitly set to the first real value.
-- **Using `float` or `double` for money.** Use `int64` cents or a custom `Money` message. See `csharp-coding-standards` § Decimal Calculations.
+- **Using `float` or `double` for money.** Use the custom `Money` message in `common/v1/money.proto`. See `csharp-coding-standards` § Decimal Calculations.
 - **Treating proto changes as implementation changes in PR descriptions.** A renamed field is not a "small refactor" at the wire level. The PR description classifies it explicitly.
 - **Modifying generated code by hand.** Lost on next build. Modify the `.proto` and regenerate.
 - **Versioning by adding `V2`-suffixed messages within `v1`.** If the change is breaking enough to warrant a new message, the package version bumps. Don't hide major-version transitions inside the v1 namespace.
@@ -410,6 +442,6 @@ When designing a new proto today, optimize for gRPC use. If the unified-schema e
 
 - ADR-009 in [`docs/decisions/`](../../decisions/) — protobuf contracts as first-class artifacts.
 - [`docs/rules/structural-constraints.md`](../../rules/structural-constraints.md) § Protobuf Contracts — the immutable rules.
-- [Buf style guide](https://buf.build/docs/best-practices/style-guide) — naming and structure conventions buf enforces.
+- [Buf style guide](https://buf.build/docs/best-practices/style-guide/) — naming and structure conventions buf enforces.
 - [Protobuf Language Guide (proto3)](https://protobuf.dev/programming-guides/proto3/) — the canonical reference for proto3 semantics.
-- [Wolverine gRPC documentation](https://wolverinefx.net/guide/grpc.html) — Wolverine 5.32+ gRPC integration.
+- [Wolverine gRPC documentation](https://wolverinefx.net/guide/grpc/) — Wolverine 5.32+ gRPC integration.
