@@ -417,6 +417,7 @@ When designing a new proto today, optimize for gRPC use. If the unified-schema e
 - **Defining a shared type inside a service's package.** `GeoLocation` defined in `crittercab.dispatch.v1` and imported by `crittercab.trips.v1` puts Trips in a position where a Dispatch contract change affects it. Shared types live in `crittercab.common.v<n>`.
 - **Skipping `_UNSPECIFIED = 0` on enums.** proto3 requires the zero value to be unspecified. Without it, a default-valued enum field is indistinguishable from one explicitly set to the first real value.
 - **Using `float` or `double` for money.** Use the custom `Money` message in `common/v1/money.proto`. See `csharp-coding-standards` § Decimal Calculations.
+- **Importing `google.protobuf.Empty` for empty requests or responses.** Even when an RPC has no fields today, define a custom `<Method>Request` and `<Method>Response`. Adding fields to a custom message later is non-breaking; replacing `Empty` with a custom message is breaking. The buf style guide flags this and `buf lint` will catch it unless explicitly relaxed.
 - **Treating proto changes as implementation changes in PR descriptions.** A renamed field is not a "small refactor" at the wire level. The PR description classifies it explicitly.
 - **Modifying generated code by hand.** Lost on next build. Modify the `.proto` and regenerate.
 - **Versioning by adding `V2`-suffixed messages within `v1`.** If the change is breaking enough to warrant a new message, the package version bumps. Don't hide major-version transitions inside the v1 namespace.
