@@ -1,4 +1,4 @@
-# ADR-011: Critter Stack as Foundational Technology
+# ADR-010: Critter Stack as Foundational Technology
 
 **Status:** Accepted  
 **Date:** 2026-04-23

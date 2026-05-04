@@ -15,3 +15,4 @@ For the template and guidelines on when to write an ADR, see [ADR-001](./001-rec
 | [007](./007-azure-as-deployment-target.md) | Azure as Deployment Target | Accepted |
 | [008](./008-mit-license.md) | MIT License | Accepted |
 | [009](./009-protobuf-contracts-as-first-class-artifacts.md) | Protobuf Contracts as First-Class Artifacts | Accepted |
+| [010](./010-critter-stack-as-foundational-technology.md) | Critter Stack as Foundational Technology | Accepted |

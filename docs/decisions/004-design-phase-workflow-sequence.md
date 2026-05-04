@@ -50,8 +50,8 @@ The sequence is the *initial* order of operations, not a waterfall. Steps 1–3 
 
 Context Mapping and Domain Storytelling are prerequisites for the Event Modeling workshop, not optional preliminaries. Skipping them means accepting the cost of surfacing linguistic disagreements and boundary ambiguities inside the workshop, where rework is more expensive.
 
-The service topology decision (ADR-010) is a downstream output of this sequence: it is made after the Event Modeling workshop's swim-lane step, not before. Committing to a specific service topology before that step would short-circuit the most valuable output the workshop has to offer for a system of CritterCab's scope.
+The service topology decision (a future ADR) is a downstream output of this sequence: it is made after the Event Modeling workshop's swim-lane step, not before. Committing to a specific service topology before that step would short-circuit the most valuable output the workshop has to offer for a system of CritterCab's scope.
 
-The narrative format (ADR-011) is left open deliberately. Step 4 produces narratives; what those narratives look like is resolved by writing the first two or three in candidate formats and comparing what holds up in practice. The sequence does not depend on the format being decided in advance.
+The narrative format (a future ADR, if one is warranted) is left open deliberately. Step 4 produces narratives; what those narratives look like is resolved by writing the first two or three in candidate formats and comparing what holds up in practice. The sequence does not depend on the format being decided in advance.
 
 Each step's output is a committed artifact: context map in `docs/workshops/`, Domain Storytelling output in `docs/workshops/`, Event Model and slice backlog in `docs/workshops/`, narratives in `docs/narratives/`, prompts in `docs/prompts/`, retrospectives in `docs/retrospectives/`. A step is finished enough to move forward when its artifact is committed, not when the discussion feels complete.

@@ -51,7 +51,7 @@ For AI-optimized rule encodings of these decisions, see [`docs/rules/structural-
 
 ## Technology Stack
 
-The Critter Stack is CritterCab's committed foundational technology (ADR-011). Key facts for implementation sessions:
+The Critter Stack is CritterCab's committed foundational technology (ADR-010). Key facts for implementation sessions:
 
 | Concern | Tool |
 |---|---|

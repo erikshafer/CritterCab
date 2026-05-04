@@ -51,7 +51,7 @@ CURRENT STATE:
 - docs/workshops/README.md is a one-line placeholder. This session will
   produce the first real workshop artifact there.
 - docs/narratives/, docs/skills/ are READMEs only.
-- One ADR exists (ADR-011 on Critter Stack); more will be written as
+- One ADR exists (ADR-010 on Critter Stack); more will be written as
   decisions crystallise.
 
 OBJECTIVE FOR THIS SESSION:
