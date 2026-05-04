@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Pending |
+| **Status** | Complete (2026-05-04). Produced [`docs/narratives/002-driver-accepts-a-ride.md`](../../narratives/002-driver-accepts-a-ride.md); extended [`docs/narratives/README.md`](../../narratives/README.md) with a "Two-layer fidelity" section; appended methodology log entries 002 and 003 to [`docs/research/methodology-log.md`](../../research/methodology-log.md). |
 | **Authored** | 2026-04-25 |
 | **Target artifact** | `docs/narratives/002-driver-accepts-a-ride.md` (slug subject to confirmation once scope is locked) |
 | **Companion artifact** | [`docs/narratives/README.md`](../../narratives/README.md) (updated only if format conventions extend; expected to be small or zero) |

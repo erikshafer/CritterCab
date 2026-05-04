@@ -136,6 +136,17 @@ Domain language uses the workshop's Ubiquitous Language. Drift into generic soft
 - GWT test specifications — reference workshop slices by number; do not restate.
 - UX / UI design — note app behavior at the rider-experience grain ("status screen ticks forward to…"); don't design the screens.
 
+## Two-layer fidelity
+
+Each narrative has two natural fidelity layers:
+
+- **Locked prose** answers to *narrator-omniscient voice fidelity*. The narrative reads as a story; the narrator is omniscient about the system; meta-labels ("by assumption…", "to be confirmed…", "if Trips' workshop honors this…") break the spell and don't belong here.
+- **Authorial calls** captured during the proposal phase answer to *workshop and methodology fidelity*. Self-aware decisions, deferrals, and assumptions about un-modeled BC behavior live here. Authorial calls appear in the session retrospective and feed the methodology log; they do not appear in the locked narrative body.
+
+When a narrative renders behavior that depends on a BC that hasn't been event-modeled yet (e.g., narrative 002's Moment 2 references Trips' rider-name surfacing on the driver-app trip-mode UI), capture the dependency as an authorial-call assumption rather than as inline meta-text. The captured assumption becomes a *forward-constraint*: the un-modeled BC's eventual workshop must honor or override it.
+
+Convention introduced in narrative 002's session (2026-05-04); see methodology log entry 003.
+
 ## Per-Moment and cumulative deferral discipline
 
 Every Moment carries (in its proposal phase) a *"Things deliberately not included"* subsection that names what was consciously omitted with a disposition tag. At session close, those omissions consolidate into a **`## Deferred from this narrative`** section, bucketed by disposition. The section mirrors workshop 001's `§10 Parking Lot` and `§11 ADR Candidates` at the narrative layer — it is a project-level backlog feeder, not a transparency footnote.
@@ -178,7 +189,9 @@ Every narrative ships its retrospective in the same file, appended after the `##
 | # | Status | Journey | Scope | Slices |
 |---|---|---|---|---|
 | [001](./001-rider-books-a-ride.md) | Accepted | Rider | Happy path | 5.1, 5.2, 5.3, 5.4, 5.5, 5.10 |
+| [002](./002-driver-accepts-a-ride.md) | Accepted | Driver | Happy path | 5.4, 5.5, 5.10 |
 
 ## Document history
 
 - **v0.1** (2026-04-25): Initial authoring conventions established alongside narrative 001. Format dialect locked (NDD-informed structured markdown; no NDK dependency). Frontmatter schema v1 bounded. Moment body structure (prose-paragraph labels) locked. Single-named-protagonist voice convention locked. Cumulative deferral discipline established with seven disposition tags. Bidirectional referencing convention proposed (forward-looking; not yet adopted in workshops).
+- **v0.2** (2026-05-04): Added "Two-layer fidelity" section per narrative 002's session — locked prose stays in narrator-omniscient voice; assumptions about un-modeled BC behavior live in the authorial-call layer as forward-constraints on later workshops. Added narrative 002 row to the Index.
