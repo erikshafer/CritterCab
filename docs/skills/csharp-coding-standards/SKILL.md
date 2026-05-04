@@ -488,7 +488,7 @@ Without `[EnumeratorCancellation]`, callers' tokens are silently ignored — the
 
 ### gRPC streaming context
 
-For Wolverine's gRPC streaming support, the handler return type is `IAsyncEnumerable<TResponse>` (server-streaming) or accepts `IAsyncEnumerable<TRequest>` as a parameter (client-streaming). The patterns above apply directly. See `wolverine-grpc-services` and `wolverine-grpc-client-streaming` for the handler shapes.
+For Wolverine's gRPC streaming support, the handler return type is `IAsyncEnumerable<TResponse>` (server-streaming) or accepts `IAsyncEnumerable<TRequest>` as a parameter (client-streaming). The patterns above apply directly. See `wolverine-grpc-handlers` and `wolverine-grpc-bidirectional-handlers` for the handler shapes.
 
 ---
 
@@ -573,7 +573,7 @@ fakeTime.Advance(TimeSpan.FromSeconds(45));
 - Aspire AppHost configuration where `TimeProvider` injection is impractical.
 - The `Guid.CreateVersion7()` runtime call (the runtime embeds time internally; you don't supply it).
 
-For everything else — handlers, sagas, projection logic, factory methods called from handlers — inject `TimeProvider`. See `wolverine-message-handlers` and `marten-aggregates` for the concrete handler shapes.
+For everything else — handlers, sagas, projection logic, factory methods called from handlers — inject `TimeProvider`. See `wolverine-handlers` and `marten-aggregates` for the concrete handler shapes.
 
 ---
 
@@ -650,7 +650,7 @@ This is the same wrapper-record pattern used for value objects, but the motivati
 
 - `domain-event-conventions` — naming and shape rules specific to events, plus per-BC vocabulary.
 - `marten-aggregates` — applies these conventions to event-sourced aggregates (`Trip` is the primary case).
-- `wolverine-message-handlers` — applies these conventions to command/query handler shape and lifetime.
+- `wolverine-handlers` — applies these conventions to handler shape, validation, and conventions across HTTP, messaging, and gRPC.
 
 **External:**
 

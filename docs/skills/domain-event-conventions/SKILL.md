@@ -242,6 +242,7 @@ The same rule applies to value objects in events. `GeoLocation` is fine inside t
 - `vertical-slice-organization` — file and directory organization within a service: feature-based, not type-based (Phase 2).
 - `marten-aggregates` — how these events are consumed by `Apply()` methods to rebuild aggregate state (Phase 2).
 - `marten-wolverine-aggregates` — handler patterns that produce these events (Phase 2).
+- `wolverine-handlers` — handler shape and validation pipeline; messaging-specific routing patterns for cross-service publication (Phase 2).
 - `transport-selection` — cross-service integration events and which transport carries them (Phase 3).
 - `wolverine-azure-service-bus` — integration event publishing patterns over ASB (Phase 3).
 

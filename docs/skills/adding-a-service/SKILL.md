@@ -321,9 +321,10 @@ The order of skills to follow once the service exists in skeleton form:
 1. `service-bootstrap` — composition root patterns.
 2. `marten-aggregates` or `polecat-event-sourcing` — store wiring.
 3. `domain-event-conventions` — for the event types the service will register.
-4. `wolverine-message-handlers` — handler shapes.
-5. `observability-tracing` — distributed tracing setup.
-6. The relevant transport skill(s) for the service's flows.
+4. `wolverine-handlers` — general handler shape, validation pipeline.
+5. `wolverine-http-handlers` and `wolverine-messaging-handlers` — protocol-specific patterns based on what the service exposes.
+6. `observability-tracing` — distributed tracing setup.
+7. The relevant transport skill(s) for the service's flows.
 
 ---
 
@@ -371,7 +372,7 @@ The per-service README complements `docs/vision/README.md` § Tentative Bounded 
 - `vertical-slice-organization` — file and directory organization within the service (Phase 2).
 - `marten-aggregates` — for Marten-based services (Phase 2).
 - `polecat-event-sourcing` — for Polecat-based services (Phase 4).
-- `wolverine-message-handlers` — handler shapes (Phase 2).
+- `wolverine-handlers` — handler shapes (Phase 2).
 - `observability-tracing` — OpenTelemetry distributed tracing setup (Phase 2).
 - `testing-fundamentals` — what the paired test project should actually contain (Phase 2).
 

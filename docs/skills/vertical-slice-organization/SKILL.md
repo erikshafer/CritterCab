@@ -379,7 +379,7 @@ For services with very few queries (1–2), they can sit at the project root or 
 
 **Downstream** — natural follow-ups:
 
-- `wolverine-message-handlers` — handler shapes that this organization supports (Phase 2).
+- `wolverine-handlers` — handler shapes that this organization supports (Phase 2).
 - `marten-aggregates` — the aggregate file referenced in feature folders (Phase 2).
 - `wolverine-sagas` — how saga files fit the convention (Phase 4).
 

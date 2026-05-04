@@ -54,6 +54,8 @@ Signals: there's a known producer that wants a response (or a stream of response
 | Stream of requests, one response | Client-streaming | `PushTelemetry` (mobile client streams GPS pings into the Telemetry service — the GPS ingest path). |
 | Stream of requests, stream of responses | Bidirectional | Real-time driver-rider communication during a trip, where justified. |
 
+Unary and server-streaming patterns live in `wolverine-grpc-handlers` (Phase 3); client-streaming and bidirectional patterns live in `wolverine-grpc-bidirectional-handlers` (Phase 4).
+
 ### 2. Is this a high-volume, append-only stream of records consumed by potentially multiple downstream services?
 
 Signals: the producer fires data continuously, the consumers process the stream in order, brief consumer lag is acceptable, and the same data may feed several different downstream concerns. Volume is high enough that per-message overhead matters.
@@ -78,7 +80,7 @@ If none of the three categories fit, the flow probably doesn't actually cross a 
 - **Low latency.** No broker hop. Direct service-to-service over HTTP/2.
 - **Strongly typed contracts.** Service and message definitions are protobuf, governed by `protobuf-contracts` and ADR-009. The contract is the design.
 - **Cross-language by construction.** The Go service (per the vision doc's polyglot goal) consumes the same protos.
-- **Wolverine integration.** Handlers look like normal Wolverine handlers; the gRPC streaming primitives surface as `IAsyncEnumerable<T>` parameters and return types. See `wolverine-grpc-services` (Phase 3).
+- **Wolverine integration.** Handlers look like normal Wolverine handlers; the gRPC streaming primitives surface as `IAsyncEnumerable<T>` parameters and return types. See `wolverine-grpc-handlers` (Phase 3).
 
 ### Kafka (against Azure Event Hubs)
 
@@ -228,12 +230,13 @@ Phasing is an *implementation schedule*, not a deferral of the commitment. All t
 
 **Downstream** — natural follow-ups by transport once selection is made:
 
-- `wolverine-grpc-services` — handler patterns for unary and server-streaming RPCs (Phase 3).
-- `wolverine-grpc-client-streaming` — handler patterns for client-streaming and bidirectional RPCs (Phase 4).
+- `wolverine-grpc-handlers` — handler patterns for unary and server-streaming RPCs (Phase 3).
+- `wolverine-grpc-bidirectional-handlers` — handler patterns for client-streaming and bidirectional RPCs (Phase 4).
 - `wolverine-kafka` — Wolverine's Kafka transport against Azure Event Hubs and the EH Emulator (Phase 3).
 - `wolverine-azure-service-bus` — Wolverine's ASB transport against ASB and the ASB Emulator (Phase 3).
 - `grpc-vs-other-transports` — finer-grained decision aid for ambiguous gRPC-vs-other cases (Phase 4).
 - `service-bootstrap` — where routing configuration lives in each service (Phase 2).
+- `wolverine-messaging-handlers` — handler patterns for routing rules and `OutgoingMessages` outbox (Phase 2).
 - `cli-azure-messaging` — `az servicebus`, `az eventhubs`, and emulator operational details (Phase 3).
 - `aspire` — local infrastructure wiring via the AppHost (Phase 2).
 

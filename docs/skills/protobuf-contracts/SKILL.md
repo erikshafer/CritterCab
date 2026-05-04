@@ -434,8 +434,8 @@ When designing a new proto today, optimize for gRPC use. If the unified-schema e
 **Downstream** — natural follow-ups when proto contracts are in hand:
 
 - `cli-grpc-tooling` — `grpcurl`, `buf` (lint, breaking, format, generate), `Evans` (Phase 3).
-- `wolverine-grpc-services` — handler implementation for unary and server-streaming RPCs (Phase 3).
-- `wolverine-grpc-client-streaming` — handler implementation for client-streaming and bidirectional RPCs (Phase 4).
+- `wolverine-grpc-handlers` — handler patterns for unary and server-streaming RPCs (Phase 3).
+- `wolverine-grpc-bidirectional-handlers` — handler patterns for client-streaming and bidirectional RPCs (Phase 4).
 - `transport-selection` — when to choose gRPC vs Kafka or ASB for a given flow (Phase 1).
 - `polyglot-go-service` — the Go service consumes the same protos (Phase 4).
 

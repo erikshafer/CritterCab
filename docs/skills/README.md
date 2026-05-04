@@ -22,7 +22,7 @@ Cross-references between skills are explicit. Each skill's `See Also` section na
 | Phase | Description | Status |
 |---|---|---|
 | Phase 1 | Pre-implementation foundations: language standards, design conventions, contract governance, transport decisions, service skeleton | **Complete** (6 skills) |
-| Phase 2 | First service implementation: composition root, store wiring, handlers, testing, observability | Pending |
+| Phase 2 | First service implementation: composition root, store wiring, handlers, testing, observability | In progress (4 skills authored: `vertical-slice-organization`, `wolverine-handlers`, `wolverine-http-handlers`, `wolverine-messaging-handlers`) |
 | Phase 3 | First cross-service flow: gRPC services, transports, identity ACL | Pending |
 | Phase 4 | Complexity arrives: sagas, advanced patterns, polyglot, complete observability | Pending |
 | Phase 5 | Reconciliation pass — cross-check against ai-skills, eliminate duplication, contribute generic patterns upstream | Pending |
@@ -38,7 +38,7 @@ CritterCab's skill clusters split into product/library clusters and topic/concer
 | Cluster | Authored | Planned |
 |---|---|---|
 | `core` | `csharp-coding-standards`, `domain-event-conventions`, `event-modeling` | — |
-| `wolverine` | — | `wolverine-message-handlers`, `wolverine-sagas` |
+| `wolverine` | `wolverine-handlers`, `wolverine-http-handlers`, `wolverine-messaging-handlers` | `wolverine-sagas` |
 | `marten` | — | `marten-aggregates`, `marten-wolverine-aggregates`, `marten-projections`, `marten-querying`, `marten-async-daemon`, `dynamic-consistency-boundary` |
 | `polecat` | — | `polecat-event-sourcing`, `polecat-document-store` |
 | `aspire` | — | `aspire` |
@@ -47,7 +47,7 @@ CritterCab's skill clusters split into product/library clusters and topic/concer
 
 | Cluster | Authored | Planned |
 |---|---|---|
-| `grpc` | `protobuf-contracts` | `wolverine-grpc-services`, `wolverine-grpc-client-streaming`, `grpc-vs-other-transports` |
+| `grpc` | `protobuf-contracts` | `wolverine-grpc-handlers`, `wolverine-grpc-bidirectional-handlers`, `grpc-vs-other-transports` |
 | `transports` | `transport-selection` | `wolverine-kafka`, `wolverine-azure-service-bus` |
 | `distributed-services` | `adding-a-service` | `service-bootstrap`, `vertical-slice-organization`, `distributed-saga-considerations` |
 | `identity` | — | `identity-acl` |
@@ -65,11 +65,11 @@ When starting a task, the entry-point skill is the first to load. Upstream skill
 | Designing a new feature or journey | `event-modeling` | — | `domain-event-conventions`, eventual implementation skills |
 | Authoring or reviewing C# code | `csharp-coding-standards` | — | `domain-event-conventions`, plus the relevant Phase 2+ skill |
 | Designing a domain event | `domain-event-conventions` | `csharp-coding-standards` | `marten-aggregates` (Phase 2), transport skills (Phase 3) |
-| Designing a cross-service contract | `protobuf-contracts` | `csharp-coding-standards`, `domain-event-conventions` | `cli-grpc-tooling` (Phase 3), `wolverine-grpc-services` (Phase 3) |
+| Designing a cross-service contract | `protobuf-contracts` | `csharp-coding-standards`, `domain-event-conventions` | `cli-grpc-tooling` (Phase 3), `wolverine-grpc-handlers` (Phase 3) |
 | Choosing a transport for a cross-service flow | `transport-selection` | `protobuf-contracts`, `domain-event-conventions` | per-transport implementation skills (Phase 3) |
 | Adding a new service from scratch | `adding-a-service` | `transport-selection`, `protobuf-contracts`, `domain-event-conventions` | `service-bootstrap`, `vertical-slice-organization`, store and observability skills (Phase 2) |
 
-As Phase 2 lands, additional entry-point hubs will be added: `marten-aggregates` for event-sourced aggregate work, `wolverine-message-handlers` for handler-shape work, `testing-fundamentals` for any test work.
+As Phase 2 lands, additional entry-point hubs will be added: `marten-aggregates` for event-sourced aggregate work, `wolverine-handlers` (with HTTP and messaging siblings) for handler-shape work, `testing-fundamentals` for any test work.
 
 ## Cross-reference graph (Phase 1)
 
