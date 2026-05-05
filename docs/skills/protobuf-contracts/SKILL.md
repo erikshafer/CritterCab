@@ -315,9 +315,9 @@ Naming guidance:
 - **Client-streaming:** `Push<Plural>` or `Send<Plural>`. `PushTelemetry`, `SendBreadcrumbs`.
 - **Bidirectional:** `Subscribe<X>`, `Connect<X>`, or domain-specific. `SubscribeTripUpdates`.
 
-Implementation patterns and backpressure considerations are covered by `wolverine-grpc-services` and `wolverine-grpc-client-streaming` (Phase 3). The proto file declares the shape; the C# handler implements it.
+Implementation patterns and backpressure considerations are covered by `wolverine-grpc-handlers` (Phase 3, unary + server-streaming) and `wolverine-grpc-bidirectional-handlers` (Phase 4, client-streaming + bidirectional). The proto file declares the shape; the C# handler implements it.
 
-**Note on buf lint defaults.** Buf's default style guide warns against streaming RPCs as a general practice (`RPC_NO_STREAMING_RESPONSES`, `RPC_NO_STREAMING_REQUESTS`) on the grounds that they require special infrastructure configuration. CritterCab uses streaming RPCs deliberately — the project exists in part to exercise Wolverine 5.32's streaming support. The lint rules will be relaxed in `buf.yaml` for the streaming-bearing services. The `buf.yaml` configuration lives in `cli-grpc-tooling` (Phase 3); the streaming methods themselves are a deliberate design choice, not a buf-rule violation.
+**Note on buf lint defaults.** Buf provides an opt-in lint category called `UNARY_RPC` containing `RPC_NO_CLIENT_STREAMING` and `RPC_NO_SERVER_STREAMING`, intended for projects whose RPC framework can't ferry streaming calls (e.g., Twirp). CritterCab uses streaming RPCs deliberately — the project exists in part to exercise Wolverine 5.32's streaming support — so the `UNARY_RPC` category is **not** added to `lint.use` in `buf.yaml`. (It isn't enabled by default; `STANDARD` doesn't include it.) The actual `buf.yaml` configuration lives in `cli-grpc-tooling` (Phase 3); the streaming methods themselves are a deliberate design choice, fully compatible with the buf rules Cab does enforce.
 
 ---
 
