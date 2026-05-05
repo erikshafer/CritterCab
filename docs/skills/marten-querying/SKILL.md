@@ -31,6 +31,49 @@ Do NOT use this skill for:
 
 ---
 
+## Sessions and Their Purpose
+
+The session is the unit of work that executes queries and (for read-write sessions) tracks pending changes. Picking the right session shape matters for both correctness and performance.
+
+### The two interfaces `AddMarten()` registers
+
+`AddMarten()` registers two session interfaces in the DI container:
+
+| Interface | Use for | Backed by |
+|---|---|---|
+| `IQuerySession` | Read-only operations | A read-only session — no `Store`, `Delete`, or `SaveChangesAsync`. |
+| `IDocumentSession` | Read **and** write operations | A lightweight session by default. |
+
+For pure-read endpoints, **inject `IQuerySession`.** It's narrower, expresses intent at the signature, and prevents accidental writes. Reach for `IDocumentSession` only when the same handler reads and writes — including event-sourced aggregate workflows where `MartenOps` and `[WriteAggregate]` need a document session.
+
+`StreamAggregate<T>` is the one common read case where `IDocumentSession` is required: the live-aggregation path registers operations on the session internally. That's covered in § Streaming JSON to HTTP — usually a signal that a projected document plus `StreamOne<T>` is the better shape.
+
+### The four session kinds (opening from `IDocumentStore` directly)
+
+Most Cab code never opens a session from `IDocumentStore` — DI hands you one. Background jobs, daemons, and tests sometimes need explicit control:
+
+| Factory method | Identity map | Dirty checking | When to use |
+|---|---|---|---|
+| `LightweightSession()` | No | No | **CritterCab default.** Fastest, lowest memory, manual `Store`/`Delete`. |
+| `IdentitySession()` | Yes | No | A long compute that loads the same document repeatedly and benefits from the cached instance. |
+| `DirtyTrackedSession()` | Yes | Yes | Code that mutates loaded entities and expects Marten to detect the changes. Heaviest; rarely needed in Cab. |
+| `QuerySession()` | No | n/a | Read-only — same shape as the injected `IQuerySession`. |
+
+Lightweight is the recommended default per the Marten team and is what `AddMarten()` wires up. Don't reach for the heavier kinds without a concrete reason. Avoid the legacy bare `OpenSession()` overload — the explicit factory methods are clearer, and the Marten team has signaled the bare overload may be dropped in a future version.
+
+### Identity map — what it does to queries
+
+When a session has an identity map (Identity or DirtyTracked), `Load<T>(id)` and `Query<T>().Where(t => t.Id == id)` return the **same instance** within the same session — Marten caches the materialized object after the first hit. Good for consistency (you can't end up with two divergent copies of the same logical document in one unit of work); bad for memory if a long-lived session loads many distinct documents.
+
+Two consequences worth knowing:
+
+- **Lightweight sessions return a fresh instance every time.** Code that relies on reference equality across reads will break under lightweight sessions.
+- **User-supplied SQL bypasses the identity map.** `session.QueryAsync<T>("where ...")` and `AdvancedSql.QueryAsync<T>(...)` always hydrate fresh instances regardless of session kind. If a raw-SQL query disagrees with a LINQ query in the same session, this is likely the cause.
+
+Configuration of the default session type — and any per-handler overrides — belongs in `service-bootstrap`. The deep mechanics (transaction lifecycle, isolation levels, session listeners, multi-tenant overlays) defer to ai-skills.
+
+---
+
 ## Decision Matrix — Which Query Shape
 
 Pick the shape by the read pattern, not by what feels familiar.
@@ -414,6 +457,67 @@ await foreach (var ping in session.AdvancedSql.StreamAsync<TelemetryPing>(
 
 ---
 
+## Metadata in Queries
+
+Marten attaches metadata columns to every document table — some always present, some opt-in. On the query side this metadata is mostly invisible, but it surfaces in a few places worth knowing.
+
+### What's stored
+
+Always present:
+
+- `mt_last_modified` — timestamp of the last update; indexed.
+- `mt_dotnet_type` — full .NET type name. Informational, not used by Marten itself.
+- `mt_version` — sequential GUID used for optimistic concurrency.
+
+Opt-in (configured at bootstrap, often by implementing the marker interfaces below):
+
+- `mt_deleted`, `mt_deleted_at` — soft-delete columns when the document type implements `ISoftDeleted` or is configured for soft-delete.
+- `correlation_id`, `causation_id`, `last_modified_by` — tracking columns when the document type implements `ITracked` or tracking is enabled globally.
+
+The marker interfaces in `Marten.Metadata` both enable the relevant column AND surface the metadata as a property on the document itself: `IVersioned` (`Guid Version`), `IRevisioned` (`int Version` for numeric concurrency), `ISoftDeleted` (`bool Deleted`, `DateTimeOffset? DeletedAt`), and `ITracked` (correlation/causation/last-modified-by).
+
+### Soft-delete query behavior
+
+When a document type is soft-delete-enabled, **queries auto-filter deleted documents.** To override, the query must reach into the `Marten.Linq.SoftDeletes` namespace:
+
+```csharp
+using Marten.Linq.SoftDeletes;
+
+// Default — only non-deleted
+var active = await session.Query<DriverProfile>().ToListAsync(ct);
+
+// Include deleted
+var all = await session.Query<DriverProfile>()
+    .Where(d => d.MaybeDeleted()).ToListAsync(ct);
+
+// Only deleted
+var purged = await session.Query<DriverProfile>()
+    .Where(d => d.IsDeleted()).ToListAsync(ct);
+
+// Time-bounded
+var recent = await session.Query<DriverProfile>()
+    .Where(d => d.DeletedSince(DateTimeOffset.UtcNow.AddDays(-7)))
+    .ToListAsync(ct);
+```
+
+Forgetting the `using` is a common cause of "method not found" errors — the extensions live in a namespace you don't normally need.
+
+### Last-modified queries
+
+`mt_last_modified` is indexed on every document type. Useful for "what changed since" patterns and cache-invalidation reads:
+
+```csharp
+using Marten.Linq.LastModified;
+
+var recent = await session.Query<DriverProfile>()
+    .Where(d => d.ModifiedSince(DateTimeOffset.UtcNow.AddMinutes(-5)))
+    .ToListAsync(ct);
+```
+
+Bootstrap-side configuration of metadata defaults — what's enabled globally vs. per-document, the `DisableInformationalFields` policy — belongs in `service-bootstrap`.
+
+---
+
 ## Streaming JSON to HTTP
 
 Marten can stream JSONB straight from PostgreSQL to the HTTP response — no C# deserialization, no JSON serializer pass, no GC pressure on either side. The package is `Marten.AspNetCore` (referenced transitively via `WolverineFx.Marten` in Cab services).
@@ -503,6 +607,8 @@ The streaming APIs serve exactly what's persisted. If the on-the-wire shape need
 - **Speculative compiled queries.** Compiled queries trade flexibility for performance and add real cognitive load (the gotchas list above). Use them only on profiled hot paths; standard LINQ is the right default.
 - **`WriteSingle` vs `WriteOne`.** `WriteSingle` is the IQueryable extension; `WriteOne` is the compiled-query overload on `IQuerySession`. Easy to swap accidentally — let the compiler tell you which is which by leaning on the return-type API.
 - **Reading projected data immediately after writing in tests.** Async projections are eventually consistent — a query right after `SaveChangesAsync` may see stale data. See `testing-integration` (Phase 2) for `WaitForNonStaleProjectionDataAsync`.
+- **Injecting `IDocumentSession` for a read-only endpoint.** Works mechanically, but signals "writes happen here" to readers and tooling. Inject `IQuerySession` for pure reads; the narrower interface prevents accidental `Store`/`Delete` calls and makes the read-only intent explicit.
+- **Soft-delete extensions silently filtered out.** `MaybeDeleted()`, `IsDeleted()`, `DeletedSince()`, `DeletedBefore()` live in `Marten.Linq.SoftDeletes`. Without the `using`, the methods aren't visible — the compiler error reads like "method not found" rather than "missing namespace."
 
 ---
 
