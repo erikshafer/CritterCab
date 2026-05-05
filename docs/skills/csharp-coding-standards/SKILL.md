@@ -48,17 +48,42 @@ public sealed record Fare(decimal Amount, string Currency);
 public sealed record TripSummaryView(Guid Id, Guid RiderId, Guid DriverId, decimal FareTotal, int DistanceMeters, string Status);
 ```
 
-Use `with` expressions for immutable aggregate updates:
+Use `with` expressions for immutable aggregate updates. For aggregates, this happens inside static `Apply` methods (the decider-pattern “evolve” function) — covered in detail in `marten-aggregates`:
 
 ```csharp
-public Trip Apply(TripStarted @event) =>
-    this with
-    {
-        Status = TripStatus.InProgress,
-        StartedAt = @event.StartedAt,
-        StartLocation = @event.StartLocation
-    };
+public sealed record Trip(
+    Guid Id,
+    Guid DriverId,
+    Guid RiderId,
+    TripStatus Status,
+    GeoLocation StartLocation,
+    DateTimeOffset StartedAt,
+    DateTimeOffset? CompletedAt)
+{
+    public static Trip Create(IEvent<TripStarted> @event) =>
+        new(
+            @event.StreamId,
+            @event.Data.DriverId,
+            @event.Data.RiderId,
+            TripStatus.InProgress,
+            @event.Data.StartLocation,
+            @event.Data.StartedAt,
+            CompletedAt: null);
+
+    public static Trip Apply(TripCompleted @event, Trip current) =>
+        current with
+        {
+            Status = TripStatus.Completed,
+            CompletedAt = @event.CompletedAt
+        };
+}
 ```
+
+Three conventions visible above and pinned in `marten-aggregates`:
+
+- **`Create` is `static`, takes `IEvent<TFirstEvent>`**, and pulls the aggregate ID from `@event.StreamId` — Wolverine assigns the stream ID when the first event is persisted, so the handler doesn't generate it.
+- **`Apply` methods are `static`, take `(TEvent @event, TAggregate current)`**, and return the new aggregate via `with`. No instance methods, no `void` returns, no `this`.
+- **No business validation on the aggregate.** Decisions live in handlers (the decider pattern's “decide” function); the aggregate is pure state + evolution.
 
 ### Required Properties
 
@@ -114,10 +139,14 @@ public record RequestRide(Guid RideRequestId, Guid RiderId, GeoLocation Pickup, 
 
 ## Collection Patterns
 
-Always use immutable collection interfaces:
+The collection-type convention depends on whether the type is a DTO (over the wire, on disk, or as a parameter) or aggregate state (folded over events with `with`).
+
+### Domain events, integration messages, commands, queries, and view models — use `IReadOnly*`
+
+These are DTOs. They're constructed once, never mutated, and shape the wire format (or the JSON in the event store).
 
 ```csharp
-// ✅ CORRECT
+// ✅ CORRECT — DTO with read-only collections
 public sealed record TripCompleted(
     Guid TripId,
     Guid DriverId,
@@ -144,6 +173,53 @@ Empty collection shorthand (C# 12+):
 ```csharp
 IReadOnlyList<GeoLocation> waypoints = [];
 ```
+
+### Aggregates — use `Immutable*`
+
+Aggregate state is folded over events. Each `Apply` returns a new aggregate via `with`, so collection state on aggregates needs structural sharing and mutation-returning APIs to fold cleanly.
+
+```csharp
+// ✅ Aggregate state — ImmutableDictionary supports mutation-returning operations
+public sealed record DriverProfile(
+    Guid Id,
+    string Name,
+    ImmutableDictionary<Guid, Certification> Certifications,
+    ImmutableHashSet<Guid> ActiveSuspensions,
+    ImmutableList<TripReference> RecentTrips,
+    DateTimeOffset LastUpdated)
+{
+    public static DriverProfile Apply(CertificationGranted @event, DriverProfile current) =>
+        current with
+        {
+            Certifications = current.Certifications.SetItem(@event.CertificationId,
+                new Certification(@event.Type, @event.GrantedAt)),
+            LastUpdated = @event.GrantedAt
+        };
+}
+```
+
+**Choice by collection shape:**
+- `ImmutableDictionary<TKey, TValue>` — ID-keyed state (reservations, certifications, by-ID maps)
+- `ImmutableList<T>` — ordered state (recent trips, audit history)
+- `ImmutableHashSet<T>` — unordered uniqueness-bearing sets (active flags, role membership)
+
+All three are from `System.Collections.Immutable`. They're persistent data structures — `current.Certifications.SetItem(...)` allocates only the changed path through the tree, not the whole collection.
+
+### Why the split
+
+`Immutable*` types pair naturally with `with` expressions: `current.Items.SetItem(id, value)` returns a new collection without copying. `IReadOnlyList<T>` requires explicit copy syntax (`[..current.Items, newItem]`) which gets noisy in `Apply` methods. DTOs don't need either capability — they're constructed in one place and never mutated — so the lighter `IReadOnlyList<T>` is the right shape there.
+
+### Performance escape hatch
+
+For aggregates with very large or very hot collections (>10,000 items or hot-loop folding at high frequency), `Immutable*`'s O(log N) ops can compound. If profiling shows it as a real bottleneck on a specific aggregate, fall back to `IReadOnlyList<T>` for that aggregate with explicit copy syntax in `Apply`:
+
+```csharp
+// Performance fallback — document why on the aggregate
+public static SomeAggregate Apply(ItemAdded @event, SomeAggregate current) =>
+    current with { Items = [..current.Items, @event.Item] };
+```
+
+In practice this rarely applies in CritterCab — if an aggregate's collection grows that large, the aggregate boundary is usually the actual problem and the right fix is to split the aggregate, not to optimize the collection type.
 
 ---
 
