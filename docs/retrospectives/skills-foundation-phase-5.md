@@ -61,7 +61,7 @@ Reference repo HEAD revisions at session start: _(not captured — would have be
 | 8 | `wolverine-sagas` | 1 | _none — ai-skills has no saga skill_ | **No equivalent** + observed coverage gap (no active author) | ~3 (rename only) | Light pass: counterpart `wolverine-sagas-saga-pattern` was assumed to exist but verified absent in ai-skills (no `wolverine-sagas-*` skills exist; only saga test fixtures inside `wolverine-converting-from-masstransit`/`-nservicebus`). Renamed `Upstream` → `Prerequisites`; removed forward-looking placeholder + install/license note. Cab's 39 KB skill stands as authoritative reference. ProcessManager<TState> framework references confirmed absent from body (only generic-pattern uses survive: `process-manager` tag for searchability and "process managers that do everything" anti-pattern phrasing on line 423 — both retained as standard pattern terminology). 1 upstream-contribution candidate flagged with **Observed gap** priority (no current author) |
 | 9 | `marten-aggregates` | 1 | `marten-projections-single-stream` + `marten-aggregate-handler-workflow` | Direct equivalent (deduplicated) | ~3 net (~5 saved from Snapshot Strategies + External trims, partially offset by ~5 added in new Upstream block) | First design-and-conventions skill in Phase 5 — minimal duplication by design, since Cab top framing explicitly defers mechanics to ai-skills. Trimmed Snapshot Strategies (removed Live-vs-Inline mechanic table; kept Cab "live aggregation default" guidance + cross-ref to `marten-projections-single-stream` § Projection lifecycles). Restructured See Also to three-block convention with new Upstream block referencing both ai-skills counterparts. Removed forward-looking placeholder for non-existent `marten-event-sourcing-fundamentals` (4th forward-looking placeholder removed in Phase 5; Skills 4, 5, 8, 9). Preserved entirely: When-to-event-source decision framework, Canonical Aggregate Shape (Trip + 6 conventions), Decider Pattern Critter Stack realization table, Stream Identity (incl. UUID v5 deterministic IDs), Apply Method Conventions (4 sub-rules), Aggregate Field Conventions, RideOffer worked example, 9-bullet Common Pitfalls. No upstream-contribution candidates flagged — content is genuinely Cab-specific design conventions (UUID v5 namespace, live default, ImmutableList preference, event-first parameter order, no-throw rule), not pitfalls or coverage gaps in ai-skills. |
 | 10 | `marten-wolverine-aggregates` | 1 | `marten-aggregate-handler-workflow` (primary) + `wolverine-handlers-declarative-persistence` + `wolverine-handlers-fundamentals` | Direct equivalent (deduplicated) | ~9 net body content (+~1 See Also; net file +247 bytes) | Hybrid skill — partly design+conventions (decider-pattern positioning, `nameof()` pin, UUIDNext convention, `MartenOps.StartStream` Action-overload), partly mechanic content overlapping ai-skills. Trimmed Identity resolution (4-step Wolverine resolution chain → cross-ref to ai-skills § Aggregate identity conventions; kept Cab `nameof()` pin rationale), Concurrency style (Optimistic/Exclusive table → Cab pin paragraph + cross-ref to ai-skills § Optimistic concurrency for Version-property + VersionSource surface), Manual Session Calls anti-pattern (collapsed leading prose, expression-bodied correct example, cross-ref to ai-skills § Common anti-patterns). Added cross-ref note to Return-Type Cheat Sheet (Cab table is genuinely more comprehensive — 10 rows vs ai-skills' 5 — so kept Cab and pointed users to ai-skills for return-types fundamentals). Restructured See Also to three-block convention with new Upstream block referencing all 3 ai-skills counterparts. Preserved entirely: top framing, When to apply, Two Canonical Shapes (StartTrip/CompleteTrip BC examples), `AlwaysEnforceConsistency` (not in ai-skills), Multi-Stream Handlers (TransferRiderToDriver with `[ReadAggregate]`), Stream Identity (UUIDNext convention, MD5 warning, Action overload), Anti-Pattern: Generating Stream ID for Auto-Assigned, Anti-Pattern: WriteAggregate on read handler, Worked Example: AcceptOffer, 9-bullet Common Pitfalls. 1 upstream-contribution candidate flagged (`MartenOps.StartStream` Action-overload for capturing assigned ID). Skill name flagged for potential post-Phase-5 rename (Erik noted he doesn't love `marten-wolverine-aggregates`). |
-| 11 | `marten-projections` | 1 | _pending_ | _pending_ | _pending_ | _pending_ |
+| 11 | `marten-projections` | 1 | `marten-projections-single-stream` + `marten-projections-multi-stream` + `marten-projections-event-enrichment` + `marten-projections-composite` + `marten-projections-raise-side-effects` | Direct equivalent (deduplicated; partial coverage — 3 ai-skills topics have no Cab parallel) | ~41 net (~46 saved from body trims; +5 added in 5-entry Upstream block) | Heavy-mid trim of a hybrid skill: ai-skills splits projection coverage across 6 dedicated skills (5 referenced; `flat-table` skipped per Erik). Trimmed Three Lifecycles (collapsed mechanic-comparison table to Cab-default-and-use-case framing; cross-ref to ai-skills § Projection lifecycles), Single-Stream Shape 2 (compressed code, removed redundant generic-form example, kept parameterless-constructor footgun), Single-method Evolve alternative (removed code example since ai-skills covers; kept Cab decision criteria), Multi-Stream Projections (collapsed "Two things to internalize" + "Multi-stream gotchas" 3-bullet list to single Cab-pin paragraph + cross-ref to ai-skills `marten-projections-multi-stream`), Event Projections (folded explanation into intro), Soft-Delete Pattern (two H3 sections collapsed to bold paragraphs), Lookup-Document Pattern (minor ai-skills cross-ref add). Restructured See Also to three-block convention with **5-entry Upstream block** (largest Phase 5 Upstream block to date) — single-stream, multi-stream, event-enrichment, composite, raise-side-effects. Removed 5th forward-looking placeholder for non-existent `marten-event-sourcing-fundamentals` (4th time the same nonexistent skill has surfaced). **3 new Cab coverage gaps revealed** (event enrichment, composite projections, RaiseSideEffects — the largest single-skill gap discovery of Phase 5). Preserved entirely: top framing (Marten 8.0 / Chassaing snapshot+evolve alignment), Three Projection Recipes table, Shape 1 Self-aggregating, Multi-stream BC example (DriverLifetimeStats), Event Projections BC example (TripReceipt), IoC-Injected Projections (TripPricingProjection + identity-acl tie-in), Lifecycle Decision Guide (5-step flow), 8-bullet Anti-Patterns (incl. registration silent-failure footgun — upstream candidate). 1 upstream-contribution candidate flagged (projection registration silent-failure parallel to routing-rule pre-flight). |
 | 12 | `marten-querying` | 1 | _pending_ | _pending_ | _pending_ | _pending_ |
 | 13 | `marten-async-daemon` | 1 | _pending_ | _pending_ | _pending_ | _pending_ |
 | 14 | `dynamic-consistency-boundary` | 1 | _pending_ | _pending_ | _pending_ | _pending_ |
@@ -458,6 +458,63 @@ No edits made on the ProcessManager front. The two surviving uses are legitimate
 
 ---
 
+### 11. `marten-projections`
+
+**Counterpart(s).** Five ai-skills counterparts (per Erik's scoping — `marten-projections-flat-table` skipped because Cab has no use for flat-table projections):
+
+- `marten-projections-single-stream` (primary) — single-stream projection mechanics: Apply/Create method conventions, explicit `Evolve` method, lifecycle behavior, conditional deletes, rebuilds, testing.
+- `marten-projections-multi-stream` — Identity routing, fan-out patterns (`Identities<T>`), custom groupers with DB lookups, ViewProjection, time-segmented projections, composite identity keys.
+- `marten-projections-event-enrichment` — `EnrichEventsAsync` to avoid N+1 queries; declarative enrichment API. **No Cab parallel.**
+- `marten-projections-composite` — composite projections, staged execution, `Updated<T>`/`ProjectionDeleted<T>`/`References<T>` synthetic events, chained projections. **No Cab parallel.**
+- `marten-projections-raise-side-effects` — `RaiseSideEffects` override for publishing messages, appending events, or enqueuing work atomically with a projection update. **No Cab parallel.**
+
+**Largest Upstream block of Phase 5.** Five detailed entries in the Cab Upstream block, more than any prior skill. Reflects ai-skills' projection-coverage architecture (one skill per projection-pattern category) versus Cab's single combined skill.
+
+**3 new Cab coverage gaps revealed** (the largest single-skill gap discovery of Phase 5):
+
+1. **Event enrichment (`EnrichEventsAsync`)** — N+1 mitigation in projections.
+2. **Composite projections** — staged execution / chained projections / synthetic events.
+3. **`RaiseSideEffects`** — publishing messages or appending events from a projection atomically.
+
+These are recorded in Cab coverage gaps tracker. Worth surfacing prominently in Phase 5 close-out and considering for post-Phase-5 authoring (or, alternatively, accepting the gaps as "defer to ai-skills" since the ai-skills coverage is comprehensive).
+
+**Section categorization.** 15 sections audited; 7 substantively trimmed; rest preserved as Cab-specific value-add.
+
+**Trimmed sections:**
+
+- **Three Lifecycles** (~5 lines saved): collapsed mechanic-comparison table ("When events are applied" / "Tradeoff" columns) into Cab-default-and-use-case framing; absorbed standalone CritterCab default paragraph; cross-ref to ai-skills `marten-projections-single-stream` § Projection lifecycles.
+- **Single-Stream Shape 2** (~12 lines saved): compressed code formatting, removed redundant generic-form code example (`opts.Projections.Add<TripProjection>(...)`), kept the parameterless-constructor footgun rationale renamed as **Footgun** for visibility.
+- **Single-method `Evolve` alternative** (~14 lines saved): removed entire code example (covered in ai-skills `marten-projections-single-stream`); kept the Cab decision criteria for when `Evolve` fits over multiple `Apply` methods (and vice versa).
+- **Multi-Stream Projections** (~10 lines saved): collapsed the 2-bullet "Two things to internalize" and 3-bullet "Multi-stream gotchas" sections into a single Cab-pin paragraph ("multi-stream projections almost always run async") plus a single highlighted gotcha (foreign-key-missing case); cross-ref to ai-skills `marten-projections-multi-stream` for the full surface.
+- **Event Projections** (~3 lines saved): folded the trailing explanation paragraph (about the missing `snapshot` parameter) into the intro paragraph as a Note callout.
+- **Soft-Delete Pattern** (~6 lines saved): collapsed the two H3 sections (Marker / Returning null) into bold-paragraph form; cross-ref to ai-skills § Conditional deletes.
+- **Lookup-Document Pattern** (~1 line saved): added ai-skills `marten-projections-multi-stream` cross-ref alongside the Marten docs link; minor wording.
+- **See Also restructure** (+5 net): applied three-block convention. New 5-entry Upstream block with all referenced ai-skills counterparts (3 marked **No Cab parallel**). Existing Upstream block became Prerequisites. External block trimmed (forward-looking placeholder + install/license note + redundant `marten-aggregate-handler-workflow` entry removed).
+
+**Forward-looking placeholder removed:**
+
+- `ai-skills marten-event-sourcing-fundamentals` — 5th forward-looking placeholder removed in Phase 5 (Skills 4, 5, 8, 9, 11). Same nonexistent skill referenced 4 times across Cab; pattern is now well-established.
+
+**Preserved entirely:**
+
+- Top framing (Marten 8.0 / Chassaing snapshot+evolve alignment + January 2026 release context)
+- When to apply this skill
+- Three Projection Recipes table (Cab use cases for single-stream / multi-stream / event projections)
+- Single-Stream Shape 1 — Self-aggregating snapshot (preferred for write-side aggregates)
+- Multi-stream BC example (DriverLifetimeStats with Identity<T> routing for TripStarted/TripCompleted)
+- Event Projection BC example (TripReceipt)
+- IoC-Injected Projections (TripPricingProjection + IPriceLookup; AddProjectionWithServices<T> + identity-acl tie-in for Microsoft Graph)
+- Lifecycle Decision Guide (5-step Cab-specific decision flow)
+- 8-bullet Anti-Patterns (Apply+Evolve mixing, inline multi-stream, speculative inline, live for hot reads, AddProjectionWithServices with self-aggregating, multi-stream-needing-aggregate-load, registration silent-failure parallel to routing-rule footgun, snapshot mutation rules)
+
+**Trim impact.** ~46 lines of body content removed; +5 lines added in new 5-entry Upstream block. Net ~41 lines saved; file 25,593 → 24,446 bytes (-1,147 bytes, -4.5%). Solid mid-range trim — sits between Skill 6/7 (heavy mechanic deduplication, ~125–160 lines) and Skill 9 (minimal design+conventions, ~3 lines).
+
+**Upstream-contribution candidate flagged.** One:
+
+1. **Projection registration silent-failure footgun.** Cab's anti-pattern bullet calls out: "A `SingleStreamProjection<TDoc, TId>` subclass that's never added to `opts.Projections` does nothing. The compiler doesn't catch this — silent failure, like the most consequential CritterCab footgun in `wolverine-messaging-handlers`." ai-skills' `marten-projections-single-stream` covers projection registration but doesn't (per the section heads I audited) explicitly call out the silent-failure mode. Parallel to the `OutgoingMessages`-without-routing-rule footgun (Skill 3, roadmap entry #4) and the projection-registration-without-`opts.Projections.Add` mode is genuinely Cab-discovered framing. _TBD at close-out_ priority.
+
+---
+
 ## Methodology refinements emerging in Phase 5
 
 _(updated as the reconciliation progresses)_
@@ -490,6 +547,7 @@ Compiled list of Cab patterns/sections flagged as upstream-contribution candidat
 | 8 | `wolverine-azure-service-bus` | MaxDeliveryCount × Wolverine retries multiplicative interaction | ai-skills mentions both retry types separately but doesn't articulate how they compose: a Wolverine retry of N inside ASB `MaxDeliveryCount` of M means up to N×M total processing attempts. This composition footgun is Cab-discovered framing. | _TBD at close-out_ |
 | 9 | `wolverine-sagas` | Entire skill — Wolverine saga patterns including the `Saga` base class, method-name conventions (Start/StartOrHandle/Handle/Orchestrate/NotFound), saga-ID resolution cascade, valid saga-ID types, TimeoutMessage scheduling, saga-not-found semantics, Marten + Polecat persistence, optimistic concurrency via IRevisioned, the static-allowed-vs-instance-required asymmetry | ai-skills has no `wolverine-sagas-*` skill at all. Cab's 39 KB skill is comprehensive coverage of an entire ai-skills topic gap. **No active author** — unlike the gRPC skills (Erik is the planned author), no one in the JasperFx ecosystem is writing this currently as far as we know. If someone decides to author it, Cab content is substantial fuel. | **Observed gap** (no active author) |
 | 10 | `marten-wolverine-aggregates` | `MartenOps.StartStream` Action-overload for capturing assigned stream ID | ai-skills covers `MartenOps.StartStream<T>(events)` (auto-assigned) and `MartenOps.StartStream<T>(id, events)` (explicit ID) but not the Action-overload pattern: `MartenOps.StartStream<T>(s => { assignedId = s.Id; }, events)`. Genuinely useful when the handler needs the auto-assigned ID for an integration message body. Cab uses this pattern; ai-skills could add it as a brief note in § Starting new streams. | _TBD at close-out_ |
+| 11 | `marten-projections` | Projection registration silent-failure footgun | ai-skills' `marten-projections-single-stream` covers projection registration but doesn't (per the heads I audited) explicitly call out the silent-failure mode: a `SingleStreamProjection<TDoc, TId>` subclass that's never added to `opts.Projections` does nothing, and the compiler doesn't catch this. Parallel to the `OutgoingMessages`-without-routing-rule footgun (entry #4). Genuinely Cab-discovered framing worth upstreaming. | _TBD at close-out_ |
 
 ## Cab cleanup roadmap (post-Phase-5 followups)
 
@@ -509,11 +567,14 @@ Reconciliation occasionally surfaces Cab content that doesn't reflect Cab's actu
 
 ## Cab coverage gaps revealed
 
-Reconciliation surfaces topics where ai-skills has dedicated coverage but Cab doesn't. These are candidates for future Cab skills (post-Phase 5) but were deliberately not added during Phase 5 reconciliation, which is reconciliation-only.
+ai-skills covers topics that Cab has no parallel skill for. These are documented honestly via cross-ref in the Cab `Upstream` block (per methodology refinement #4) so that readers know to load the ai-skills directly. Authoring a Cab parallel is a post-Phase-5 decision — in some cases the ai-skills coverage may be sufficient and Cab doesn't need its own skill.
 
-| # | Topic | ai-skills counterpart | Cab status | Priority |
+| # | Topic | ai-skills counterpart | Cab status | Notes |
 |---|---|---|---|---|
-| 1 | Messaging resiliency (retry, circuit breaker, DLQ, compensating actions) | `wolverine-messaging-resiliency-policies` | No Cab parallel; `wolverine-messaging-handlers` references the ai-skills counterpart in `Upstream` | Future (per Erik, not a Phase 5 priority) |
+| 1 | Wolverine messaging resiliency policies (retry strategies, circuit breakers, dead-letter queues, compensating actions) | `wolverine-messaging-resiliency-policies` | No parallel skill | Surfaced in Skill 3 (`wolverine-messaging-handlers`); the same ai-skills counterpart is also referenced as Upstream from Skills 6, 7, 10. |
+| 2 | Event enrichment for projections (`EnrichEventsAsync` to avoid N+1 queries) | `marten-projections-event-enrichment` | No parallel skill | Surfaced in Skill 11 (`marten-projections`). ai-skills coverage is dedicated; Cab may not need its own skill if the ai-skills coverage is loaded directly when this pattern is used. |
+| 3 | Composite projections (staged execution, chained projections, synthetic events) | `marten-projections-composite` | No parallel skill | Surfaced in Skill 11. Same logic — ai-skills coverage dedicated, may not need Cab parallel. |
+| 4 | `RaiseSideEffects` from projections (publishing messages, appending events, atomic side effects) | `marten-projections-raise-side-effects` | No parallel skill | Surfaced in Skill 11. Same logic. |
 
 ---
 
@@ -531,13 +592,13 @@ To be executed after all 39 per-skill reconciliations complete.
 
 _(updated at session end)_
 
-- Skills reconciled: 10 / 39
-- Total lines trimmed: ~410
-- Direct-equivalent (deduplicated): 7
+- Skills reconciled: 11 / 39
+- Total lines trimmed: ~451
+- Direct-equivalent (deduplicated): 8
 - No equivalent: 3 (both gRPC skills + sagas; gRPC scoped under Erik's active upstream roadmap, sagas an observed gap with no active author)
-- Upstream-contribution candidates: 10 (8 footgun-style additions + 1 entire-skill-creation covering both gRPC skills (Active, Erik's roadmap) + 1 entire-skill-creation for sagas (Observed gap, no active author))
+- Upstream-contribution candidates: 11 (9 footgun-style additions + 1 entire-skill-creation covering both gRPC skills (Active, Erik's roadmap) + 1 entire-skill-creation for sagas (Observed gap, no active author))
 - Upstream-replacement candidates: 0
-- Cab coverage gaps revealed: 1 (messaging resiliency)
+- Cab coverage gaps revealed: 4 (messaging resiliency + 3 from Skill 11: event enrichment, composite projections, RaiseSideEffects)
 - Cab content corrections: 1 (MT/NSB interop section removed from `wolverine-azure-service-bus`)
-- Forward-looking placeholders removed: 4 (Skills 4, 5, 8, 9 — pre-Phase-5 Cab pattern of placeholdering not-yet-published ai-skills counterparts)
+- Forward-looking placeholders removed: 5 (Skills 4, 5, 8, 9, 11 — pre-Phase-5 Cab pattern of placeholdering not-yet-published ai-skills counterparts; same nonexistent `marten-event-sourcing-fundamentals` referenced 4 times)
 - Cab cleanup items deferred to post-Phase-5: 1 (Skill 10 rename)

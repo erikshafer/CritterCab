@@ -50,15 +50,13 @@ Most CritterCab projections are single-stream. Multi-stream is the right choice 
 
 ## Three Lifecycles
 
-Independent of the recipe, every projection runs at one of three lifecycles.
+Independent of the recipe, every projection runs at one of three lifecycles. The full mechanic surface (Inline/Async/Live behavior, per-projection registration) is documented in ai-skills `marten-projections-single-stream` § Projection lifecycles. The Cab-specific framing:
 
-| Lifecycle | When events are applied | Tradeoff |
-|---|---|---|
-| **Live** | On every read; the snapshot is never persisted, only computed on demand. | Zero write amplification. Every load is O(stream length). Default for most CritterCab aggregates. |
-| **Inline** | In the same transaction that captures the events. The snapshot is persisted and updated synchronously. | Reads are O(1) at the cost of write amplification. Use for hot read paths or long streams (>1000 events). |
-| **Async** | In the background by the async daemon. The snapshot is eventually consistent. | Reads are O(1); writes are not amplified by projection cost. The daemon must be running. Use for multi-stream, IoC-dependent, or expensive projections. |
-
-The lifecycle choice is per-projection, registered in `service-bootstrap` per the patterns in `marten-aggregates` § Snapshot Strategies.
+| Lifecycle | Cab default and use case |
+|---|---|
+| **Live** | Default for write-side aggregates (`Trip`, `RideOffer`, `DriverApplication`) loaded via `[WriteAggregate]` in handlers. Zero write amplification; load is O(stream length). |
+| **Inline** | Reserved for measured hot paths only. Speculative inline is a projection footgun — every event-append pays the projection cost. Reads are O(1). |
+| **Async** | Read models that fan out across multiple streams (operations dashboard, lifetime stats), have IoC dependencies, or are expensive enough to warrant deferral. Requires the async daemon. |
 
 ```csharp
 // Self-aggregating live aggregation — most common
@@ -70,16 +68,14 @@ opts.Projections.Snapshot<DriverProfile>(SnapshotLifecycle.Inline);
 // Self-aggregating async snapshot — when the projection has IoC dependencies or is expensive
 opts.Projections.Snapshot<TripSummary>(SnapshotLifecycle.Async);
 
-// Explicit projection class — use the instance form when the constructor does anything
+// Explicit projection class — instance form when the constructor does anything
 opts.Projections.Add(new DriverLifetimeStatsProjection(), ProjectionLifecycle.Async);
 
-// Or the generic form when the constructor is parameterless and trivial
+// Generic form — only when the constructor is parameterless and trivial
 opts.Projections.Add<SimpleAuditProjection>(ProjectionLifecycle.Async);
 ```
 
-The `LiveStreamAggregation<T>` and `Snapshot<T>(SnapshotLifecycle)` calls work only with self-aggregating types (Shape 1 below). Marten throws an `InvalidOperationException` at startup if you try them with a `SingleStreamProjection<TDoc, TId>` subclass; for explicit projection classes, use `Add(...)`.
-
-**CritterCab default:** live aggregation for write-side aggregates (the `Trip`, `RideOffer`, `DriverApplication` aggregates that handlers load via `[WriteAggregate]`). Read models that fan out across many streams (operations dashboard, lifetime stats) go async. Inline is reserved for measured hot paths.
+`LiveStreamAggregation<T>` and `Snapshot<T>(SnapshotLifecycle)` work only with self-aggregating types (Shape 1 below); for explicit `SingleStreamProjection<TDoc, TId>` subclasses, use `Add(...)`.
 
 ---
 
@@ -119,56 +115,27 @@ public sealed record Trip(/* ... */);   // No Create/Apply methods; pure data
 
 public class TripProjection : SingleStreamProjection<Trip, Guid>
 {
-    public TripProjection()
-    {
-        Name = "Trip";
-    }
+    public TripProjection() { Name = "Trip"; }
 
-    public Trip Create(IEvent<TripStarted> @event) =>
-        new(/* ... */, Id: @event.StreamId);
-
-    public Trip Apply(TripCompleted @event, Trip current) =>
-        current with { /* ... */ };
+    public Trip Create(IEvent<TripStarted> @event) => new(/* ... */, Id: @event.StreamId);
+    public Trip Apply(TripCompleted @event, Trip current) => current with { /* ... */ };
 }
 
-// In service-bootstrap:
+// Registration — instance form when the constructor does anything:
 opts.Projections.Add(new TripProjection(), ProjectionLifecycle.Inline);
 ```
 
-If the explicit projection type has a parameterless constructor and no constructor logic, the generic overload is also valid:
-
-```csharp
-opts.Projections.Add<TripProjection>(ProjectionLifecycle.Inline);
-```
-
-**Important:** the generic `Add<T>(...)` overload requires `T` to have a parameterless `new()` constructor. If your projection's constructor sets `Name`, captures dependencies, or does any other work, use the instance form `Add(new TProjection(), lifecycle)` instead. The compiler enforces the `new()` constraint.
+**Footgun:** the generic `Add<T>(...)` overload requires `T` to have a parameterless `new()` constructor. If your projection's constructor sets `Name`, captures dependencies, or does any other work, use the instance form `Add(new TProjection(), lifecycle)` — the compiler enforces the `new()` constraint, but the diagnostic is easy to misread.
 
 Use this shape when:
-- You need IoC-injected dependencies during projection (use `AddProjectionWithServices<T>` instead of `Add<T>`; see § IoC-Injected Projections below).
+- You need IoC-injected dependencies during projection (use `AddProjectionWithServices<T>`; see § IoC-Injected Projections below).
 - The projection logic is complex enough to warrant its own class.
 - Multiple projections target the same document type with different lifecycles or filters.
 - You want versioning, custom slicing, or the explicit `Evolve` method instead of multiple `Apply` overloads.
 
 ### The single-method `Evolve` alternative (Jeremy's March 2026 post)
 
-`SingleStreamProjection<TDoc, TId>` exposes an explicit-code `Evolve` method that handles all event types in one place. Useful when convention-based naming feels noisy or when subclass-event dispatch confuses Marten's convention scanner:
-
-```csharp
-public class TripProjection : SingleStreamProjection<Trip, Guid>
-{
-    public override Trip Evolve(Trip snapshot, Guid id, IEvent e)
-    {
-        snapshot ??= new Trip(Id: id, /* defaults */);
-        return e.Data switch
-        {
-            TripStarted s    => snapshot with { /* ... */ },
-            TripCompleted c  => snapshot with { Status = TripStatus.Completed, /* ... */ },
-            TripCancelled c  => snapshot with { Status = TripStatus.Cancelled, /* ... */ },
-            _ => snapshot
-        };
-    }
-}
-```
+`SingleStreamProjection<TDoc, TId>` exposes an explicit-code `Evolve` method that handles all event types in one switch expression. The mechanic is documented in ai-skills `marten-projections-single-stream`. Cab decision criteria:
 
 **When `Evolve` fits over multiple `Apply` methods:**
 - The dispatch is straightforward and the switch reads cleaner than five separate methods.
@@ -180,13 +147,13 @@ public class TripProjection : SingleStreamProjection<Trip, Guid>
 - You want Marten's filter optimization (only events with matching `Apply` methods are scanned at projection time).
 - The aggregate IS the projection (Shape 1).
 
-For most Cab aggregates, Shape 1 is correct. Reach for Shape 2 with explicit `Evolve` when those shape-1 conditions break.
+For most Cab aggregates, Shape 1 is correct. Reach for Shape 2 with explicit `Evolve` when those Shape-1 conditions break.
 
 ---
 
 ## Multi-Stream Projections
 
-A multi-stream projection aggregates events from many streams into a single document. The classic example: a driver's lifetime stats document, where the document's ID is the driver's ID but the events come from many different `Trip` streams.
+A multi-stream projection aggregates events from many streams into a single document. The classic Cab example: a driver's lifetime stats document, where the document's ID is the driver's ID but the events come from many different `Trip` streams.
 
 ```csharp
 public class DriverLifetimeStats
@@ -227,24 +194,15 @@ public class DriverLifetimeStatsProjection : MultiStreamProjection<DriverLifetim
 opts.Projections.Add(new DriverLifetimeStatsProjection(), ProjectionLifecycle.Async);
 ```
 
-Two things to internalize:
+**Cab pin: multi-stream projections almost always run async.** The cross-stream slicing happens in the daemon's slicing step; running it inline would tie every Trip-stream event-append to a multi-stream slice computation in the same transaction. `Identity<TEvent>(...)` (one event → one document) and `Identities<TEvent>(...)` (one event → many documents, fan-out) are the routing primitives. For the full mechanic surface — fan-out patterns, custom groupers with DB lookups, ViewProjection, time-segmented projections, composite identity keys — see ai-skills `marten-projections-multi-stream`.
 
-- **`Identity<TEvent>(...)`** tells Marten how to map each event type to the projected document's ID. Without it, Marten doesn't know which `DriverLifetimeStats` document to update for a given event.
-- **Multi-stream projections almost always run async.** Marten's recommendation per the projection docs. The cross-stream slicing happens in the daemon's slicing step; running it inline would tie every Trip-stream event-append to a multi-stream slice computation in the same transaction.
-
-**Multi-stream gotchas:**
-
-- **Events without the foreign key.** If a later event in the stream doesn't carry the driver ID (it was set on `TripStarted` but not on `WaypointRecorded`), you need a lookup pattern. Marten's docs cover three patterns: lookup document, custom `IAggregateGrouper`, or batched grouper-with-cache. The grouper pattern is the recommended general fix; see [Marten's Multi-Stream Projections docs](https://martendb.io/events/projections/multi-stream-projections.html).
-- **`Identities<TEvent>(e => list)`** for one-to-many mapping when a single event affects multiple documents.
-- **Multi-stream projections cost more.** Each event requires both grouping (which document) and applying (mutate the document). Profile before assuming this is free.
-
-If a Cab projection genuinely requires loading the aggregate document during grouping, multi-stream projections won't work — the docs note that grouping happens in parallel to building views as a performance optimization. That case requires a custom `IProjection` implementation, which is rare enough not to belong in this skill.
+**Multi-stream gotcha worth highlighting:** if a later event in the stream doesn't carry the foreign key (e.g., `WaypointRecorded` doesn't carry the driver ID that `TripStarted` did), you need a lookup pattern. The lookup-document pattern is the lightest fix; the grouper pattern is the general one. See § Lookup-Document Pattern below and Marten's docs for the substantive coverage.
 
 ---
 
 ## Event Projections
 
-`EventProjection` is for the simple case: one event produces one (or a few) documents. Useful when you want a denormalized view of events for query convenience.
+`EventProjection` is for the simple case: one event produces one (or a few) documents. Useful when you want a denormalized view of events for query convenience. **Note:** `EventProjection` doesn't track per-document state across events (no `snapshot` parameter); for "modify existing document based on new event," use single-stream or multi-stream instead.
 
 ```csharp
 public sealed record TripReceipt(
@@ -273,8 +231,6 @@ Use `EventProjection` when:
 - The mapping is event → document (1:1 or 1:few).
 - You don't need the prior state of the document — each event carries enough to construct or transform the document.
 - The lifecycle suits async (most do; receipts and audit-style projections rarely earn inline).
-
-`EventProjection` doesn't have a `snapshot` parameter on its methods — it doesn't track per-document state across events. If your projection needs to "the document already exists; modify it based on this new event," that's a single-stream or multi-stream projection, not an event projection.
 
 ---
 
@@ -348,11 +304,9 @@ When in doubt: live for write-side aggregates, async for everything else. Inline
 
 ## Soft-Delete Pattern
 
-Some projections need to delete the document on a specific event. Two ways:
+Two ways to delete the document on a specific event:
 
-### Marker (preferred for the simple case)
-
-In an explicit `SingleStreamProjection<TDoc, TId>` subclass, mark events that delete the document:
+**Marker form (preferred for the simple case)** — in an explicit `SingleStreamProjection<TDoc, TId>` subclass, mark events that delete the document via `DeleteEvent<T>()`:
 
 ```csharp
 public class RideOfferProjection : SingleStreamProjection<RideOfferView, Guid>
@@ -368,17 +322,13 @@ public class RideOfferProjection : SingleStreamProjection<RideOfferView, Guid>
 }
 ```
 
-`DeleteEvent<T>()` short-circuits projection processing for that event type — slightly more efficient than the alternative.
-
-### Returning null from `Evolve` or `Apply`
-
-In the explicit-code path, returning `null` from `Evolve` (or an `Apply` that returns `T?`) tells Marten to delete the document. Marker form (`DeleteEvent<T>()`) is preferred when applicable; `null` return is fallback for conditional deletes (e.g., delete only if some predicate holds).
+**Null-return form** — returning `null` from `Evolve` (or `Apply` that returns `T?`) tells Marten to delete. Use this for conditional deletes (e.g., delete only if some predicate holds); prefer `DeleteEvent<T>()` for simple unconditional cases. See ai-skills `marten-projections-single-stream` § Conditional deletes for the full surface.
 
 ---
 
 ## Lookup-Document Pattern (Multi-Stream Cross-Reference)
 
-A common multi-stream challenge: events on one stream reference an aggregate that lives on a different stream. The Marten docs recommend three patterns; the lookup-document pattern is simplest and works for many Cab cases.
+A common multi-stream challenge: events on one stream reference an aggregate that lives on a different stream. The lookup-document pattern is the simplest fix and works for many Cab cases.
 
 The pattern at a glance:
 
@@ -386,7 +336,7 @@ The pattern at a glance:
 2. **A multi-stream projection** consults the lookup during grouping to find the right aggregate-id for events that don't carry it.
 3. **A grouper-with-cache** combines in-flight batch-internal lookups with the persisted lookup, avoiding the same-batch race that pure-lookup-document hits.
 
-The substantive coverage and code examples for each pattern live in [Marten's Multi-Stream Projections docs](https://martendb.io/events/projections/multi-stream-projections.html). When this pattern lands in a Cab service, copy from there — Marten's documentation team revamped this section in early 2026 specifically to make the patterns clearer.
+For full mechanic coverage and code examples, see ai-skills `marten-projections-multi-stream` § Custom groupers with DB lookups, plus [Marten's Multi-Stream Projections docs](https://martendb.io/events/projections/multi-stream-projections.html).
 
 ---
 
@@ -405,7 +355,15 @@ The substantive coverage and code examples for each pattern live in [Marten's Mu
 
 ## See also
 
-**Upstream** — load these first:
+**Upstream** — generic Marten projection mechanics this skill defers to. ai-skills (license required, install via `npx skills add`):
+
+- `marten-projections-single-stream` — single-stream projection mechanics: Apply/Create method conventions, the explicit `Evolve` method, lifecycle behavior (Inline/Async/Live), conditional deletes, rebuilds, testing.
+- `marten-projections-multi-stream` — Identity routing, fan-out patterns (`Identities<T>`), custom groupers with DB lookups, ViewProjection, time-segmented projections, composite identity keys.
+- `marten-projections-event-enrichment` — `EnrichEventsAsync` to avoid N+1 queries; declarative enrichment API. **No Cab parallel** — load this directly when a projection needs reference data beyond the raw event.
+- `marten-projections-composite` — composite projections, staged execution, `Updated<T>`/`ProjectionDeleted<T>`/`References<T>` synthetic events, chained projections. **No Cab parallel** — load this directly when building chained read models.
+- `marten-projections-raise-side-effects` — `RaiseSideEffects` override for publishing messages, appending events, or enqueuing work atomically with a projection update. **No Cab parallel** — load this directly when a projection needs to trigger downstream effects.
+
+**Prerequisites** — Cab-internal skills to load first if unfamiliar:
 
 - `marten-aggregates` — aggregate shape, snapshot/evolve naming, when an aggregate IS its own projection.
 - `marten-wolverine-aggregates` — the handler workflow that produces events for projections to consume.
@@ -426,9 +384,6 @@ The substantive coverage and code examples for each pattern live in [Marten's Mu
 
 **External:**
 
-- ai-skills `marten-aggregate-handler-workflow` — the canonical Marten + Wolverine workflow including projection patterns.
-- ai-skills `marten-event-sourcing-fundamentals` — generic Marten event-store mechanics.
-- All ai-skills installed via `npx skills add` (license required).
 - [Marten Aggregation Projection Subsystem (Jeremy Miller, January 22, 2026)](https://jeremydmiller.com/2026/01/22/martens-aggregation-projection-subsystem/) — the canonical 2026 framing of "snapshot" and "evolve" alignment with Chassaing.
 - [New Option for Simple Projections in Marten or Polecat (Jeremy Miller, March 24, 2026)](https://jeremydmiller.com/2026/03/24/new-option-for-simple-projections-in-marten-or-polecat/) — the explicit `Evolve` method on `SingleStreamProjection<TDoc, TId>`.
 - [Easier Query Models with Marten (Jeremy Miller, January 20, 2026)](https://jeremydmiller.com/2026/01/20/easier-query-models-with-marten/) — multi-stream projection improvements and composite/chained projections.
