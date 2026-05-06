@@ -255,7 +255,18 @@ For full CLI coverage, see `cli-jasperfx` (Phase 2).
 
 ## See also
 
-**Upstream** — load these first if unfamiliar:
+**Upstream** — generic Wolverine handler mechanics this skill defers to. ai-skills (license required, install via `npx skills add`):
+
+- `wolverine-handlers-fundamentals` — generic handler shape, discovery, return-type reference, Logger convention.
+- `wolverine-handlers-pure-functions` — decider pattern, A-Frame, why handlers are pure.
+- `wolverine-handlers-a-frame-architecture` — infrastructure-at-edges principle.
+- `wolverine-handlers-railway-programming` — `Validate` / `ProblemDetails` pipeline.
+- `wolverine-handlers-declarative-persistence` — `[Entity]`, `[WriteAggregate]`, `[ReadAggregate]`.
+- `wolverine-handlers-middleware` — full lifecycle, `OnException`, `MiddlewareScoping`, custom policies.
+- `wolverine-handlers-ioc-and-service-optimization` — `ServiceLocationPolicy`, codegen modes, pre-generation, Lamar fallback.
+- `marten-aggregate-handler-workflow` — full aggregate workflow reference.
+
+**Prerequisites** — Cab-internal skills to load first if unfamiliar:
 
 - `csharp-coding-standards` — sealed records, validators-as-nested-classes, `TimeProvider`, modern guard clauses.
 - `vertical-slice-organization` — file placement, single-file colocation of command + validator + handler.
@@ -276,19 +287,6 @@ For full CLI coverage, see `cli-jasperfx` (Phase 2).
 - `wolverine-sagas` — saga state machines, timeouts, `bus.ScheduleAsync` (Phase 4).
 - `polecat-event-sourcing` — `PolecatOps.StartStream` (Phase 4).
 - `cli-jasperfx` — full CLI surface for diagnostics (Phase 2).
-
-**Upstream (ai-skills)** — generic Wolverine handler mechanics this skill defers to:
-
-- `wolverine-handlers-fundamentals` — generic handler shape, discovery, return-type reference, Logger convention.
-- `wolverine-handlers-pure-functions` — decider pattern, A-Frame, why handlers are pure.
-- `wolverine-handlers-a-frame-architecture` — infrastructure-at-edges principle.
-- `wolverine-handlers-railway-programming` — `Validate` / `ProblemDetails` pipeline.
-- `wolverine-handlers-declarative-persistence` — `[Entity]`, `[WriteAggregate]`, `[ReadAggregate]`.
-- `wolverine-handlers-middleware` — full lifecycle, `OnException`, `MiddlewareScoping`, custom policies.
-- `wolverine-handlers-ioc-and-service-optimization` — `ServiceLocationPolicy`, codegen modes, pre-generation, Lamar fallback.
-- `marten-aggregate-handler-workflow` — full aggregate workflow reference.
-
-ai-skills is installed at the user level via `npx skills add` (license required).
 
 **External:**
 

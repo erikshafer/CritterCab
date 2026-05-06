@@ -23,7 +23,15 @@ Methodology per skill (mirrors Phase 4 cadence):
 5. Apply trims after greenlight.
 6. Record outcome here.
 
-Convention adopted in Phase 5: Cab `See Also` sections promote ai-skills entries from the existing `External` block into a new **`Upstream (ai-skills)`** sub-block, distinct from Cab-internal `Upstream` (which continues to mean "Cab-internal load-first prerequisites"). The `External` block remains for non-ai-skills external references (Wolverine docs, blog posts, papers).
+Convention adopted in Phase 5: Cab `See Also` sections distinguish three flavors of cross-reference:
+
+- **`Upstream`** — the authoritative external reference library this Cab skill defers to. In practice this means **ai-skills** (license required, install via `npx skills add`). Entries drop the `ai-skills` prefix since the heading establishes scope. The lead-in line names the licensing once. **This is a semantic shift from Phases 1–4**, where `Upstream` meant Cab-internal load-first prerequisites.
+- **`Prerequisites`** — Cab-internal skills to load first if unfamiliar with the project conventions assumed by this skill. This is the new label for what Phases 1–4 called `Upstream`.
+- **`External`** — non-ai-skills external references (Wolverine docs, blog posts, papers, RFCs).
+
+The `Upstream` section comes first in `See Also` (foundational reference), followed by `Prerequisites` (Cab orientation), then `Sibling skills`, `Downstream`, and `External`.
+
+The rename `Upstream` → `Prerequisites` happens as part of each skill's Phase 5 reconciliation, alongside the addition of the new `Upstream` (ai-skills) block. Cross-references in other skills are unaffected because they reference skill names, not section names within those skills.
 
 ---
 
@@ -121,7 +129,13 @@ Cab's hub-skill structure is structurally compatible: it acts as a Cab-specific 
 
 **Trim impact.** ~18 lines removed (Lambda Factory section ~22 → ~5; Logger Convention ~6 → 2; External → restructured into Upstream (ai-skills) + minimal External, net ~+3 from new heading and framing). Skill went from 322 → ~304 lines.
 
-**Convention established.** This skill set the Phase 5 `See Also` convention: a new `Upstream (ai-skills)` sub-block sits alongside the existing Cab-internal `Upstream` block. Entries inside `Upstream (ai-skills)` drop the `ai-skills` prefix (since the heading already establishes scope). A trailing line names the install command and license requirement once. The `External` block retains non-ai-skills references (Wolverine docs link).
+**Convention established.** This skill set the Phase 5 `See Also` convention. After Erik's review, the convention was refined to a cleaner three-block structure (instead of the awkward two-`Upstream` form initially applied):
+
+- **`Upstream`** — ai-skills counterparts (the authoritative external reference). Comes first in `See Also`. License/install note in the lead-in line; entries drop the `ai-skills` prefix (heading establishes scope).
+- **`Prerequisites`** — Cab-internal load-first skills (renamed from what Phases 1–4 called `Upstream`).
+- **`External`** — non-ai-skills external references only (Wolverine docs link, blog posts).
+
+The `Upstream` → `Prerequisites` rename is part of every Phase 5 skill reconciliation. Subsequent skills follow the same three-block layout and ordering.
 
 **Upstream-contribution candidate flagged.** The `session.Events.StartStream<T>(...)` direct-call silent-failure footgun (Marten-side) belongs in a future ai-skills `wolverine-handlers-fundamentals` or `marten-aggregate-handler-workflow` revision. Cab will continue carrying it until ai-skills covers it.
 
@@ -131,8 +145,9 @@ Cab's hub-skill structure is structurally compatible: it acts as a Cab-specific 
 
 _(updated as the reconciliation progresses)_
 
-1. **`See Also` `Upstream (ai-skills)` convention** (from Skill 1). Adopted as the Phase 5 standard; subsequent skills should follow it.
-2. _(more entries to come)_
+1. **`See Also` three-block convention** (from Skill 1, refined after review). `Upstream` (ai-skills) → `Prerequisites` (Cab-internal) → `Sibling skills` → `Downstream` → `External`. Adopted as the Phase 5 standard; subsequent skills follow it. The rename `Upstream` → `Prerequisites` happens uniformly across every Phase 5-reconciled skill.
+2. **License framing in `Upstream` lead-in.** Each skill's `Upstream` block lead-in mentions "ai-skills (license required, install via `npx skills add`)" once. ai-skills content is never inlined into Cab skills — only skill names are referenced. This honors the proprietary/licensed status of ai-skills.
+3. _(more entries to come)_
 
 ---
 
