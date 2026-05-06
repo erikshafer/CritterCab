@@ -59,7 +59,7 @@ Reference repo HEAD revisions at session start: _(not captured — would have be
 | 6 | `wolverine-kafka` | 1 | `wolverine-integrations-kafka` + `wolverine-messaging-resiliency-policies` | Direct equivalent (deduplicated) | ~125 | Most aggressive trim yet. Heavy code-block duplication: trimmed Direct connection, ConsumeOnly, Convention-based routing, Multi-topic listeners, Transport-level/per-topic group ID overrides, GroupId stamping, Default envelope serialization, Raw JSON interop, Custom envelope mapper, native DLT, Retry policies, Circuit breakers, Tombstones; preserved EH Emulator constraint, Cab BC topic table + handlers, partition key rationale (driver_id/zone_id), ProcessInline decision framing, Schema Registry decision, Azure Event Hubs section (EH Emulator + ConfigureClient SASL), 12-bullet Common pitfalls; 2 upstream-contribution candidates flagged (EH Emulator AutoProvision constraint, BatchMessagesOf<T> for batch consumption) |
 | 7 | `wolverine-azure-service-bus` | 1 | `wolverine-integrations-azure-service-bus` + `wolverine-messaging-resiliency-policies` | Direct equivalent (deduplicated) | ~160 | Largest trim of Phase 5 (8.2% byte reduction). Heavy code-block duplication trimmed across Bootstrap (Managed Identity, AutoProvision, AutoPurgeOnStartup, System queues), Topics (Publishing, Subscribing, Subscription rules, Configuring properties), Queues (Publishing, Listening, Configuring), Sessions (Setting session ID, Sessions on subscriptions, ExclusiveNodeWithSessions), DLQ (Native, Wolverine routing, Circuit breakers), Scheduled delivery, Custom envelope mapper. **Erik flagged that the existing MassTransit/NServiceBus interop section was incorrect** — Cab does not use them and never will. Section removed entirely (not trimmed). Preserved Cab-specific content: Aspire connection-string integration, BC examples (TripCompleted, RiderRegistered, ProcessPayment), partition rationale, MaxDeliveryCount-vs-Wolverine-retries footgun, Aspire emulator package status, default envelope mapping table, local-vs-production table, 12-bullet Common pitfalls. 1 upstream-contribution candidate flagged (MaxDeliveryCount × Wolverine retries multiplicative interaction) |
 | 8 | `wolverine-sagas` | 1 | _none — ai-skills has no saga skill_ | **No equivalent** + observed coverage gap (no active author) | ~3 (rename only) | Light pass: counterpart `wolverine-sagas-saga-pattern` was assumed to exist but verified absent in ai-skills (no `wolverine-sagas-*` skills exist; only saga test fixtures inside `wolverine-converting-from-masstransit`/`-nservicebus`). Renamed `Upstream` → `Prerequisites`; removed forward-looking placeholder + install/license note. Cab's 39 KB skill stands as authoritative reference. ProcessManager<TState> framework references confirmed absent from body (only generic-pattern uses survive: `process-manager` tag for searchability and "process managers that do everything" anti-pattern phrasing on line 423 — both retained as standard pattern terminology). 1 upstream-contribution candidate flagged with **Observed gap** priority (no current author) |
-| 9 | `marten-aggregates` | 1 | _pending_ | _pending_ | _pending_ | _pending_ |
+| 9 | `marten-aggregates` | 1 | `marten-projections-single-stream` + `marten-aggregate-handler-workflow` | Direct equivalent (deduplicated) | ~3 net (~5 saved from Snapshot Strategies + External trims, partially offset by ~5 added in new Upstream block) | First design-and-conventions skill in Phase 5 — minimal duplication by design, since Cab top framing explicitly defers mechanics to ai-skills. Trimmed Snapshot Strategies (removed Live-vs-Inline mechanic table; kept Cab "live aggregation default" guidance + cross-ref to `marten-projections-single-stream` § Projection lifecycles). Restructured See Also to three-block convention with new Upstream block referencing both ai-skills counterparts. Removed forward-looking placeholder for non-existent `marten-event-sourcing-fundamentals` (4th forward-looking placeholder removed in Phase 5; Skills 4, 5, 8, 9). Preserved entirely: When-to-event-source decision framework, Canonical Aggregate Shape (Trip + 6 conventions), Decider Pattern Critter Stack realization table, Stream Identity (incl. UUID v5 deterministic IDs), Apply Method Conventions (4 sub-rules), Aggregate Field Conventions, RideOffer worked example, 9-bullet Common Pitfalls. No upstream-contribution candidates flagged — content is genuinely Cab-specific design conventions (UUID v5 namespace, live default, ImmutableList preference, event-first parameter order, no-throw rule), not pitfalls or coverage gaps in ai-skills. |
 | 10 | `marten-wolverine-aggregates` | 1 | _pending_ | _pending_ | _pending_ | _pending_ |
 | 11 | `marten-projections` | 1 | _pending_ | _pending_ | _pending_ | _pending_ |
 | 12 | `marten-querying` | 1 | _pending_ | _pending_ | _pending_ | _pending_ |
@@ -371,6 +371,47 @@ No edits made on the ProcessManager front. The two surviving uses are legitimate
 
 ---
 
+### 9. `marten-aggregates`
+
+**Counterpart(s).** Two ai-skills counterparts cover the mechanics this skill defers to:
+
+- `marten-projections-single-stream` — single-stream projection mechanics including Apply/Create method conventions and self-aggregating snapshot pattern; the Inline/Async/Live lifecycle comparison. The closest match for the underlying aggregate evolution mechanic.
+- `marten-aggregate-handler-workflow` — the full Marten + Wolverine aggregate handler workflow (FetchForWriting, `[WriteAggregate]`, optimistic concurrency). More relevant for Skill 10 (`marten-wolverine-aggregates`) but cross-referenced here as the handler-side of the decider-pattern split.
+
+**First design-and-conventions skill in Phase 5.** Cab's `marten-aggregates` explicitly positions itself as design+conventions, with mechanics deferred to ai-skills (top framing: "The generic Marten event-sourcing mechanics... are documented authoritatively in JasperFx ai-skills. **This skill documents the aggregate shape and the project-specific decisions that govern aggregate design in CritterCab.**"). Duplication is minimal by design.
+
+**Section categorization.** 12 sections audited; 1 substantively trimmed; rest preserved as Cab-specific value-add.
+
+**Trimmed sections:**
+
+- Snapshot Strategies (~5 lines saved): removed Live-vs-Inline mechanic comparison table; kept the Cab "live aggregation default" guidance and BC-specific code; added cross-ref to ai-skills `marten-projections-single-stream` § Projection lifecycles.
+- See Also restructure: applied three-block convention. New Upstream block with both ai-skills counterparts. Existing Upstream block became Prerequisites. External block trimmed (forward-looking placeholder + install/license note removed).
+
+**Forward-looking placeholder removed:**
+
+- `ai-skills marten-event-sourcing-fundamentals` — doesn't exist in ai-skills. 4th such placeholder removed in Phase 5 (after Skills 4, 5, 8). Pattern emerging: pre-Phase-5 Cab skills had a habit of placeholdering not-yet-published ai-skills counterparts that never materialized.
+
+**Preserved entirely:**
+
+- Top framing (explicit Cab-positioning-vs-ai-skills statement)
+- When to apply this skill
+- When to Reach for an Event-Sourced Aggregate (Cab BC decision framework: Trip/RideOffer/DriverApplication vs DriverProfile/RiderPreferences/VehicleRegistry)
+- Canonical Aggregate Shape (Trip example with 6 named conventions)
+- The Decider Pattern in Critter Stack Idiom (theory + Cab realization table)
+- Stream Identity and the Create Method (incl. UUID v5 deterministic IDs and `MartenOps.StartStream` usage)
+- Apply Method Conventions (one-per-event-type, parameter order, IEvent<T> for metadata, no-throw, commutativity)
+- Aggregate Field Conventions (Id, Status enum, nullable timestamps, value objects, no nav refs)
+- Worked Example: RideOffer (second BC-specific example, contrasting shape vs Trip)
+- Common Pitfalls (9 bullets)
+
+**Trim impact.** Net ~+186 bytes (~5 lines saved from Snapshot Strategies and External, partially offset by ~5 lines added in new Upstream block). Consistent with methodology refinement #6 — design-and-conventions skills with minimal mechanic duplication produce minimal byte changes; the reconciliation value is See Also restructure and forward-looking placeholder removal, not byte-saving.
+
+**Upstream-contribution candidates.** None flagged. Cab content is genuinely Cab-specific design conventions (UUID v5 namespace approach, "live aggregation default," ImmutableList preference, event-first parameter order, no-throw-in-Apply rule). These are project-specific decisions, not pitfalls or coverage gaps in ai-skills.
+
+**New methodology lesson #8 candidate.** Design-and-conventions skills behave differently from mechanic-heavy skills in reconciliation. The trim is genuinely minimal because the Cab content is by design *not* duplicating ai-skills. Future audits of similar skills (likely several remaining Tier 1 Marten skills, plus most of Tier 3) should expect this shape and not over-aggressively trim Cab-specific framing in search of reduction.
+
+---
+
 ## Methodology refinements emerging in Phase 5
 
 _(updated as the reconciliation progresses)_
@@ -382,7 +423,8 @@ _(updated as the reconciliation progresses)_
 5. **Handling "No equivalent in ai-skills" cases** (from Skill 4). When ai-skills has no counterpart today, the reconciliation pass is a light rename-only: `Upstream` → `Prerequisites`, remove any forward-looking placeholders for not-yet-published ai-skills counterparts (they mislead readers into searching for nonexistent skills), and skip the new `Upstream` block entirely. The Cab skill remains the authoritative reference until ai-skills publishes a parallel. If an ai-skills counterpart is actively planned (with a known author), record it in the upstream-contribution roadmap with an "Active" priority rather than "_TBD_".
 6. **Trim ratio depends on duplication shape** (refined from Skill 6). The 50% rule of thumb (refinement #3) applies when duplication is mostly **prose** — cross-reference paragraphs and expanded `Upstream` blocks consume most of the savings. When duplication is mostly **code blocks** (Skill 6's case), trims remove dense short lines that don't get fully replaced by prose; actual trim approaches `~1.0 × raw_lines_removed`. Skill 6 estimated ~120 lines, actual was ~125 — nearly 1:1. Skill 7 confirmed: ~160 lines actual (8.2% byte reduction). Future estimates should consider whether the target sections are code-heavy (closer to 1:1) or prose-heavy (closer to 0.5:1).
 7. **Section presence in Cab implies Cab uses it** (from Skill 7). When auditing a Cab skill, distinguish between two categories of content the audit may flag for action: (a) **mechanic duplicates ai-skills** → trim/cross-reference (the standard pattern through Skills 1–6); (b) **tool/pattern Cab doesn't use** → remove entirely. Skill 7 surfaced this when Erik flagged that the MassTransit/NServiceBus interop section was incorrect: Cab doesn't use MT/NSB and never will. The section was likely content drift from ai-skills or generic Wolverine docs during original authoring. The audit should explicitly check: does Cab actually use the patterns this section describes? If no, remove rather than trim. Future Phase 5 audits should look for content-drift sections of this kind.
-8. _(more entries to come)_
+8. **Design-and-conventions skills produce minimal trims** (from Skill 9). When a Cab skill is explicitly positioned as design+conventions with mechanics deferred to ai-skills (e.g., `marten-aggregates`), duplication is minimal by design and the trim is correspondingly small. Net byte change can even be slightly *positive* because the new Upstream block (with detailed counterpart entries) outweighs the modest mechanic trims. The reconciliation value for these skills is See Also restructure and forward-looking placeholder removal, not byte-saving. Audits of similar skills should expect this shape and not over-aggressively trim Cab-specific framing in search of reduction. Likely candidates upcoming: several remaining Tier 1 Marten skills, plus most of Tier 3 (Cab-specific patterns).
+9. _(more entries to come)_
 
 ---
 
@@ -434,11 +476,12 @@ To be executed after all 39 per-skill reconciliations complete.
 
 _(updated at session end)_
 
-- Skills reconciled: 8 / 39
-- Total lines trimmed: ~398
-- Direct-equivalent (deduplicated): 5
+- Skills reconciled: 9 / 39
+- Total lines trimmed: ~401
+- Direct-equivalent (deduplicated): 6
 - No equivalent: 3 (both gRPC skills + sagas; gRPC scoped under Erik's active upstream roadmap, sagas an observed gap with no active author)
 - Upstream-contribution candidates: 9 (7 footgun-style additions + 1 entire-skill-creation covering both gRPC skills (Active, Erik's roadmap) + 1 entire-skill-creation for sagas (Observed gap, no active author))
 - Upstream-replacement candidates: 0
 - Cab coverage gaps revealed: 1 (messaging resiliency)
 - Cab content corrections: 1 (MT/NSB interop section removed from `wolverine-azure-service-bus`)
+- Forward-looking placeholders removed: 4 (Skills 4, 5, 8, 9 — pre-Phase-5 Cab pattern of placeholdering not-yet-published ai-skills counterparts)

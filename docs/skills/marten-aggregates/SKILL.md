@@ -324,23 +324,14 @@ If a handler needs both Trip and Driver state, it loads each independently. Cros
 
 ## Snapshot Strategies
 
-Marten supports two aggregation strategies. The choice is per-aggregate.
-
-| Strategy | When | Tradeoff |
-|---|---|---|
-| **Live aggregation** | Default for most aggregates | Aggregate is rebuilt from the event stream on every load. Cost is O(stream length); typically negligible for streams under a few hundred events. |
-| **Inline projection** | Aggregates with long streams (>1000 events) or hot read paths | Aggregate is persisted as a document and updated synchronously when events are appended. Loads are O(1) at the cost of extra writes. |
-
-Configuration in `Program.cs` per `service-bootstrap`:
+Marten supports per-aggregate aggregation strategies. CritterCab's default is **live aggregation** — the aggregate is rebuilt from the event stream on every load. The cost is O(stream length); typically negligible for streams under a few hundred events. Switch to **inline projection** (persisted snapshot, O(1) loads at the cost of extra writes) only when profiling identifies an aggregate's load latency as a real bottleneck. The premature-optimization risk here is real — every inline projection is a write amplification, and most Cab aggregates don't have streams long enough to justify the cost.
 
 ```csharp
 opts.Projections.LiveStreamAggregation<Trip>();          // most aggregates
 opts.Projections.Snapshot<DriverProfile>(SnapshotLifecycle.Inline);  // hot or long
 ```
 
-CritterCab's default: live aggregation. Switch to inline only when profiling identifies an aggregate's load latency as a real bottleneck. The premature-optimization risk here is real — every inline projection is a write amplification, and most Cab aggregates don't have streams long enough to justify the cost.
-
-For async (rebuild-from-daemon) projection registration, see `marten-projections` and `marten-async-daemon` (Phase 2).
+For the full Inline/Async/Live lifecycle comparison and async (rebuild-from-daemon) projection registration, see ai-skills `marten-projections-single-stream` § Projection lifecycles, plus Cab's `marten-projections` and `marten-async-daemon` (Phase 2).
 
 ---
 
@@ -425,7 +416,12 @@ What's worth noting compared to `Trip`:
 
 ## See also
 
-**Upstream** — load these first:
+**Upstream** — generic Marten event-sourcing mechanics this skill defers to. ai-skills (license required, install via `npx skills add`):
+
+- `marten-projections-single-stream` — single-stream projection mechanics including the Apply/Create method conventions and self-aggregating snapshot pattern; the Inline/Async/Live lifecycle comparison.
+- `marten-aggregate-handler-workflow` — the full Marten + Wolverine aggregate handler workflow including FetchForWriting, `[WriteAggregate]`, and optimistic concurrency. Cab's `marten-wolverine-aggregates` is the project-specific layer over this.
+
+**Prerequisites** — Cab-internal skills to load first if unfamiliar:
 
 - `csharp-coding-standards` — sealed records, positional constructors, `Immutable*` collections, value objects.
 - `domain-event-conventions` — event naming, slim domain events vs. rich integration events, registration with Marten.
@@ -443,8 +439,5 @@ What's worth noting compared to `Trip`:
 
 **External:**
 
-- ai-skills `marten-aggregate-handler-workflow` — the full Marten + Wolverine aggregate workflow reference.
-- ai-skills `marten-event-sourcing-fundamentals` — generic Marten event-store mechanics.
-- All ai-skills installed via `npx skills add` (license required).
 - [Jérémie Chassaing — Functional Event Sourcing Decider](https://thinkbeforecoding.com/post/2021/12/17/functional-event-sourcing-decider) — the canonical decider-pattern reference.
 - [Marten Event Sourcing Documentation](https://martendb.io/events/).
