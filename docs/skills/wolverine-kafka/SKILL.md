@@ -76,37 +76,15 @@ builder.Host.UseWolverine(opts =>
 
 ### Direct connection
 
-For scripts, test harnesses, or services not managed by Aspire, pass the bootstrap servers directly:
-
-```csharp
-opts.UseKafka("localhost:9092")
-    .AutoProvision();
-```
+For non-Aspire scenarios (scripts, test harnesses), use `opts.UseKafka("localhost:9092")` directly. See ai-skills `wolverine-integrations-kafka` § Setup and connection for the full configuration surface (`ConfigureClient`, `ConfigureConsumers`, `ConfigureProducers`).
 
 ### AutoProvision
 
-`AutoProvision()` calls the Kafka admin API (`IAdminClient.CreateTopicsAsync`) to create any topics that don't yet exist at startup. This works against a real Kafka broker or the Confluent containers. It **does not work against the Azure Event Hubs Emulator** — the EH Emulator only supports Kafka producer and consumer APIs, not admin APIs. See the "Azure Event Hubs" section below for the workaround.
-
-Optionally pass an `Action<AdminClientConfig>` to tune the admin client used for provisioning:
-
-```csharp
-opts.UseKafkaUsingNamedConnection("kafka")
-    .AutoProvision(admin =>
-    {
-        admin.RequestTimeoutMs = 10_000;
-    });
-```
+`AutoProvision()` calls the Kafka admin API to create topics at startup. **It does not work against the Azure Event Hubs Emulator** — the EH Emulator only supports Kafka producer and consumer APIs, not admin APIs. See the "Azure Event Hubs" section below for the workaround. Optionally pass an `Action<AdminClientConfig>` to tune the admin client.
 
 ### ConsumeOnly
 
-Services that only consume from Kafka (never publish) can disable the producer health-check ping:
-
-```csharp
-opts.UseKafkaUsingNamedConnection("kafka")
-    .ConsumeOnly();
-```
-
-This avoids creating a producer connection that would never be used.
+For services that only consume (never publish), call `.ConsumeOnly()` to skip the producer connection. Generic mechanic — see ai-skills `wolverine-integrations-kafka` § Consume-only mode.
 
 ## Topic naming convention
 
@@ -126,7 +104,7 @@ Topics carry a descriptive name rather than a message-type name. A topic like `t
 
 ### Named topic routing
 
-The standard pattern maps a message type to a specific topic:
+Map a message type to a specific topic via `PublishMessage<T>().ToKafkaTopic("...")`. Cab's standard pattern uses one routing rule per Cab message type per service:
 
 ```csharp
 opts.PublishMessage<LocationPing>()
@@ -136,17 +114,11 @@ opts.PublishMessage<DemandSignal>()
     .ToKafkaTopic("telemetry.demand-signals");
 ```
 
-This is an explicit routing rule: every `LocationPing` published from this service goes to `telemetry.location-pings`. The `ToKafkaTopic` call is the Kafka-specific counterpart to `ToAzureServiceBusTopic` — same position in the routing chain, different wire.
+For the broader routing surface (`Specification` for partition count + replication factor, named brokers for multi-region), see ai-skills `wolverine-integrations-kafka` § Topic binding.
 
 ### Convention-based routing
 
-When message types map 1:1 to topics by name, Wolverine can derive the topic name from the message type:
-
-```csharp
-opts.PublishAllMessages().ToKafkaTopics();
-```
-
-This publishes each message type to a topic named after its Wolverine message identity. Named topic routing is preferred in Cab because topic names follow a `<bc>.<descriptive-name>` convention that doesn't match type names.
+Wolverine supports `opts.PublishAllMessages().ToKafkaTopics()` for derive-topic-name-from-message-type publishing. **Cab does not use this** — Cab's `<bc>.<descriptive-name>` topic convention doesn't match type names. Named topic routing (above) is the Cab default.
 
 ### Partition keys
 
@@ -165,36 +137,20 @@ For surge-pricing demand signals, partitioning by `zone_id` keeps all demand eve
 
 ### Single-topic listeners
 
-```csharp
-opts.ListenToKafkaTopic("telemetry.location-pings");
-```
-
-This creates a Kafka consumer that subscribes to the named topic and routes incoming messages through the Wolverine handler pipeline. The handler is a standard messaging handler:
+`opts.ListenToKafkaTopic("...")` creates a consumer; messages route through the Wolverine handler pipeline as standard messaging handlers — the handler doesn't know it came from Kafka:
 
 ```csharp
 public static class LocationPingHandler
 {
-    public static void Handle(LocationPing ping, ILogger logger)
-    {
-        // Handler doesn't know this came from Kafka.
-        // Partition key, offset, and consumer group are invisible here.
+    public static void Handle(LocationPing ping, ILogger logger) =>
         logger.LogDebug("Ping from driver {DriverId} at {Lat},{Lng}",
             ping.DriverId, ping.Latitude, ping.Longitude);
-    }
 }
 ```
 
 ### Multi-topic listeners (topic groups)
 
-When a service consumes several related topics, a topic group shares one Kafka consumer across them, reducing consumer-group rebalance churn:
-
-```csharp
-opts.ListenToKafkaTopics(
-    "telemetry.location-pings",
-    "telemetry.demand-signals");
-```
-
-Each topic still routes to its own handler based on message type. The difference is operational: one consumer connection, one consumer-group membership, fewer TCP sockets against the broker.
+For consuming several related topics from a single consumer (reducing rebalance churn), use `opts.ListenToKafkaTopics("...", "...")`. Each topic still routes to its own handler based on message type. Generic mechanic — see ai-skills `wolverine-integrations-kafka` § Topic binding.
 
 ### ProcessInline for high-throughput streams
 
@@ -209,31 +165,25 @@ Without `ProcessInline()`, Wolverine stores incoming messages in the durable inb
 
 ### Batch processing
 
-For handlers that benefit from processing many messages at once — aggregating GPS pings into a per-driver summary, or computing demand across a zone — Wolverine supports batch consumption:
+For handlers that benefit from processing many messages at once (aggregating GPS pings per driver, computing demand across a zone), use `opts.BatchMessagesOf<T>()` paired with the listener:
 
 ```csharp
 opts.ListenToKafkaTopic("telemetry.location-pings");
 opts.BatchMessagesOf<LocationPing>();
-```
 
-The handler receives an array:
-
-```csharp
 public static class LocationPingBatchHandler
 {
     public static void Handle(LocationPing[] pings, ILogger logger)
     {
         var byDriver = pings.GroupBy(p => p.DriverId);
         foreach (var group in byDriver)
-        {
             logger.LogDebug("Batch of {Count} pings for driver {DriverId}",
                 group.Count(), group.Key);
-        }
     }
 }
 ```
 
-Batch processing reduces per-message handler invocation overhead and pairs naturally with high-volume Kafka topics where individual-message processing is wasteful.
+Batch processing pairs naturally with high-volume Kafka topics where per-message invocation overhead is wasteful.
 
 ## Consumer groups
 
@@ -243,74 +193,36 @@ Wolverine sets the Kafka consumer group ID to the **service name** (`WolverineOp
 
 ### Transport-level override
 
-Override the default group ID for all topics in the service:
-
-```csharp
-opts.UseKafkaUsingNamedConnection("kafka")
-    .ConfigureConsumers(c => c.GroupId = "dispatch-telemetry");
-```
+`opts.UseKafkaUsingNamedConnection("kafka").ConfigureConsumers(c => c.GroupId = "...")` overrides the group ID for all topics in the service. Generic — see ai-skills `wolverine-integrations-kafka` § Consumer groups.
 
 ### Per-topic override
 
-Override the group ID for a single topic. Note that `ConfigureConsumer` on a topic **replaces** the parent `ConsumerConfig` entirely rather than merging — bootstrap servers are inherited automatically, but any other parent-level settings must be re-applied:
-
-```csharp
-opts.ListenToKafkaTopic("telemetry.location-pings")
-    .ConfigureConsumer(config =>
-    {
-        config.GroupId = "dispatch-location-group";
-        config.AutoOffsetReset = AutoOffsetReset.Latest;
-    });
-```
+`ListenToKafkaTopic(...).ConfigureConsumer(...)` overrides the group ID and other consumer settings for a single topic. **Important:** the per-topic call **replaces** the parent `ConsumerConfig` entirely — bootstrap servers are inherited automatically, but other parent-level settings must be re-applied. See ai-skills `wolverine-integrations-kafka` § Setup and connection (the "completely overwrites" note).
 
 ### GroupId stamping on envelopes
 
-By default, Wolverine stamps the consumer group ID onto `Envelope.GroupId` for every received message. If your handler cascades outbound messages and you want them to carry a business-meaningful partition key instead, disable the stamping:
-
-```csharp
-opts.ListenToKafkaTopic("telemetry.location-pings")
-    .DisableConsumerGroupIdStamping();
-```
-
-This is also required when using global partitioned aggregate processing, where the originating partition key must propagate through cascaded messages.
+Wolverine stamps the consumer group ID onto `Envelope.GroupId` for every received message by default. To disable (e.g., when cascading messages should carry a business-meaningful partition key), call `.DisableConsumerGroupIdStamping()` on the listener. Required for global partitioned aggregate processing — see ai-skills `wolverine-integrations-kafka` § Consumer groups + § Partition-based sequential processing.
 
 ## Serialization and interop
 
 ### Default envelope serialization
 
-Wolverine's default serialization wraps the message body in the Kafka message value and stores all envelope metadata (message ID, correlation ID, content type, message type name) as UTF-8-encoded Kafka message headers. Both sides must be Wolverine services. This is the Cab default for service-to-service Kafka communication.
+Cab uses Wolverine's default envelope serialization for service-to-service Kafka communication: message body in the Kafka value, envelope metadata (message ID, correlation ID, content type, message type name) in UTF-8 headers. Both sides must be Wolverine services.
 
 ### Raw JSON interop
 
-When one side is not a Wolverine service — a third-party GPS device pushing JSON directly to Kafka, or an analytics pipeline consuming raw JSON — use raw JSON mode.
-
-Publisher side (outbound):
+For interop with non-Wolverine producers/consumers (third-party GPS devices, analytics pipelines), use raw JSON mode. Listener must declare the expected message type at config time:
 
 ```csharp
-opts.PublishMessage<LocationPing>()
-    .ToKafkaTopic("telemetry.location-pings")
-    .PublishRawJson();
+opts.PublishMessage<LocationPing>().ToKafkaTopic("telemetry.location-pings").PublishRawJson();
+opts.ListenToKafkaTopic("telemetry.location-pings").ReceiveRawJson<LocationPing>();
 ```
 
-Listener side (inbound — must declare the expected message type):
-
-```csharp
-opts.ListenToKafkaTopic("telemetry.location-pings")
-    .ReceiveRawJson<LocationPing>();
-```
-
-Raw JSON mode strips all Wolverine envelope headers. The listener must know the message type at configuration time because there is no `message-type` header to resolve it dynamically.
+Raw JSON strips Wolverine envelope headers — see ai-skills `wolverine-integrations-kafka` § Raw JSON interoperability for the full publisher/listener semantics.
 
 ### Custom envelope mapper
 
-For full control over how Wolverine maps to and from Kafka `Message<string, byte[]>`, implement `IKafkaEnvelopeMapper` and register it on the listener:
-
-```csharp
-opts.ListenToKafkaTopic("telemetry.location-pings")
-    .UseInterop((endpoint, runtime) => new TelemetryKafkaMapper(endpoint));
-```
-
-This is an escape hatch for CloudEvents, Avro with a schema registry, or other wire formats that don't fit the default mapping or the raw JSON shortcut.
+For wire formats that don't fit the default mapping or raw JSON (CloudEvents, Avro with a schema registry, custom wrappers), implement `IKafkaEnvelopeMapper` and register via `.UseInterop(...)` on the listener. Escape hatch — Cab does not currently use it.
 
 ### Schema Registry serializers
 
@@ -320,48 +232,15 @@ Wolverine ships `SchemaRegistryAvroSerializer` and `SchemaRegistryJsonSerializer
 
 ### Enabling native dead letter topics
 
-Kafka has no built-in dead-letter queue. Wolverine implements dead-letter routing as a separate Kafka topic. Opt in per listener:
-
-```csharp
-opts.ListenToKafkaTopic("telemetry.location-pings")
-    .EnableNativeDeadLetterQueue();
-```
-
-The default DLT topic name is `wolverine-dead-letter-queue`. Override it globally:
-
-```csharp
-opts.UseKafkaUsingNamedConnection("kafka")
-    .DeadLetterQueueTopicName("crittercab-dlq");
-```
-
-When a message fails and the error policy routes it to the error queue, Wolverine produces the message to the DLT topic with four diagnostic headers: `exception-type`, `exception-message`, `exception-stack`, and `failed-at` (Unix epoch milliseconds).
+Kafka has no built-in DLQ. Wolverine implements dead-letter routing as a separate Kafka topic; opt in per listener with `.EnableNativeDeadLetterQueue()`. Override the default name (`wolverine-dead-letter-queue`) globally with `.DeadLetterQueueTopicName("crittercab-dlq")`. Wolverine stamps four diagnostic headers on dead-lettered messages (`exception-type`, `exception-message`, `exception-stack`, `failed-at`). See ai-skills `wolverine-integrations-kafka` § Dead letter queue.
 
 ### Retry policies
 
-Retry and error-handling policies are Wolverine-native, not Kafka-specific. Combine retries with dead-letter routing:
-
-```csharp
-opts.Policies.OnException<TelemetryProcessingException>()
-    .RetryTimes(3)
-    .Then.MoveToErrorQueue();
-```
-
-`MoveToErrorQueue()` sends the failed message to the DLT when retries are exhausted. Without `EnableNativeDeadLetterQueue()` on the listener, `MoveToErrorQueue` routes to Wolverine's database-backed dead-letter storage instead of a Kafka topic.
+Retry and error-handling policies are Wolverine-native, not Kafka-specific. Combine retries with dead-letter routing via `opts.Policies.OnException<T>().RetryTimes(N).Then.MoveToErrorQueue()`. Without `EnableNativeDeadLetterQueue()` on the listener, `MoveToErrorQueue` routes to Wolverine's database-backed dead-letter storage instead of the Kafka DLT. See ai-skills `wolverine-messaging-resiliency-policies` for the full retry/DLQ surface.
 
 ### Circuit breakers
 
-Each listener supports a circuit breaker that pauses consumption when failures exceed a threshold:
-
-```csharp
-opts.ListenToKafkaTopic("telemetry.location-pings")
-    .CircuitBreaker(cb =>
-    {
-        cb.MinimumThreshold = 20;
-        cb.PauseTime = TimeSpan.FromMinutes(1);
-    });
-```
-
-When the circuit opens, the listener stops pulling messages. After `PauseTime` elapses, Wolverine resumes consumption. This prevents a downstream outage from causing unbounded reprocessing of failing messages.
+Each listener supports a circuit breaker (`.CircuitBreaker(cb => { cb.MinimumThreshold = ...; cb.PauseTime = ...; })`) that pauses consumption when failures exceed a threshold. See ai-skills `wolverine-messaging-resiliency-policies` § Circuit breakers for the full configuration surface.
 
 ### Poison pill handling
 
@@ -410,15 +289,7 @@ opts.UseKafka("<namespace>.servicebus.windows.net:9093")
 
 ## Tombstones and log compaction
 
-Kafka supports log compaction: retaining only the latest message per key. To delete a key from a compacted topic, publish a **tombstone** — a null-valued message with the target key:
-
-```csharp
-await bus.PublishAsync(new KafkaTombstone(driverId.ToString()));
-```
-
-`KafkaTombstone` is a Wolverine type that produces a Kafka message with `Value = null` and `Key` set to the tombstone's key. This is relevant for topics like a hypothetical `telemetry.driver-status` where compaction retains only the latest status per driver and tombstones remove entries for drivers who go offline permanently.
-
-Most Cab Kafka topics (GPS pings, demand signals) use time-based retention, not compaction. Tombstones are the exception, not the rule.
+For compacted topics, publish a tombstone (null-valued message with the target key) to remove the entry: `await bus.BroadcastToTopicAsync("topic", new KafkaTombstone(key))`. **Most Cab Kafka topics (GPS pings, demand signals) use time-based retention, not compaction** — tombstones are the exception, not the rule. See ai-skills `wolverine-integrations-kafka` § Tombstone messages for the mechanic.
 
 ## Tracing
 
@@ -452,27 +323,31 @@ Wolverine's Kafka transport propagates OpenTelemetry trace context through Kafka
 
 ## See also
 
-### Upstream
+**Upstream** — generic Wolverine Kafka mechanics this skill defers to. ai-skills (license required, install via `npx skills add`):
+
+- `wolverine-integrations-kafka` — generic Wolverine + Kafka transport: setup, topic binding, consumer groups, partition-based sequential processing, delivery semantics (at-least-once vs at-most-once), raw JSON interop, tombstones, multi-region named brokers.
+- `wolverine-messaging-resiliency-policies` — retry strategies, circuit breakers, dead letter queues, compensating actions. Cab does not currently have a parallel skill — load this directly when configuring failure policies.
+
+**Prerequisites** — Cab-internal skills to load first if unfamiliar:
 
 - `transport-selection` — the decision framework that routes flows to Kafka vs ASB vs gRPC. Read this first to understand why a flow lands on Kafka.
 - `wolverine-messaging-handlers` — the handler shape for all messaging transports, including Kafka. Handlers don't change based on transport.
 - `service-bootstrap` — the `Program.cs` composition pattern that `UseKafkaUsingNamedConnection` extends.
 - `aspire` — Aspire orchestration of the Kafka container (`AddKafka("kafka")`) and connection-string injection.
 
-### Sibling skills
+**Sibling skills:**
 
 - `wolverine-azure-service-bus` (Phase 3) — ASB transport wiring; the other messaging transport Cab uses, optimized for domain events with rich DLQ support.
 - `cli-kafka-tooling` (Phase 3) — kcat, console tools, and Aspire dashboard for inspecting Kafka topics and messages.
 
-### Downstream
+**Downstream:**
 
 - `observability-tracing` (Phase 3) — full OTel pipeline configuration, including trace propagation across Kafka.
 - `wolverine-sagas` (Phase 4) — long-running processes that may span Kafka and ASB transports.
 - `testing-advanced` (Phase 4) — integration tests against Kafka using `Testcontainers.Kafka`.
 
-### External
+**External:**
 
 - [Wolverine Kafka transport docs](https://wolverinefx.net/guide/messaging/transports/kafka.html)
 - [Azure Event Hubs for Apache Kafka](https://learn.microsoft.com/en-us/azure/event-hubs/azure-event-hubs-kafka-overview)
 - ADR-005 — transport selection rationale
-- ai-skills: `wolverine-integrations-kafka`

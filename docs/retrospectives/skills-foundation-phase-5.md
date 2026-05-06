@@ -56,7 +56,7 @@ Reference repo HEAD revisions at session start: _(not captured — would have be
 | 3 | `wolverine-messaging-handlers` | 1 | `wolverine-messaging-message-routing` + `wolverine-messaging-resiliency-policies` | Direct equivalent (deduplicated) | ~26 | Trimmed PublishAsync/InvokeAsync code blocks, OutgoingMessages explanatory paragraph, ScheduleAsync explanation, redundant CLI commands; preserved Cab-specific routing-rule pre-flight, decision matrix, inbound handler idempotency pattern; added `wolverine-messaging-resiliency-policies` upstream cross-ref despite no Cab parallel; 1 upstream-contribution candidate flagged |
 | 4 | `wolverine-grpc-handlers` | 1 | _none — ahead of ai-skills_ | **No equivalent** + upstream-contribution candidate (Erik is planned author) | 0 (rename only) | Light pass: renamed `Upstream` → `Prerequisites`; removed misleading forward-looking placeholder for not-yet-published `wolverine-grpc` ai-skills + the install/license note. Erik is the planned author of the future ai-skills `wolverine-grpc` skill — Cab `wolverine-grpc-handlers` should be revisited once that publishes |
 | 5 | `wolverine-grpc-bidirectional-handlers` | 1 | _none — ahead of ai-skills_ | **No equivalent** + part of Erik's planned upstream work | 0 (rename only) | Light pass: identical pattern to Skill 4. Renamed `Upstream` → `Prerequisites`; removed the same forward-looking placeholder + install/license note. Erik's planned ai-skills `wolverine-grpc` skill will likely cover both this skill's content (client-streaming hand-written workaround + bidirectional) and the Skill 4 content (unary + server-streaming) |
-| 6 | `wolverine-kafka` | 1 | _pending_ | _pending_ | _pending_ | _pending_ |
+| 6 | `wolverine-kafka` | 1 | `wolverine-integrations-kafka` + `wolverine-messaging-resiliency-policies` | Direct equivalent (deduplicated) | ~125 | Most aggressive trim yet. Heavy code-block duplication: trimmed Direct connection, ConsumeOnly, Convention-based routing, Multi-topic listeners, Transport-level/per-topic group ID overrides, GroupId stamping, Default envelope serialization, Raw JSON interop, Custom envelope mapper, native DLT, Retry policies, Circuit breakers, Tombstones; preserved EH Emulator constraint, Cab BC topic table + handlers, partition key rationale (driver_id/zone_id), ProcessInline decision framing, Schema Registry decision, Azure Event Hubs section (EH Emulator + ConfigureClient SASL), 12-bullet Common pitfalls; 2 upstream-contribution candidates flagged (EH Emulator AutoProvision constraint, BatchMessagesOf<T> for batch consumption) |
 | 7 | `wolverine-azure-service-bus` | 1 | _pending_ | _pending_ | _pending_ | _pending_ |
 | 8 | `wolverine-sagas` | 1 | _pending_ | _pending_ | _pending_ | _pending_ |
 | 9 | `marten-aggregates` | 1 | _pending_ | _pending_ | _pending_ | _pending_ |
@@ -243,6 +243,60 @@ Note: ai-skills uses `[Aggregate]` and `[WriteAggregate]` interchangeably across
 
 ---
 
+### 6. `wolverine-kafka`
+
+**Counterpart(s).** Two ai-skills counterparts:
+
+- `wolverine-integrations-kafka` — generic Wolverine + Kafka transport: setup, topic binding, consumer groups, partition-based sequential processing, delivery semantics, raw JSON interop, tombstones, multi-region named brokers. Direct counterpart.
+- `wolverine-messaging-resiliency-policies` — retry/circuit-breaker/DLQ. **No Cab parallel** (same scenario as Skill 3); the Cab skill cross-references retry policies and circuit breakers, so the resiliency-policies upstream entry is included in the new `Upstream` block.
+
+**Section categorization.** The Cab Kafka skill had the most generic-mechanic duplication of any reconciled skill so far. ~30 sections audited; ~17 substantively trimmed; rest kept as Cab-specific value-add.
+
+**Trimmed sections (~125 raw lines removed):**
+
+- Bootstrap > Direct connection (Cab BC code block dropped, cross-referenced)
+- Bootstrap > AutoProvision (mechanic explanation tightened; **EH Emulator constraint kept** as the Cab-discovered value-add)
+- Bootstrap > ConsumeOnly (collapsed to 1-line + cross-ref)
+- Publishing > Named topic routing (kept Cab BC routing rules; trimmed mechanic explanation)
+- Publishing > Convention-based routing (collapsed to brief Cab-doesn't-use note)
+- Listening > Single-topic listeners (kept Cab `LocationPingHandler` example; trimmed redundant explanation)
+- Listening > Multi-topic listeners (collapsed to brief note + cross-ref)
+- Listening > Batch processing (kept Cab BC `LocationPingBatchHandler` example; tightened explanation)
+- Consumer groups > Transport-level override (collapsed to 1-line + cross-ref)
+- Consumer groups > Per-topic override (kept the "replaces parent" caveat in prose; dropped code example, cross-ref to ai-skills)
+- Consumer groups > GroupId stamping (collapsed to brief note + cross-ref)
+- Serialization > Default envelope serialization (tightened; framed as Cab default)
+- Serialization > Raw JSON interop (kept Cab BC publisher/listener pair; dropped redundant explanation)
+- Serialization > Custom envelope mapper (collapsed to escape-hatch note)
+- DLT > Native DLT (collapsed to single paragraph + cross-ref)
+- DLT > Retry policies (collapsed; cross-ref to `wolverine-messaging-resiliency-policies`)
+- DLT > Circuit breakers (collapsed; cross-ref to resiliency-policies)
+- Tombstones (collapsed mechanic; **kept Cab note** that GPS pings/demand signals use time-based retention)
+- See Also (restructured to three-block convention; added `wolverine-messaging-resiliency-policies` to `Upstream`)
+
+**Preserved entirely:**
+
+- Top framing + When to apply + Mental model diagram
+- Bootstrap > Aspire-injected connection (`UseKafkaUsingNamedConnection`)
+- Topic naming convention (`<bc>.<descriptive-name>`) + Cab BC topic table
+- Publishing > Partition keys (driver_id/zone_id rationale)
+- Listening > ProcessInline (high-throughput vs durable-inbox decision framing)
+- Consumer groups > Default group ID (per-service convention)
+- Serialization > Schema Registry (out-of-scope rationale + protobuf forward-look)
+- DLT > Poison pill handling (acceptable-loss tradeoff for GPS streams)
+- Azure Event Hubs section (EH Emulator + `ConfigureClient` SASL pattern)
+- Tracing
+- Common pitfalls (12 bullets, mostly Cab-specific value-adds)
+
+**Trim impact.** ~125 raw lines removed, file 26,990 → 25,542 bytes (~5.4% size reduction — the largest reduction in Phase 5 so far). The 50% rule of thumb (methodology refinement #3) **did not apply** here because most trims removed code blocks (which are short, dense lines) rather than prose; for skills with heavy code-block duplication, actual line trim approaches `~1.0 × raw_lines_removed`. Methodology refinement updated below.
+
+**Upstream-contribution candidates flagged.** Two:
+
+1. **EH Emulator AutoProvision constraint.** ai-skills `wolverine-integrations-kafka` doesn't mention Azure Event Hubs Emulator at all. The constraint that the EH Emulator supports producer/consumer Kafka APIs but NOT admin APIs (so `AutoProvision` fails) is a genuine pitfall for any Wolverine+Kafka deployment targeting Azure. Cab's framing ("use real Kafka container locally; switch to EH Emulator only for EH-specific integration tests") is also Cab-discovered guidance worth upstreaming.
+2. **`BatchMessagesOf<T>` for batch consumption.** ai-skills omits this entirely. The mechanic is generic Wolverine; Cab's framing pairs it with high-volume Kafka topics. Both the mechanic existence and the Kafka-pairing rationale could be upstream additions.
+
+---
+
 ## Methodology refinements emerging in Phase 5
 
 _(updated as the reconciliation progresses)_
@@ -252,7 +306,8 @@ _(updated as the reconciliation progresses)_
 3. **Trim estimates are systematically high** (from Skill 3). Naive line-counting of removed code blocks overestimates net trim because cross-reference prose and expanded `Upstream` blocks (with 3 detailed entries replacing 3 one-liners) consume most of the savings. Skill 3 estimated ~50 lines saved; actual was ~26. Future estimates should account for the prose-and-upstream-block offset — a useful rule of thumb is `actual_trim ≈ 0.5 × raw_lines_removed`.
 4. **Cross-referencing ai-skills counterparts without a Cab parallel** (from Skill 3). When ai-skills covers a topic that Cab doesn't have a dedicated skill for (e.g., `wolverine-messaging-resiliency-policies`), the Cab `Upstream` block can include the ai-skills entry with a brief note that no Cab parallel exists. This is honest about Cab's current coverage gaps and points the reader to the authoritative upstream.
 5. **Handling "No equivalent in ai-skills" cases** (from Skill 4). When ai-skills has no counterpart today, the reconciliation pass is a light rename-only: `Upstream` → `Prerequisites`, remove any forward-looking placeholders for not-yet-published ai-skills counterparts (they mislead readers into searching for nonexistent skills), and skip the new `Upstream` block entirely. The Cab skill remains the authoritative reference until ai-skills publishes a parallel. If an ai-skills counterpart is actively planned (with a known author), record it in the upstream-contribution roadmap with an "Active" priority rather than "_TBD_".
-6. _(more entries to come)_
+6. **Trim ratio depends on duplication shape** (refined from Skill 6). The 50% rule of thumb (refinement #3) applies when duplication is mostly **prose** — cross-reference paragraphs and expanded `Upstream` blocks consume most of the savings. When duplication is mostly **code blocks** (Skill 6's case), trims remove dense short lines that don't get fully replaced by prose; actual trim approaches `~1.0 × raw_lines_removed`. Skill 6 estimated ~120 lines, actual was ~125 — nearly 1:1. Future estimates should consider whether the target sections are code-heavy (closer to 1:1) or prose-heavy (closer to 0.5:1).
+7. _(more entries to come)_
 
 ---
 
@@ -267,6 +322,8 @@ Compiled list of Cab patterns/sections flagged as upstream-contribution candidat
 | 3 | `wolverine-http-handlers` | Tuple-ordering silent failure on HTTP endpoints | ai-skills states the rule but doesn't articulate the failure mode (`IStartStream` serialized to response body, stream never starts) — Cab's footgun framing is the value-add | _TBD at close-out_ |
 | 4 | `wolverine-messaging-handlers` | `OutgoingMessages`-without-routing-rule silent-failure footgun | ai-skills covers `PublishAsync` no-subscriber semantics but doesn't frame the parallel scenario for `OutgoingMessages` cascading returns; this is the more common Cab failure mode because `OutgoingMessages` is the preferred pattern | _TBD at close-out_ |
 | 5 | `wolverine-grpc-handlers` + `wolverine-grpc-bidirectional-handlers` | Both Cab gRPC skills — proto-first auto-generated path (unary + server-streaming) AND hand-written workaround for client-streaming + bidirectional patterns, `[WolverineGrpcService]` stub, AIP-193 exception mapping, Wolverine 5.32+ wiring | **Erik is the planned author** of the future ai-skills `wolverine-grpc` skill. Cab content across both skills is the basis for that work; once ai-skills publishes, both Cab skills should be revisited and likely thinned to their Cab-specific layers (Aspire dev-cert, ADR-009 conventions, Cab BC examples, hand-written workaround status as Wolverine evolves). | **Active** (Erik's roadmap, not TBD) |
+| 6 | `wolverine-kafka` | EH Emulator AutoProvision constraint | ai-skills `wolverine-integrations-kafka` doesn't mention Azure Event Hubs Emulator at all. The EH Emulator's lack of Kafka admin APIs (so `AutoProvision()` fails) is a genuine pitfall for any Wolverine+Kafka deployment targeting Azure. Cab's framing ("use real Kafka container locally; switch to EH Emulator only for EH-specific integration tests") is Cab-discovered guidance worth upstreaming. | _TBD at close-out_ |
+| 7 | `wolverine-kafka` | `BatchMessagesOf<T>` for batch Kafka consumption | ai-skills omits batch consumption entirely. The mechanic is generic Wolverine; Cab's framing pairs it with high-volume Kafka topics where per-message invocation overhead is wasteful. Both the mechanic existence and the Kafka-pairing rationale could be upstream additions. | _TBD at close-out_ |
 
 ## Cab coverage gaps revealed
 
@@ -292,10 +349,10 @@ To be executed after all 39 per-skill reconciliations complete.
 
 _(updated at session end)_
 
-- Skills reconciled: 5 / 39
-- Total lines trimmed: ~110
-- Direct-equivalent (deduplicated): 3
+- Skills reconciled: 6 / 39
+- Total lines trimmed: ~235
+- Direct-equivalent (deduplicated): 4
 - No equivalent: 2 (both gRPC skills, ahead of ai-skills, scoped under Erik's active upstream roadmap)
-- Upstream-contribution candidates: 5 (4 footgun-style additions + 1 entire-skill-creation covering both gRPC skills, the latter actively planned by Erik)
+- Upstream-contribution candidates: 7 (6 footgun-style additions + 1 entire-skill-creation covering both gRPC skills, the latter actively planned by Erik)
 - Upstream-replacement candidates: 0
 - Cab coverage gaps revealed: 1 (messaging resiliency)
