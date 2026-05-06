@@ -660,7 +660,7 @@ For client-side inspection during development, `grpcurl` and `Evans` are the sta
 
 ## See also
 
-**Upstream** — load these first:
+**Prerequisites** — Cab-internal skills to load first if unfamiliar:
 
 - `protobuf-contracts` — the contract authoring conventions that produce the proto-generated `*Base` class this skill's stubs derive from.
 - `transport-selection` — when to choose gRPC at all, and which streaming mode fits the flow shape.
@@ -686,8 +686,6 @@ For client-side inspection during development, `grpcurl` and `Evans` are the sta
 
 **External:**
 
-- ai-skills `wolverine-grpc` — generic Wolverine.Grpc patterns if/when JasperFx publishes one. Complements this skill.
-- All ai-skills installed via `npx skills add` (license required).
 - [Wolverine gRPC documentation](https://wolverinefx.net/guide/grpc/) — Wolverine 5.32+ gRPC integration guide.
 - [Google AIP-193 — Errors](https://google.aip.dev/193) — the canonical exception → gRPC status code mapping table this skill follows.
 - [`google.rpc.Status`](https://github.com/googleapis/googleapis/blob/master/google/rpc/status.proto) — the rich-error-details message type used by `UseGrpcRichErrorDetails()`.
