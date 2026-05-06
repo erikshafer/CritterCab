@@ -77,7 +77,7 @@ This applies regardless of how the handler was triggered. An HTTP endpoint that 
 
 ## OutgoingMessages: Transactional Outbox
 
-`OutgoingMessages` is Wolverine's transactional outbox primitive. Messages added to an `OutgoingMessages` collection returned from a handler are enrolled in the same transaction as the database write — they commit atomically with the event-stream append (or document save), and they're sent only after the transaction successfully commits.
+`OutgoingMessages` returned from a handler is enrolled in the same transaction as the database write — messages commit atomically with the event-stream append and are discarded on rollback. This is the property that makes `OutgoingMessages` the correct primitive for cross-service integration events.
 
 ```csharp
 public static (OfferAccepted, OutgoingMessages) Handle(
@@ -95,57 +95,35 @@ public static (OfferAccepted, OutgoingMessages) Handle(
 }
 ```
 
-If the database transaction rolls back, the outgoing messages are discarded — they never reach the bus. This is the property that makes `OutgoingMessages` the correct primitive for cross-service integration events: downstream consumers never see an event that didn't actually happen.
+For the broader outbox/inbox configuration story (durable inbox on listeners, durable outbox on senders, `AutoApplyTransactions`), see ai-skills `wolverine-messaging-message-routing` § Transactional outbox/inbox.
 
 ---
 
 ## Anti-Pattern: bus.PublishAsync Inside a Handler
 
-`bus.PublishAsync` sends *immediately*, outside the transactional middleware. If the handler's database transaction rolls back after the publish, the message has already left — downstream consumers see an event that didn't happen.
-
-```csharp
-// ❌ WRONG — published before the session commits; can fire on rollback
-public static async Task Handle(SomeCmd cmd, IDocumentSession session, IMessageBus bus)
-{
-    session.Events.Append(...);
-    await bus.PublishAsync(new Integration.SomethingHappened(...));   // outside the transaction
-    await session.SaveChangesAsync();
-}
-
-// ✅ CORRECT — OutgoingMessages enrolled in the transactional outbox, commits atomically
-public static (EventType, OutgoingMessages) Handle(SomeCmd cmd, [WriteAggregate] Aggregate agg)
-{
-    var outgoing = new OutgoingMessages();
-    outgoing.Add(new Integration.SomethingHappened(...));
-    return (new EventType(...), outgoing);
-}
-```
+`bus.PublishAsync` sends *immediately*, outside the transactional middleware. If the handler's database transaction rolls back after the publish, the message has already left — downstream consumers see an event that didn't happen. Use cascading returns via `OutgoingMessages` instead; they enroll in the transactional outbox and commit atomically.
 
 **Exception:** `bus.ScheduleAsync` is fine — delayed delivery cannot be expressed via `OutgoingMessages`. See § ScheduleAsync below.
+
+For the parallel anti-pattern from ai-skills' angle ("bypasses outbox, not tracked in tests"), see ai-skills `wolverine-messaging-message-routing` § Calling IMessageBus from handlers instead of using return values.
 
 ---
 
 ## Anti-Pattern: bus.InvokeAsync for Fire-and-Forget Work
 
-`InvokeAsync` runs the target handler **synchronously** and blocks the caller until completion. It's for request-reply and tightly-coupled local invocation, not "publish and move on."
+`InvokeAsync` runs the target handler **synchronously** and blocks the caller until completion — it's for request-reply and tightly-coupled local invocation, not "publish and move on." Calling `InvokeAsync` from inside another handler is worse: it creates a nested transaction (no shared unit of work between the two), so failure of the outer handler after the inner commits leaves the system inconsistent.
 
 ```csharp
 // ❌ WRONG — caller blocked on email send
-public static async Task<IResult> Register(RegisterRider cmd, IMessageBus bus)
-{
-    // ... persist ...
-    await bus.InvokeAsync(new SendWelcomeEmail(cmd.RiderId));   // synchronous wait
-    return Results.Ok();
-}
+await bus.InvokeAsync(new SendWelcomeEmail(cmd.RiderId));
 
-// ✅ CORRECT — cascading return value, queued via outbox, non-blocking
-public static (IResult, RiderRegistered, OutgoingMessages) Register(RegisterRider cmd, ...)
-{
-    var outgoing = new OutgoingMessages();
-    outgoing.Add(new SendWelcomeEmail(cmd.RiderId));
-    return (Results.Ok(), new RiderRegistered(...), outgoing);
-}
+// ✅ CORRECT — cascading return via OutgoingMessages, queued via outbox, non-blocking
+var outgoing = new OutgoingMessages();
+outgoing.Add(new SendWelcomeEmail(cmd.RiderId));
+return (Results.Ok(), new RiderRegistered(...), outgoing);
 ```
+
+For the nested-transaction risk in detail and the legitimate uses (in-process mediator with typed return), see ai-skills `wolverine-messaging-message-routing` § When to use InvokeAsync — and when not to.
 
 ---
 
@@ -165,15 +143,13 @@ The first three rows cover ~95% of CritterCab cases. `PublishAsync` is rarely th
 
 ## ScheduleAsync for Delayed Delivery
 
-`bus.ScheduleAsync` is the correct primitive for "send this message N seconds/minutes/hours from now." It's neither synchronous (like `InvokeAsync`) nor outbox-bypassing in the problematic way (`PublishAsync`'s issue) — Wolverine persists the scheduled envelope and delivers it when the time arrives.
+`bus.ScheduleAsync` persists the scheduled envelope and delivers it when the time arrives — it doesn't bypass the outbox in the problematic way `PublishAsync` does. Cab uses it for ad-hoc timeouts; for saga-structured timeouts, see `wolverine-sagas` (Phase 4).
 
 ```csharp
 public static async Task<(OfferDispatched, OutgoingMessages)> Handle(
     DispatchOffer cmd,
     [WriteAggregate(nameof(DispatchOffer.OfferId))] RideOffer offer,
-    IMessageBus bus,
-    TimeProvider time,
-    CancellationToken ct)
+    IMessageBus bus, TimeProvider time, CancellationToken ct)
 {
     var dispatched = new OfferDispatched(offer.Id, cmd.DriverId, time.GetUtcNow());
 
@@ -182,14 +158,11 @@ public static async Task<(OfferDispatched, OutgoingMessages)> Handle(
 
     var outgoing = new OutgoingMessages();
     outgoing.Add(new Integration.OfferDispatched(...));
-
     return (dispatched, outgoing);
 }
 ```
 
-For sagas with structured timeouts and state transitions, see `wolverine-sagas` (Phase 4) — sagas have their own timeout primitives that compose with the saga state machine.
-
-`ScheduleAsync` requires a routing rule for the message type, same as any published message.
+`ScheduleAsync` requires a routing rule for the message type, same as any published message. For absolute-time scheduling, the `TimeoutMessage` base class, and cascading-delayed messages (`yield return msg.DelayedFor(...)`), see ai-skills `wolverine-messaging-message-routing` § Message scheduling.
 
 ---
 
@@ -231,15 +204,10 @@ public static class OfferAcceptedConsumer
 
 ## Diagnosing Messaging Issues
 
+The canonical first move when an integration message isn't reaching consumers:
+
 ```bash
-# List all routing rules — first stop when an integration message isn't reaching consumers.
-dotnet run -- wolverine-diagnostics describe-routing --all
-
-# Routing for a specific type — use when tracked.Sent.MessagesOf<T>() returns 0.
 dotnet run -- wolverine-diagnostics describe-routing "CritterCab.Dispatch.Integration.OfferAccepted"
-
-# Preview the generated handler code — verify OutgoingMessages enrollment is wired correctly.
-dotnet run -- wolverine-diagnostics codegen-preview --handler AcceptOffer
 ```
 
 | Symptom | First check |
@@ -249,13 +217,19 @@ dotnet run -- wolverine-diagnostics codegen-preview --handler AcceptOffer
 | Message published outside transaction | Search the handler for `bus.PublishAsync` calls; replace with `OutgoingMessages` cascading return. |
 | `InvokeAsync` blocking longer than expected | The target handler is doing real work — convert to `OutgoingMessages` if fire-and-forget is acceptable. |
 
-For full CLI coverage, see `cli-jasperfx` (Phase 2).
+For the broader CLI surface (`describe`, `codegen-preview`, `describe-resiliency`), see `cli-jasperfx` (Phase 2) and ai-skills `wolverine-observability-command-line-diagnostics`.
 
 ---
 
 ## See also
 
-**Upstream** — load these first:
+**Upstream** — generic Wolverine messaging mechanics this skill defers to. ai-skills (license required, install via `npx skills add`):
+
+- `wolverine-messaging-message-routing` — bus method semantics (`InvokeAsync`/`SendAsync`/`PublishAsync`), routing rule precedence, endpoint types (inline/buffered/durable), back pressure, parallelism, transactional outbox/inbox, message scheduling, partitioned messaging, topic publishing.
+- `wolverine-messaging-resiliency-policies` — retry strategies, circuit breakers, dead letter queues, compensating actions. Cab does not currently have a parallel skill — load this directly when configuring failure policies.
+- `wolverine-handlers-fundamentals` — generic handler shape (Cab's `wolverine-handlers` is the project-specific layer).
+
+**Prerequisites** — Cab-internal skills to load first if unfamiliar:
 
 - `wolverine-handlers` — general handler shape, validation pipeline, `IStartStream` semantics, logger convention.
 - `transport-selection` — which transport routes which message type; pre-flight reading before authoring a routing rule.
@@ -277,8 +251,4 @@ For full CLI coverage, see `cli-jasperfx` (Phase 2).
 
 **External:**
 
-- ai-skills `wolverine-messaging-message-routing` — generic Wolverine routing-rule mechanics.
-- ai-skills `wolverine-messaging-resiliency-policies` — retry, circuit breaker, dead-lettering policies.
-- ai-skills `wolverine-handlers-fundamentals` — generic handler shape (covered in `wolverine-handlers` here, but ai-skills has the canonical reference).
-- All ai-skills installed via `npx skills add` (license required).
 - [Wolverine Messaging Guide](https://wolverinefx.net/guide/messaging/).
