@@ -55,7 +55,7 @@ Reference repo HEAD revisions at session start: _(not captured — would have be
 | 2 | `wolverine-http-handlers` | 1 | `wolverine-http-fundamentals` + `wolverine-http-marten-integration` + `wolverine-http-hybrid-handlers` | Direct equivalent (deduplicated) | ~60 | Trimmed Bare Event Return shape-2 elaboration, full Concrete-Return-Types-vs-IResult table, and generic Route Binding rules; renamed Route Binding section to "Aggregate ID — Cab Convention"; applied three-block See Also; 2 upstream-contribution candidates flagged |
 | 3 | `wolverine-messaging-handlers` | 1 | `wolverine-messaging-message-routing` + `wolverine-messaging-resiliency-policies` | Direct equivalent (deduplicated) | ~26 | Trimmed PublishAsync/InvokeAsync code blocks, OutgoingMessages explanatory paragraph, ScheduleAsync explanation, redundant CLI commands; preserved Cab-specific routing-rule pre-flight, decision matrix, inbound handler idempotency pattern; added `wolverine-messaging-resiliency-policies` upstream cross-ref despite no Cab parallel; 1 upstream-contribution candidate flagged |
 | 4 | `wolverine-grpc-handlers` | 1 | _none — ahead of ai-skills_ | **No equivalent** + upstream-contribution candidate (Erik is planned author) | 0 (rename only) | Light pass: renamed `Upstream` → `Prerequisites`; removed misleading forward-looking placeholder for not-yet-published `wolverine-grpc` ai-skills + the install/license note. Erik is the planned author of the future ai-skills `wolverine-grpc` skill — Cab `wolverine-grpc-handlers` should be revisited once that publishes |
-| 5 | `wolverine-grpc-bidirectional-handlers` | 1 | _pending_ | _pending_ | _pending_ | _pending_ |
+| 5 | `wolverine-grpc-bidirectional-handlers` | 1 | _none — ahead of ai-skills_ | **No equivalent** + part of Erik's planned upstream work | 0 (rename only) | Light pass: identical pattern to Skill 4. Renamed `Upstream` → `Prerequisites`; removed the same forward-looking placeholder + install/license note. Erik's planned ai-skills `wolverine-grpc` skill will likely cover both this skill's content (client-streaming hand-written workaround + bidirectional) and the Skill 4 content (unary + server-streaming) |
 | 6 | `wolverine-kafka` | 1 | _pending_ | _pending_ | _pending_ | _pending_ |
 | 7 | `wolverine-azure-service-bus` | 1 | _pending_ | _pending_ | _pending_ | _pending_ |
 | 8 | `wolverine-sagas` | 1 | _pending_ | _pending_ | _pending_ | _pending_ |
@@ -223,6 +223,26 @@ Note: ai-skills uses `[Aggregate]` and `[WriteAggregate]` interchangeably across
 
 ---
 
+### 5. `wolverine-grpc-bidirectional-handlers`
+
+**Counterpart(s).** None. Same status as Skill 4: ai-skills has no `wolverine-grpc*` skill today, and Erik is the planned author of the future ai-skills `wolverine-grpc` skill. That single ai-skills skill will likely cover both this skill's content (client-streaming hand-written workaround for Wolverine 5.32's missing auto-generation, plus bidirectional patterns) and Skill 4's content (unary + server-streaming auto-generated path).
+
+**Section categorization.** No section trims applied — every section is Cab-specific (proto-first hand-written client-streaming workaround, `IAsyncStreamReader<T>` draining patterns, AIP-193 interceptor on hand-written chains, Cab BCs `PushTelemetry`/driver-rider real-time exchange). The 32 KB skill stands as the authoritative reference until ai-skills publishes a parallel.
+
+**Edits applied (light pass, identical to Skill 4).**
+
+1. **Rename `Upstream` → `Prerequisites`** in the See Also block.
+2. **Remove forward-looking placeholder** for the not-yet-published ai-skills `wolverine-grpc` skill (same line as Skill 4).
+3. **Remove standard install/license note** (no longer needed when External has only public-web links).
+
+**No new `Upstream` block** — nothing to put in it.
+
+**Trim impact.** ~3 lines removed (rename-only pass). 32 KB skill, content unchanged.
+
+**Upstream-contribution scope.** Folded into the existing roadmap entry #5, which now scopes both Cab gRPC skills as the Cab-side basis for Erik's planned ai-skills `wolverine-grpc` work.
+
+---
+
 ## Methodology refinements emerging in Phase 5
 
 _(updated as the reconciliation progresses)_
@@ -246,7 +266,7 @@ Compiled list of Cab patterns/sections flagged as upstream-contribution candidat
 | 2 | `wolverine-http-handlers` | Mixed route + JSON body breaks compound handlers | Genuine framework limitation — `Validate`/`Handle` shared-state pattern fails because Wolverine's parameter resolution can't see across the route-vs-body boundary at the validation step | _TBD at close-out_ |
 | 3 | `wolverine-http-handlers` | Tuple-ordering silent failure on HTTP endpoints | ai-skills states the rule but doesn't articulate the failure mode (`IStartStream` serialized to response body, stream never starts) — Cab's footgun framing is the value-add | _TBD at close-out_ |
 | 4 | `wolverine-messaging-handlers` | `OutgoingMessages`-without-routing-rule silent-failure footgun | ai-skills covers `PublishAsync` no-subscriber semantics but doesn't frame the parallel scenario for `OutgoingMessages` cascading returns; this is the more common Cab failure mode because `OutgoingMessages` is the preferred pattern | _TBD at close-out_ |
-| 5 | `wolverine-grpc-handlers` | Entire skill — proto-first gRPC unary + server-streaming patterns, `[WolverineGrpcService]` stub, AIP-193 exception mapping, Wolverine 5.32+ wiring | **Erik is the planned author** of the future ai-skills `wolverine-grpc` skill. Cab content is the basis for that skill; once ai-skills publishes, Cab `wolverine-grpc-handlers` should be revisited and thinned to its Cab-specific layer (Aspire dev-cert, ADR-009 conventions, Cab BC examples). | **Active** (Erik's roadmap, not TBD) |
+| 5 | `wolverine-grpc-handlers` + `wolverine-grpc-bidirectional-handlers` | Both Cab gRPC skills — proto-first auto-generated path (unary + server-streaming) AND hand-written workaround for client-streaming + bidirectional patterns, `[WolverineGrpcService]` stub, AIP-193 exception mapping, Wolverine 5.32+ wiring | **Erik is the planned author** of the future ai-skills `wolverine-grpc` skill. Cab content across both skills is the basis for that work; once ai-skills publishes, both Cab skills should be revisited and likely thinned to their Cab-specific layers (Aspire dev-cert, ADR-009 conventions, Cab BC examples, hand-written workaround status as Wolverine evolves). | **Active** (Erik's roadmap, not TBD) |
 
 ## Cab coverage gaps revealed
 
@@ -272,10 +292,10 @@ To be executed after all 39 per-skill reconciliations complete.
 
 _(updated at session end)_
 
-- Skills reconciled: 4 / 39
-- Total lines trimmed: ~107
+- Skills reconciled: 5 / 39
+- Total lines trimmed: ~110
 - Direct-equivalent (deduplicated): 3
-- No equivalent: 1 (`wolverine-grpc-handlers`, ahead of ai-skills)
-- Upstream-contribution candidates: 5 (4 footgun-style additions + 1 entire-skill-creation, the latter actively planned by Erik)
+- No equivalent: 2 (both gRPC skills, ahead of ai-skills, scoped under Erik's active upstream roadmap)
+- Upstream-contribution candidates: 5 (4 footgun-style additions + 1 entire-skill-creation covering both gRPC skills, the latter actively planned by Erik)
 - Upstream-replacement candidates: 0
 - Cab coverage gaps revealed: 1 (messaging resiliency)

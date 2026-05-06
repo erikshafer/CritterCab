@@ -351,7 +351,7 @@ For client-side smoke testing of both shapes, `cli-grpc-tooling` covers grpcurl'
 
 ## See also
 
-**Upstream** — load these first:
+**Prerequisites** — Cab-internal skills to load first if unfamiliar:
 
 - `wolverine-grpc-handlers` — the unary and server-streaming handlers, the `[WolverineGrpcService]` discovery path, the bootstrap (`AddGrpc`, `AddWolverineGrpc`, `MapWolverineGrpcServices`), and the AIP-193 exception interceptor that this skill builds on directly.
 - `protobuf-contracts` — the proto-side declaration conventions for `stream` keyword usage and the `Push*` / `Subscribe*` method-naming patterns.
@@ -375,8 +375,6 @@ For client-side smoke testing of both shapes, `cli-grpc-tooling` covers grpcurl'
 
 **External:**
 
-- ai-skills `wolverine-grpc` — generic Wolverine.Grpc patterns if/when JasperFx publishes one. Complements this skill.
-- All ai-skills installed via `npx skills add` (license required).
 - [Wolverine gRPC documentation](https://wolverinefx.net/guide/grpc/) — the upstream documentation for the auto-generated paths.
 - [gRPC streaming RPC concepts](https://grpc.io/docs/what-is-grpc/core-concepts/#rpc-life-cycle) — the canonical reference for the four streaming modes' wire semantics.
 - [Google AIP-193 — Errors](https://google.aip.dev/193) — the canonical exception → status code mapping the interceptor follows even on hand-written paths.
