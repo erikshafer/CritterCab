@@ -112,26 +112,9 @@ When using Wolverine-managed distribution, omit `AddAsyncDaemon` entirely; Wolve
 
 ## Error Handling Defaults
 
-The daemon has separate error policies for **continuous** processing (running normally) and **rebuild** mode. Defaults are chosen so the daemon survives bad data in production but fails loudly during rebuilds where you can react to it.
+The daemon has separate error policies for **continuous** processing and **rebuild** mode — three skip flags each (`SkipApplyErrors`, `SkipSerializationErrors`, `SkipUnknownEvents`). Continuous-mode defaults are all `true`; rebuild-mode defaults are all `false`. The flag surface and configuration syntax are documented in ai-skills `marten-advanced-async-daemon-deep-dive` § Error handling configuration.
 
-```csharp
-services.AddMarten(opts =>
-{
-    // Continuous processing — tolerate poison events so the daemon doesn't halt
-    opts.Projections.Errors.SkipApplyErrors = true;          // default: true
-    opts.Projections.Errors.SkipSerializationErrors = true;  // default: true
-    opts.Projections.Errors.SkipUnknownEvents = true;        // default: true
-
-    // Rebuild mode — no skipping; defaults all false
-    opts.Projections.RebuildErrors.SkipApplyErrors = false;
-    opts.Projections.RebuildErrors.SkipSerializationErrors = false;
-    opts.Projections.RebuildErrors.SkipUnknownEvents = false;
-});
-```
-
-Cab inherits these defaults. The asymmetry is deliberate: in production you never want one bad event to stop the daemon (which would silently halt every async projection), but during a rebuild you want to discover bad data instead of silently writing wrong projections.
-
-When `SkipApplyErrors` is true, failing events are recorded to a dead-letter queue (`DeadLetterEvent`) and tagged with the projection name. Operations tooling can replay them after the underlying bug is fixed.
+**Cab inherits these defaults.** The asymmetry is deliberate: in production you never want one bad event to stop the daemon (which would silently halt every async projection), but during a rebuild you want to discover bad data instead of silently writing wrong projections. When `SkipApplyErrors` is true, failing events are recorded to a dead-letter queue (`DeadLetterEvent`) tagged with the projection name; operations tooling can replay them after the underlying bug is fixed.
 
 ### Tombstone events and sequence gaps
 
@@ -149,7 +132,7 @@ This is rare in Cab — most write transactions complete in well under a second.
 
 ## Throughput and Performance Knobs
 
-Default daemon performance is fine for the vast majority of services. The knobs below are **second-line adjustments**, applied after profiling identifies a real bottleneck.
+Default daemon performance is fine for the vast majority of services. The knobs below are **second-line adjustments**, applied after profiling identifies a real bottleneck. Mechanic basics for `BatchSize`, `CacheLimitPerTenant`, and `UseIdentityMapForAggregates` are also covered in ai-skills `marten-advanced-async-daemon-deep-dive` and `marten-advanced-optimization`; the April 2026 additions below (`EnableEventTypeIndex` and the adaptive event loader) are Cab-specific coverage of post-Marten-8.29 features.
 
 ### `AsyncOptions.BatchSize` (default 500)
 
@@ -290,7 +273,7 @@ This checks for prior async progress; if none is found, it starts from the highe
 
 ## Async-Only Performance Hooks
 
-Two features that materially change how async projections are written, both verified against current Marten source.
+Two features that materially change how async projections are written, both verified against current Marten source. The full mechanic surface for both is documented upstream: `EnrichEventsAsync` in ai-skills `marten-projections-event-enrichment`, composite projections in `marten-projections-composite`. Cab's coverage below focuses on the daemon-pipeline implications (especially the async-only limitation note for `EnrichEventsAsync`).
 
 ### `EnrichEventsAsync` for batch reference-data lookups
 
@@ -432,7 +415,14 @@ opts.Projections.Daemon.ActivitySource = new ActivitySource("CritterCab.Trips");
 
 ## See also
 
-**Upstream** — load these first:
+**Upstream** — generic Marten daemon mechanics this skill defers to. ai-skills (license required, install via `npx skills add`):
+
+- `marten-advanced-async-daemon-deep-dive` (primary) — Solo/HotCold/Wolverine-managed mode mechanics, error-handling configuration syntax, programmatic daemon control (`StopAgentAsync`, `IProjectionCoordinator`, `AllProjectionProgress`), production tuning settings (`HealthCheckPollingTime`, `CheckAssignmentPeriod`, `InboxStaleTime`, `OutboxStaleTime`), durability metrics, cold-start optimization, test fixtures (`MartenDaemonModeIsSolo`, `RunWolverineInSoloMode`), SQL diagnostics for node assignments. **Cab does not currently cover** the operational/troubleshooting surface — load this directly when working on production daemon operations.
+- `marten-advanced-optimization` — bootstrap-level performance tuning that overlaps the daemon: `EventAppendMode.Quick` vs `Rich`, projection throughput options (`IncludeType<T>`, `BatchSize`, `CacheLimitPerTenant`), identity-map for aggregates, mandatory stream types.
+- `marten-projections-event-enrichment` — full `EnrichEventsAsync` surface; Cab covers the daemon-pipeline implications.
+- `marten-projections-composite` — full composite projection surface (staged execution, synthetic events); Cab covers the daemon-side pin (always async; rebuild as a unit).
+
+**Prerequisites** — Cab-internal skills to load first if unfamiliar:
 
 - `marten-projections` — projection lifecycles, snapshot vs. evolve, single-stream and multi-stream patterns; what the daemon is running.
 - `marten-aggregates` — aggregate shape and live aggregation; the lower-cost alternative when the daemon would be overkill.
@@ -452,9 +442,7 @@ opts.Projections.Daemon.ActivitySource = new ActivitySource("CritterCab.Trips");
 
 **External:**
 
-- ai-skills `marten-event-sourcing-fundamentals` — generic event-store mechanics; complements this skill.
 - ai-skills `marten-aggregate-handler-workflow` — full read-and-write workflow context.
-- All ai-skills installed via `npx skills add` (license required).
 - [Marten Async Daemon Documentation](https://martendb.io/events/projections/async-daemon.html) — the canonical daemon reference.
 - [Marten Async Daemon Health Checks](https://martendb.io/events/projections/healthchecks.html).
 - [Marten 8.29 Release Notes — Adaptive EventLoader and EnableEventTypeIndex (Jeremy Miller, April 7, 2026)](https://jeremydmiller.com/2026/04/07/marten-polecat-and-wolverine-releases/) — the most consequential 2026 daemon improvements.
