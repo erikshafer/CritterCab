@@ -213,37 +213,17 @@ This anti-pattern lives in the general skill (rather than HTTP or messaging) bec
 
 ---
 
-## Anti-Pattern: Lambda Factory Service Registrations
+## Service Registrations
 
-Registration shape determines whether Wolverine's code generation can emit a direct constructor call or must fall back to runtime service location. Lambda factories force service location, allocating a scoped container per message and preventing pipeline optimization.
+Wolverine's codegen relies on concrete registrations to emit direct constructor calls. Lambda factories (`services.AddScoped<IFoo>(sp => new Foo(...))`) force runtime service location and prevent pipeline optimization. Prefer `services.AddScoped<IFoo, Foo>()`. When the lambda form is unavoidable (Refit proxies, factory-only third-party registrations), allow-list the specific type: `opts.CodeGeneration.AlwaysUseServiceLocationFor<IRefitClient>()`.
 
-```csharp
-// ❌ WRONG — opaque to codegen; forces IServiceScopeFactory at runtime
-services.AddScoped<ITripRepository>(sp =>
-    new TripRepository(sp.GetRequiredService<IDocumentSession>()));
-
-// ✅ CORRECT — Wolverine generates a direct `new TripRepository(...)` call
-services.AddScoped<ITripRepository, TripRepository>();
-```
-
-When the lambda form is unavoidable (Refit proxies, factory-only third-party registrations), allow-list the specific type rather than disabling the warning globally:
-
-```csharp
-opts.CodeGeneration.AlwaysUseServiceLocationFor<IRefitClient>();
-```
-
-For full IoC optimization coverage — `ServiceLocationPolicy` modes, code pre-generation for production, allowed-list patterns — see ai-skills `wolverine-handlers-ioc-and-service-optimization`.
+For the full IoC optimization story — `ServiceLocationPolicy` modes, code pre-generation, lifetime guidance, Lamar fallback — see ai-skills `wolverine-handlers-ioc-and-service-optimization`.
 
 ---
 
 ## Logger Convention
 
-Inject `ILogger`, not `ILogger<T>`. Wolverine has already captured the handler type context.
-
-```csharp
-// ✅ Cab convention
-public static (Events, OutgoingMessages) Handle(SomeCmd cmd, IDocumentSession session, ILogger logger) { ... }
-```
+Inject `ILogger`, not `ILogger<T>` — Wolverine already tags log output with handler type context. (Reinforced in `csharp-coding-standards`; covered upstream in ai-skills `wolverine-handlers-fundamentals`.)
 
 ---
 
@@ -297,15 +277,19 @@ For full CLI coverage, see `cli-jasperfx` (Phase 2).
 - `polecat-event-sourcing` — `PolecatOps.StartStream` (Phase 4).
 - `cli-jasperfx` — full CLI surface for diagnostics (Phase 2).
 
+**Upstream (ai-skills)** — generic Wolverine handler mechanics this skill defers to:
+
+- `wolverine-handlers-fundamentals` — generic handler shape, discovery, return-type reference, Logger convention.
+- `wolverine-handlers-pure-functions` — decider pattern, A-Frame, why handlers are pure.
+- `wolverine-handlers-a-frame-architecture` — infrastructure-at-edges principle.
+- `wolverine-handlers-railway-programming` — `Validate` / `ProblemDetails` pipeline.
+- `wolverine-handlers-declarative-persistence` — `[Entity]`, `[WriteAggregate]`, `[ReadAggregate]`.
+- `wolverine-handlers-middleware` — full lifecycle, `OnException`, `MiddlewareScoping`, custom policies.
+- `wolverine-handlers-ioc-and-service-optimization` — `ServiceLocationPolicy`, codegen modes, pre-generation, Lamar fallback.
+- `marten-aggregate-handler-workflow` — full aggregate workflow reference.
+
+ai-skills is installed at the user level via `npx skills add` (license required).
+
 **External:**
 
-- ai-skills `wolverine-handlers-fundamentals` — generic handler shape and discovery.
-- ai-skills `wolverine-handlers-pure-functions` — decider pattern, A-Frame, why handlers are pure.
-- ai-skills `wolverine-handlers-a-frame-architecture` — infrastructure-at-edges principle.
-- ai-skills `wolverine-handlers-railway-programming` — `Validate` / `ProblemDetails` pipeline.
-- ai-skills `wolverine-handlers-declarative-persistence` — `[Entity]`, `[WriteAggregate]`, `[ReadAggregate]`.
-- ai-skills `wolverine-handlers-middleware` — full lifecycle, `OnException`, `MiddlewareScoping`, custom policies.
-- ai-skills `wolverine-handlers-ioc-and-service-optimization` — `ServiceLocationPolicy`, codegen modes, pre-generation.
-- ai-skills `marten-aggregate-handler-workflow` — full aggregate workflow reference.
-- All ai-skills installed via `npx skills add` (license required).
 - [Wolverine Handlers Guide](https://wolverinefx.net/guide/handlers/).
