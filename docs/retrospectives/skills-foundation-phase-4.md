@@ -2,14 +2,14 @@
 
 ## Metadata
 
-- **Triggering prompt:** [`docs/prompts/skills-foundation-phase-4-handoff.md`](../prompts/skills-foundation-phase-4-handoff.md)
+- **Triggering prompt:** [`docs/prompts/skills/skills-foundation-phase-4-handoff.md`](../prompts/skills-foundation-phase-4-handoff.md)
 - **Status:** Complete
 - **Date authored:** 2026-05-06
 - **Output artifacts:**
   - 9 new skill files under `docs/skills/`
   - In-concert update to `docs/skills/observability-tracing/SKILL.md` (`AddMeter("Wolverine:*")` wildcard form)
   - Phase 4 close-out edits to `docs/skills/README.md` (status table, cluster index, entry-point hubs, Phase 4 Mermaid graph, Phase 5 forward-looking note)
-  - Phase 5 handoff prompt at `docs/prompts/skills-foundation-phase-5-handoff.md`
+  - Phase 5 handoff prompt at `docs/prompts/skills/skills-foundation-phase-5-handoff.md`
 - **Outcome:** All 9 planned Phase 4 skills authored, source-verified, and integrated into the navigation hub. Phase 5 has a clear handoff. Project skill count: 39.
 
 ---
