@@ -426,7 +426,7 @@ For testing, `testing-integration` covers the standard saga-test pattern: invoke
 
 ## See also
 
-**Upstream** — load these first:
+**Prerequisites** — Cab-internal skills to load first if unfamiliar:
 
 - `wolverine-messaging-handlers` — the underlying handler shape that saga handler methods extend. Sagas are special-case messaging handlers with state.
 - `service-bootstrap` — the `Program.cs` composition that includes `IntegrateWithWolverine()` and `AutoApplyTransactions()`.
@@ -454,8 +454,6 @@ For testing, `testing-integration` covers the standard saga-test pattern: invoke
 
 **External:**
 
-- ai-skills `wolverine-sagas` — generic Wolverine saga patterns if/when JasperFx publishes one. Complements this skill.
-- All ai-skills installed via `npx skills add` (license required).
 - [Wolverine sagas documentation](https://wolverinefx.net/guide/durability/sagas.html) — upstream reference for the `Saga` base class, method conventions, and persistence integrations.
 - [Marten optimistic concurrency documentation](https://martendb.io) — Marten's documentation site; the `IRevisioned` interface and `UpdateRevision()` method are the optimistic-concurrency entry points the Marten saga path uses.
 - [Saga pattern (microservices.io)](https://microservices.io/patterns/data/saga.html) — Chris Richardson's canonical reference for the saga pattern in distributed systems.

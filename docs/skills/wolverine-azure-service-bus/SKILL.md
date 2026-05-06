@@ -74,58 +74,31 @@ builder.Host.UseWolverine(opts =>
 
 ### Managed Identity (production Azure)
 
-In production, connection strings with shared keys are a security liability. Use `TokenCredential` instead:
+Cab's production default uses `DefaultAzureCredential` against the fully-qualified namespace (not a connection string), which resolves Managed Identity in Azure and Visual Studio / Azure CLI credentials in dev. See ai-skills `wolverine-integrations-azure-service-bus` § Setup and connection for the full credential surface (`AzureNamedKeyCredential`, `AzureSasCredential`, `RetryOptions`).
 
 ```csharp
-opts.UseAzureServiceBus(
-    "<namespace>.servicebus.windows.net",
-    new DefaultAzureCredential());
+opts.UseAzureServiceBus("<namespace>.servicebus.windows.net", new DefaultAzureCredential());
 ```
-
-`DefaultAzureCredential` resolves the right credential for the environment — Managed Identity in Azure, Visual Studio / Azure CLI credentials in dev. The fully qualified namespace (not a connection string) tells the SDK to use token-based auth.
-
-Other credential overloads exist for `AzureNamedKeyCredential` and `AzureSasCredential`, but `DefaultAzureCredential` is the Cab default because it works across environments without code changes.
 
 ### AutoProvision
 
-`AutoProvision()` creates missing queues, topics, and subscriptions at startup using the ASB management API (`ServiceBusAdministrationClient`). If an entity already exists, the creation is silently skipped. This is safe for local dev and CI but requires `Manage` permission on the namespace — production environments may restrict this.
-
-```csharp
-opts.UseAzureServiceBus(connectionString)
-    .AutoProvision();
-```
-
-For production environments where the service identity lacks `Manage` permission, omit `AutoProvision()` and provision entities through infrastructure-as-code (Bicep, Terraform) or the Azure CLI.
+`AutoProvision()` creates missing queues, topics, and subscriptions at startup using the ASB management API. **It requires `Manage` permission on the namespace** — production service identities typically have only `Send` and `Listen`, so omit `AutoProvision()` in production and provision entities through infrastructure-as-code (Bicep, Terraform) or the Azure CLI.
 
 ### AutoPurgeOnStartup (testing only)
 
-```csharp
-opts.UseAzureServiceBus(connectionString)
-    .AutoProvision()
-    .AutoPurgeOnStartup();
-```
-
-`AutoPurgeOnStartup()` drains all messages from every queue and subscription at startup. This is for integration tests that need a clean slate — never enable it outside test configurations.
+`AutoPurgeOnStartup()` drains all messages from every queue and subscription at startup. **Test-only** — guard it behind a test configuration flag; never enable in production.
 
 ### System queues
 
-Wolverine creates internal system queues for response routing and deferred-message retry:
-
-- `wolverine.response.{serviceName}.{nodeNumber}` — reply routing (auto-deleted after 5 minutes idle).
-- `wolverine.retries.{serviceName}` — deferred message requeue.
-
-These are created automatically when `AutoProvision()` is active. If the service identity lacks create permission and you're provisioning externally, disable system queues:
-
-```csharp
-opts.UseAzureServiceBus(connectionString)
-    .SystemQueuesAreEnabled(false);
-```
+Wolverine creates internal queues for response routing (`wolverine.response.{serviceName}.{nodeNumber}`, auto-deleted after 5 min idle) and deferred-message retry (`wolverine.retries.{serviceName}`). Disable with `.SystemQueuesAreEnabled(false)` if the service identity lacks create permission and you're provisioning externally — but request-reply and `ScheduleAsync` stop working without them.
 
 ## Topics and subscriptions
 
 Topics with subscriptions are Cab's primary ASB pattern — every cross-service domain event uses fan-out delivery.
 
 ### Publishing to a topic
+
+Cab uses one routing rule per integration event per service:
 
 ```csharp
 opts.PublishMessage<Integration.TripCompleted>()
@@ -135,94 +108,40 @@ opts.PublishMessage<Integration.RiderRegistered>()
     .ToAzureServiceBusTopic("identity.rider-registered");
 ```
 
-Topic naming follows the same `<bc>.<event-name>` convention as Kafka topics (see `wolverine-kafka` § Topic naming convention). ASB topic names are lowercased automatically by Wolverine.
-
-Configure the topic's broker-level properties during auto-provision:
-
-```csharp
-opts.PublishMessage<Integration.TripCompleted>()
-    .ToAzureServiceBusTopic("trips.trip-completed")
-    .ConfigureTopic(topic =>
-    {
-        topic.DefaultMessageTimeToLive = TimeSpan.FromDays(7);
-    });
-```
+Topic naming follows the `<bc>.<event-name>` convention (see `wolverine-kafka` § Topic naming convention); names are lowercased automatically. Configure broker-level properties (TTL, max size, etc.) via `.ConfigureTopic(...)` — see ai-skills `wolverine-integrations-azure-service-bus` § Topics and subscriptions.
 
 ### Subscribing to a topic
 
-Subscriptions are two-step: name the subscription, then specify which topic it reads from:
-
-```csharp
-opts.ListenToAzureServiceBusSubscription("payments")
-    .FromTopic("trips.trip-completed");
-```
-
-This creates a subscription named `payments` on the `trips.trip-completed` topic. The handler is a standard messaging handler:
+`opts.ListenToAzureServiceBusSubscription("payments").FromTopic("trips.trip-completed")` creates a subscription named `payments` on the `trips.trip-completed` topic. Multiple subscriptions on the same topic get independent copies of every message — Payments, Ratings, Operations, and Pricing each process `TripCompleted` independently. Handler is a standard messaging handler:
 
 ```csharp
 public static class TripCompletedHandler
 {
-    public static async Task Handle(
-        Integration.TripCompleted completed,
-        IPaymentService payments)
-    {
+    public static async Task Handle(Integration.TripCompleted completed, IPaymentService payments) =>
         await payments.CaptureAsync(completed.TripId, completed.FareAmount);
-    }
 }
 ```
 
-Multiple subscriptions on the same topic get independent copies of every message — Payments, Ratings, Operations, and Pricing each process `TripCompleted` independently.
-
 ### Subscription rules (SQL and correlation filters)
 
-By default, a subscription receives all messages published to the topic. SQL filters narrow the stream:
+By default, a subscription receives all messages published to the topic. SQL filters (`SqlRuleFilter`) and correlation filters (`CorrelationRuleFilter`) narrow the stream by matching against `ApplicationProperties` — Cab BC example, filtering trips by fare amount:
 
 ```csharp
-opts.ListenToAzureServiceBusSubscription(
-        "pricing",
-        configureSubscriptionRule: rule =>
-        {
-            rule.Filter = new SqlRuleFilter("fare_amount > 5000");
-        })
-    .FromTopic("trips.trip-completed");
-```
-
-The `SqlRuleFilter` evaluates against the message's `ApplicationProperties` (where Wolverine stores custom headers). For this to work, the publishing side must set the property:
-
-```csharp
-await bus.PublishAsync(new Integration.TripCompleted(tripId, fareAmount),
-    new DeliveryOptions
-    {
-        Headers = { ["fare_amount"] = fareAmount.ToString() }
-    });
-```
-
-Correlation filters match exact property values and are faster than SQL filters when equality is all you need:
-
-```csharp
-rule.Filter = new CorrelationRuleFilter
+opts.ListenToAzureServiceBusSubscription("pricing", configureSubscriptionRule: rule =>
 {
-    ApplicationProperties = { ["region"] = "us-west" }
-};
+    rule.Filter = new SqlRuleFilter("fare_amount > 5000");
+}).FromTopic("trips.trip-completed");
+
+// Publisher side must set the property
+await bus.PublishAsync(new Integration.TripCompleted(tripId, fareAmount),
+    new DeliveryOptions { Headers = { ["fare_amount"] = fareAmount.ToString() } });
 ```
 
-When `AutoProvision()` is active, Wolverine reconciles subscription rules at startup: it updates rules whose name matches but whose filter changed, and deletes unknown rules.
+When `AutoProvision()` is active, Wolverine reconciles rules at startup — updates rules whose name matches but whose filter changed, and deletes unknown rules. See ai-skills `wolverine-integrations-azure-service-bus` § Topics and subscriptions for the full filter surface and reconciliation note.
 
 ### Configuring subscription properties
 
-```csharp
-opts.ListenToAzureServiceBusSubscription(
-        "payments",
-        configureSubscriptions: sub =>
-        {
-            sub.MaxDeliveryCount = 10;
-            sub.LockDuration = TimeSpan.FromMinutes(2);
-            sub.DeadLetteringOnMessageExpiration = true;
-        })
-    .FromTopic("trips.trip-completed");
-```
-
-`MaxDeliveryCount` is ASB's built-in retry count — after this many failed delivery attempts, the message moves to the subscription's built-in dead-letter sub-queue. This is separate from Wolverine's error-handling policies and acts as a last-resort safety net.
+Pass `configureSubscriptions` to `ListenToAzureServiceBusSubscription(...)` to set `MaxDeliveryCount`, `LockDuration`, `DeadLetteringOnMessageExpiration`, etc. **`MaxDeliveryCount` is ASB's broker-level retry count, separate from Wolverine's `RetryTimes(...)`** — see § Retry policies below for the interaction.
 
 ### Convention-based topic routing
 
@@ -246,32 +165,15 @@ Queues are point-to-point: one logical receiver per queue (competing consumers i
 
 ### Publishing to a queue
 
-```csharp
-opts.PublishMessage<ProcessPayment>()
-    .ToAzureServiceBusQueue("payments.process-payment");
-```
+`opts.PublishMessage<ProcessPayment>().ToAzureServiceBusQueue("payments.process-payment")`. Generic mechanic — see ai-skills `wolverine-integrations-azure-service-bus` § Queues.
 
 ### Listening to a queue
 
-```csharp
-opts.ListenToAzureServiceBusQueue("payments.process-payment");
-```
+`opts.ListenToAzureServiceBusQueue("payments.process-payment")`. Generic — see ai-skills § Queues.
 
 ### Configuring queue properties
 
-```csharp
-opts.ListenToAzureServiceBusQueue("payments.process-payment")
-    .ConfigureQueue(queue =>
-    {
-        queue.MaxDeliveryCount = 10;
-        queue.LockDuration = TimeSpan.FromMinutes(2);
-        queue.DefaultMessageTimeToLive = TimeSpan.FromDays(14);
-        queue.RequiresDuplicateDetection = true;
-        queue.DuplicateDetectionHistoryTimeWindow = TimeSpan.FromMinutes(5);
-    });
-```
-
-`RequiresDuplicateDetection` with `DuplicateDetectionHistoryTimeWindow` enables broker-level deduplication — ASB discards messages with a duplicate `MessageId` within the window. Since Wolverine maps `Envelope.Id` to `MessageId`, this provides infrastructure-level idempotency for the detection window.
+`.ConfigureQueue(...)` configures `MaxDeliveryCount`, `LockDuration`, `DefaultMessageTimeToLive`, etc. The Cab-relevant note: **`RequiresDuplicateDetection` + `DuplicateDetectionHistoryTimeWindow` enables broker-level deduplication on `MessageId`**. Since Wolverine maps `Envelope.Id` to `MessageId`, this provides infrastructure-level idempotency for the detection window — and it can only be set at queue creation time, not toggled later.
 
 ## Sessions and ordered delivery
 
@@ -292,35 +194,20 @@ opts.ListenToAzureServiceBusQueue("rider-events")
 
 ### Setting the session ID when publishing
 
-Wolverine maps `Envelope.GroupId` to ASB's `SessionId`. Set it via `DeliveryOptions`:
+Wolverine maps `Envelope.GroupId` to ASB's `SessionId`. All messages for the same rider land in the same session and are delivered in publish order:
 
 ```csharp
 await bus.PublishAsync(new RiderVerified(riderId),
     new DeliveryOptions { GroupId = riderId.ToString() });
 ```
 
-All messages for the same rider land in the same session and are delivered in publish order.
-
 ### Sessions on subscriptions
 
-```csharp
-opts.ListenToAzureServiceBusSubscription(
-        "rider-ordering",
-        configureSubscriptions: sub => sub.RequiresSession = true)
-    .FromTopic("identity.rider-events")
-    .RequireSessions(listenerCount: 5);
-```
+Same pattern as queues, but with `configureSubscriptions: sub => sub.RequiresSession = true` paired with `.RequireSessions(listenerCount: N)` on the listener call.
 
 ### ExclusiveNodeWithSessions
 
-For scenarios where session processing must be pinned to a single node (e.g., in-memory caches that must stay consistent):
-
-```csharp
-opts.ListenToAzureServiceBusQueue("rider-events")
-    .ExclusiveNodeWithSessions(maxParallelSessions: 10);
-```
-
-This combines session-based listening with Wolverine's exclusive-node assignment.
+`.ExclusiveNodeWithSessions(maxParallelSessions: N)` pins session processing to a single node — needed when in-memory caches must stay consistent across messages in the same session.
 
 ## Dead-letter queues and error handling
 
@@ -328,31 +215,11 @@ ASB's native dead-letter queue support is one of the primary reasons `transport-
 
 ### Native dead-lettering
 
-Every ASB queue and subscription has a built-in dead-letter sub-queue (`$DeadLetterQueue`). When a message exhausts its `MaxDeliveryCount` or expires past its TTL, ASB moves it to the DLQ automatically — no application code or Wolverine configuration needed.
-
-The DLQ message retains the original body plus diagnostic properties: `DeadLetterReason`, `DeadLetterErrorDescription`, and all original `ApplicationProperties`. These are inspectable via the Azure Portal, Service Bus Explorer, or the Azure CLI (see `cli-azure-messaging` in Phase 3).
+Every ASB queue and subscription has a built-in dead-letter sub-queue (`$DeadLetterQueue`). When a message exhausts `MaxDeliveryCount` or expires past TTL, ASB moves it to the DLQ automatically with `DeadLetterReason` + `DeadLetterErrorDescription` properties — inspectable through standard ASB tooling (see `cli-azure-messaging` in Phase 3). **The native DLQ is the primary reason `transport-selection` routes domain events to ASB rather than Kafka.**
 
 ### Wolverine's dead-letter routing
 
-In addition to ASB's native DLQ, Wolverine can route failed messages to a separate dead-letter queue:
-
-```csharp
-opts.ListenToAzureServiceBusQueue("payments.process-payment")
-    .ConfigureDeadLetterQueue("payments.process-payment.dead-letters",
-        configure: dlq =>
-        {
-            dlq.Options.MaxDeliveryCount = 3;
-        });
-```
-
-To disable Wolverine's DLQ routing and rely solely on ASB's native dead-lettering:
-
-```csharp
-opts.ListenToAzureServiceBusQueue("payments.process-payment")
-    .DisableDeadLetterQueueing();
-```
-
-The Cab default is to let ASB's native DLQ handle failures — it's simpler and the DLQ messages are inspectable through standard ASB tooling. Wolverine's `ConfigureDeadLetterQueue` is the escape hatch for custom DLQ routing.
+In addition to ASB's native DLQ, Wolverine can route failed messages to a separate dead-letter queue via `.ConfigureDeadLetterQueue(...)` on the listener, or disable DLQ routing entirely with `.DisableDeadLetterQueueing()`. **Cab default: let ASB's native DLQ handle failures** — it's simpler and inspectable through standard tooling. The Wolverine override is the escape hatch.
 
 ### Retry policies
 
@@ -368,28 +235,15 @@ ASB's `MaxDeliveryCount` is a separate, broker-level retry count. The two intera
 
 ### Circuit breakers
 
-```csharp
-opts.ListenToAzureServiceBusQueue("payments.process-payment")
-    .CircuitBreaker(cb =>
-    {
-        cb.MinimumThreshold = 10;
-        cb.PauseTime = TimeSpan.FromMinutes(2);
-    });
-```
-
-When failures exceed the threshold, Wolverine pauses the listener. After `PauseTime`, consumption resumes. This prevents a downstream outage from churning through retries and exhausting `MaxDeliveryCount` on every message.
+`.CircuitBreaker(cb => { cb.MinimumThreshold = ...; cb.PauseTime = ...; })` pauses the listener when failures exceed a threshold — prevents a downstream outage from churning through retries and exhausting `MaxDeliveryCount` on every message. See ai-skills `wolverine-messaging-resiliency-policies` § Circuit breakers.
 
 ### Scheduled delivery
 
-ASB supports native scheduled enqueue — the broker holds the message and delivers it at the specified time:
+ASB supports broker-native scheduled enqueue — Wolverine maps `Envelope.ScheduledTime` to ASB's `ScheduledEnqueueTime`. The message is invisible to consumers until the scheduled time arrives. Broker-managed: if the publishing service crashes after the schedule call, the message still delivers on time:
 
 ```csharp
-await bus.ScheduleAsync(
-    new ExpireOfferIfNotAccepted(offerId),
-    TimeSpan.FromSeconds(15));
+await bus.ScheduleAsync(new ExpireOfferIfNotAccepted(offerId), TimeSpan.FromSeconds(15));
 ```
-
-Wolverine maps `Envelope.ScheduledTime` to ASB's `ScheduledEnqueueTime`. The message is invisible to consumers until the scheduled time arrives. This is broker-managed — if the publishing service crashes after the schedule call, the message still delivers on time.
 
 ## Serialization and interop
 
@@ -411,28 +265,7 @@ The `Subject` field carrying the message type is significant — it's visible in
 
 ### Custom envelope mapper
 
-Implement `IAzureServiceBusEnvelopeMapper` for full control over the mapping:
-
-```csharp
-opts.ListenToAzureServiceBusQueue("external-events")
-    .InteropWith(new ExternalSystemMapper());
-```
-
-### MassTransit and NServiceBus interop
-
-For services migrating from MassTransit or NServiceBus to Wolverine, interop mappers translate the envelope format:
-
-```csharp
-// MassTransit interop
-opts.ListenToAzureServiceBusQueue("legacy-commands")
-    .UseMassTransitInterop(mt => { /* configure if needed */ });
-
-// NServiceBus interop
-opts.ListenToAzureServiceBusQueue("legacy-events")
-    .UseNServiceBusInterop();
-```
-
-These are migration aids, not long-term patterns. Once the publishing service is migrated to Wolverine, switch to the default envelope mapping.
+For full control over the envelope-to-message mapping (CloudEvents, custom wrappers), implement `IAzureServiceBusEnvelopeMapper` and register it via `.InteropWith(...)` on the listener. Escape hatch — Cab does not currently use it.
 
 ## Local development — ASB Emulator
 
@@ -526,7 +359,12 @@ Wolverine's ASB transport propagates OpenTelemetry trace context through ASB mes
 
 ## See also
 
-### Upstream
+**Upstream** — generic Wolverine ASB mechanics this skill defers to. ai-skills (license required, install via `npx skills add`):
+
+- `wolverine-integrations-azure-service-bus` — generic Wolverine + ASB transport: setup, queues, topics and subscriptions, session-based FIFO, Managed Identity auth, DLQ behavior per endpoint type, conventional routing, multi-tenant messaging, multiple named brokers, custom envelope mappers.
+- `wolverine-messaging-resiliency-policies` — retry strategies, circuit breakers, dead letter queues, compensating actions. Cab does not currently have a parallel skill — load this directly when configuring failure policies.
+
+**Prerequisites** — Cab-internal skills to load first if unfamiliar:
 
 - `transport-selection` — the decision framework that routes domain events to ASB. Read this first to understand why a flow lands on ASB rather than Kafka.
 - `wolverine-messaging-handlers` — the handler shape for all messaging transports, including ASB. Handlers don't change based on transport.
@@ -534,22 +372,21 @@ Wolverine's ASB transport propagates OpenTelemetry trace context through ASB mes
 - `domain-event-conventions` — the event-naming and payload conventions for the integration events ASB carries.
 - `aspire` — Aspire orchestration; eventually pairs with `Aspire.Hosting.Azure.ServiceBus` for the emulator.
 
-### Sibling skills
+**Sibling skills:**
 
 - `wolverine-kafka` — Kafka transport wiring; the other messaging transport Cab uses, optimized for high-volume streams.
 - `cli-azure-messaging` (Phase 3) — Azure CLI, Service Bus Explorer, and Aspire dashboard for inspecting ASB entities and dead-letter queues.
 
-### Downstream
+**Downstream:**
 
 - `observability-tracing` (Phase 3) — full OTel pipeline configuration, including trace propagation across ASB.
 - `identity-acl` (Phase 3) — service-to-service auth that applies to ASB-connected services.
 - `wolverine-sagas` (Phase 4) — long-running processes that coordinate across ASB topics.
 - `testing-advanced` (Phase 4) — integration tests against ASB using `Testcontainers.ServiceBus`.
 
-### External
+**External:**
 
 - [Wolverine ASB transport docs](https://wolverinefx.net/guide/messaging/transports/azureservicebus/)
 - [Azure Service Bus documentation](https://learn.microsoft.com/en-us/azure/service-bus-messaging/)
 - [Aspire ASB hosting integration](https://learn.microsoft.com/en-us/dotnet/aspire/messaging/azure-service-bus-integration)
 - ADR-005 — transport selection rationale
-- ai-skills: `wolverine-integrations-azure-service-bus`

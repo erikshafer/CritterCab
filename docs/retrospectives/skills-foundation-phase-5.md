@@ -57,8 +57,8 @@ Reference repo HEAD revisions at session start: _(not captured — would have be
 | 4 | `wolverine-grpc-handlers` | 1 | _none — ahead of ai-skills_ | **No equivalent** + upstream-contribution candidate (Erik is planned author) | 0 (rename only) | Light pass: renamed `Upstream` → `Prerequisites`; removed misleading forward-looking placeholder for not-yet-published `wolverine-grpc` ai-skills + the install/license note. Erik is the planned author of the future ai-skills `wolverine-grpc` skill — Cab `wolverine-grpc-handlers` should be revisited once that publishes |
 | 5 | `wolverine-grpc-bidirectional-handlers` | 1 | _none — ahead of ai-skills_ | **No equivalent** + part of Erik's planned upstream work | 0 (rename only) | Light pass: identical pattern to Skill 4. Renamed `Upstream` → `Prerequisites`; removed the same forward-looking placeholder + install/license note. Erik's planned ai-skills `wolverine-grpc` skill will likely cover both this skill's content (client-streaming hand-written workaround + bidirectional) and the Skill 4 content (unary + server-streaming) |
 | 6 | `wolverine-kafka` | 1 | `wolverine-integrations-kafka` + `wolverine-messaging-resiliency-policies` | Direct equivalent (deduplicated) | ~125 | Most aggressive trim yet. Heavy code-block duplication: trimmed Direct connection, ConsumeOnly, Convention-based routing, Multi-topic listeners, Transport-level/per-topic group ID overrides, GroupId stamping, Default envelope serialization, Raw JSON interop, Custom envelope mapper, native DLT, Retry policies, Circuit breakers, Tombstones; preserved EH Emulator constraint, Cab BC topic table + handlers, partition key rationale (driver_id/zone_id), ProcessInline decision framing, Schema Registry decision, Azure Event Hubs section (EH Emulator + ConfigureClient SASL), 12-bullet Common pitfalls; 2 upstream-contribution candidates flagged (EH Emulator AutoProvision constraint, BatchMessagesOf<T> for batch consumption) |
-| 7 | `wolverine-azure-service-bus` | 1 | _pending_ | _pending_ | _pending_ | _pending_ |
-| 8 | `wolverine-sagas` | 1 | _pending_ | _pending_ | _pending_ | _pending_ |
+| 7 | `wolverine-azure-service-bus` | 1 | `wolverine-integrations-azure-service-bus` + `wolverine-messaging-resiliency-policies` | Direct equivalent (deduplicated) | ~160 | Largest trim of Phase 5 (8.2% byte reduction). Heavy code-block duplication trimmed across Bootstrap (Managed Identity, AutoProvision, AutoPurgeOnStartup, System queues), Topics (Publishing, Subscribing, Subscription rules, Configuring properties), Queues (Publishing, Listening, Configuring), Sessions (Setting session ID, Sessions on subscriptions, ExclusiveNodeWithSessions), DLQ (Native, Wolverine routing, Circuit breakers), Scheduled delivery, Custom envelope mapper. **Erik flagged that the existing MassTransit/NServiceBus interop section was incorrect** — Cab does not use them and never will. Section removed entirely (not trimmed). Preserved Cab-specific content: Aspire connection-string integration, BC examples (TripCompleted, RiderRegistered, ProcessPayment), partition rationale, MaxDeliveryCount-vs-Wolverine-retries footgun, Aspire emulator package status, default envelope mapping table, local-vs-production table, 12-bullet Common pitfalls. 1 upstream-contribution candidate flagged (MaxDeliveryCount × Wolverine retries multiplicative interaction) |
+| 8 | `wolverine-sagas` | 1 | _none — ai-skills has no saga skill_ | **No equivalent** + observed coverage gap (no active author) | ~3 (rename only) | Light pass: counterpart `wolverine-sagas-saga-pattern` was assumed to exist but verified absent in ai-skills (no `wolverine-sagas-*` skills exist; only saga test fixtures inside `wolverine-converting-from-masstransit`/`-nservicebus`). Renamed `Upstream` → `Prerequisites`; removed forward-looking placeholder + install/license note. Cab's 39 KB skill stands as authoritative reference. ProcessManager<TState> framework references confirmed absent from body (only generic-pattern uses survive: `process-manager` tag for searchability and "process managers that do everything" anti-pattern phrasing on line 423 — both retained as standard pattern terminology). 1 upstream-contribution candidate flagged with **Observed gap** priority (no current author) |
 | 9 | `marten-aggregates` | 1 | _pending_ | _pending_ | _pending_ | _pending_ |
 | 10 | `marten-wolverine-aggregates` | 1 | _pending_ | _pending_ | _pending_ | _pending_ |
 | 11 | `marten-projections` | 1 | _pending_ | _pending_ | _pending_ | _pending_ |
@@ -297,6 +297,80 @@ Note: ai-skills uses `[Aggregate]` and `[WriteAggregate]` interchangeably across
 
 ---
 
+### 7. `wolverine-azure-service-bus`
+
+**Counterpart(s).** Two ai-skills counterparts:
+
+- `wolverine-integrations-azure-service-bus` — generic Wolverine + ASB transport. Direct counterpart.
+- `wolverine-messaging-resiliency-policies` — retry/circuit-breaker/DLQ. **No Cab parallel** (third skill in Phase 5 to point to this; pattern from Skills 3 and 6).
+
+**Section categorization.** Similar size and duplication shape to Kafka (Skill 6) — 28 KB / heavy code-block duplication. ~34 sections audited; ~17 substantively trimmed; 1 section **removed entirely** (see correction below); rest kept as Cab-specific value-add.
+
+**Trimmed sections (~160 raw lines removed, 8.2% byte reduction — largest of Phase 5):**
+
+- Bootstrap: Managed Identity, AutoProvision, AutoPurgeOnStartup, System queues
+- Topics: Publishing, Subscribing, Subscription rules, Configuring subscription properties
+- Queues: Publishing, Listening, Configuring queue properties (kept the duplicate-detection rationale)
+- Sessions: Setting session ID, Sessions on subscriptions, ExclusiveNodeWithSessions
+- DLQ: Native dead-lettering, Wolverine's DLQ routing, Circuit breakers (cross-ref to resiliency-policies)
+- Scheduled delivery, Custom envelope mapper
+- See Also (restructured to three-block convention; added `wolverine-messaging-resiliency-policies` to `Upstream`)
+
+**Section removed entirely:**
+
+- **MassTransit and NServiceBus interop.** The pre-Phase-5 Cab skill had a section covering `UseMassTransitInterop` and `UseNServiceBusInterop` framed as "migration aids." Erik flagged during the audit pause: **Cab does not use MassTransit or NServiceBus and never will.** The section was incorrect content that didn't reflect Cab's actual usage — likely drifted in from ai-skills or generic Wolverine documentation during the original authoring. Removed in full (not trimmed). This is the first content-correction edit in Phase 5; all prior trims have been about deduplication, not factual correction.
+
+**Preserved entirely:**
+
+- Top framing + Mental model + Aspire `Aspire.Hosting.Azure.ServiceBus` package-not-yet-committed status note
+- When to apply
+- Bootstrap > Connection string (local dev) (Aspire integration is Cab-specific)
+- Topics > Convention-based topic routing (brief Cab-doesn't-use note)
+- Sessions > When to use sessions (Cab BC examples) and Sessions > Enabling sessions on a queue (still has substantial Cab framing)
+- DLQ > Retry policies (**MaxDeliveryCount-vs-Wolverine-retries footgun**, kept as the Cab value-add)
+- Serialization > Default envelope mapping table (more comprehensive than ai-skills' equivalent)
+- Local development > Aspire integration, Testcontainers, local-vs-production table (all Cab-specific)
+- Tracing
+- Common pitfalls (12 bullets)
+
+**Trim impact.** ~160 raw lines removed, file 27,801 → 25,530 bytes (~8.2% size reduction — the largest in Phase 5). Confirms methodology refinement #6: code-block-heavy duplication compresses ~1:1.
+
+**Upstream-contribution candidate flagged.** One:
+
+1. **MaxDeliveryCount × Wolverine retries multiplicative interaction.** ai-skills mentions both retry types separately but doesn't articulate how they compose: a Wolverine retry of N inside ASB `MaxDeliveryCount` of M means up to N×M total processing attempts. This composition footgun is Cab-discovered framing.
+
+**MT/NSB interop NOT flagged as upstream candidate.** Cab can't speak to ai-skills' coverage of tools Cab doesn't use. The fact that ai-skills also omits MT/NSB interop is observable but Cab is not the right source for an upstream contribution there.
+
+---
+
+### 8. `wolverine-sagas`
+
+**Counterpart(s).** None. Search of ai-skills (`C:\Code\JasperFx\ai-skills\skills`) confirmed: no `wolverine-sagas-*` skills exist; only saga test fixtures (`03_saga.cs`) inside the MasterTransit/NServiceBus conversion skills. Erik confirmed during the audit that he had assumed a `wolverine-sagas-saga-pattern` counterpart existed but verification showed it doesn't. **No active author identified** — unlike the gRPC skills (Erik is the planned author), no one is currently writing a saga ai-skills skill that we know of.
+
+**Section categorization.** No section trims applied. Every section is Cab-specific or covers Wolverine saga mechanics that ai-skills doesn't address. The 39 KB skill stands as the authoritative reference.
+
+**Edits applied (light pass per methodology refinement #5).**
+
+1. **Rename `Upstream` → `Prerequisites`** in the See Also block.
+2. **Remove forward-looking placeholder** for the not-yet-published ai-skills `wolverine-sagas` skill (the line read "ai-skills `wolverine-sagas` — generic Wolverine saga patterns if/when JasperFx publishes one. Complements this skill.").
+3. **Remove standard install/license note** since the External block now contains only public-web links.
+
+**No new `Upstream` block** — nothing to put in it.
+
+**ProcessManager<TState> references audit.** Per Erik's earlier guidance to remove framework-design references that cause confusion, the body was searched for `ProcessManager`, `process manager`, `Wolverine 6`, `future version`, `first-class`, etc. Findings:
+
+- Line 5 (frontmatter `tags`): `process-manager` is one of 12 taxonomy tags for searchability. Generic pattern reference, not framework-design. **Retained.**
+- Line 423 (Common pitfalls): "Sagas with twelve `Handle` methods become 'process managers that do everything' and lose the workflow clarity that justified the saga" — standard EIP/DDD pattern terminology used to describe an anti-pattern. **Retained.**
+- No other forward-looking framework-design references found in the body.
+
+No edits made on the ProcessManager front. The two surviving uses are legitimate pattern terminology, not the kind of "head's up about a planned framework type" content Erik wanted stripped.
+
+**Trim impact.** ~3 lines removed (rename-only pass). 39 KB skill, content otherwise unchanged.
+
+**Upstream-contribution status.** Recorded with **Observed gap** priority — ai-skills has no saga skill at all and there's no known active author. Different from gRPC (where Erik is the planned author, **Active** priority) and different from footgun-style additions (where the ai-skills skill exists, _TBD at close-out_ priority).
+
+---
+
 ## Methodology refinements emerging in Phase 5
 
 _(updated as the reconciliation progresses)_
@@ -306,8 +380,9 @@ _(updated as the reconciliation progresses)_
 3. **Trim estimates are systematically high** (from Skill 3). Naive line-counting of removed code blocks overestimates net trim because cross-reference prose and expanded `Upstream` blocks (with 3 detailed entries replacing 3 one-liners) consume most of the savings. Skill 3 estimated ~50 lines saved; actual was ~26. Future estimates should account for the prose-and-upstream-block offset — a useful rule of thumb is `actual_trim ≈ 0.5 × raw_lines_removed`.
 4. **Cross-referencing ai-skills counterparts without a Cab parallel** (from Skill 3). When ai-skills covers a topic that Cab doesn't have a dedicated skill for (e.g., `wolverine-messaging-resiliency-policies`), the Cab `Upstream` block can include the ai-skills entry with a brief note that no Cab parallel exists. This is honest about Cab's current coverage gaps and points the reader to the authoritative upstream.
 5. **Handling "No equivalent in ai-skills" cases** (from Skill 4). When ai-skills has no counterpart today, the reconciliation pass is a light rename-only: `Upstream` → `Prerequisites`, remove any forward-looking placeholders for not-yet-published ai-skills counterparts (they mislead readers into searching for nonexistent skills), and skip the new `Upstream` block entirely. The Cab skill remains the authoritative reference until ai-skills publishes a parallel. If an ai-skills counterpart is actively planned (with a known author), record it in the upstream-contribution roadmap with an "Active" priority rather than "_TBD_".
-6. **Trim ratio depends on duplication shape** (refined from Skill 6). The 50% rule of thumb (refinement #3) applies when duplication is mostly **prose** — cross-reference paragraphs and expanded `Upstream` blocks consume most of the savings. When duplication is mostly **code blocks** (Skill 6's case), trims remove dense short lines that don't get fully replaced by prose; actual trim approaches `~1.0 × raw_lines_removed`. Skill 6 estimated ~120 lines, actual was ~125 — nearly 1:1. Future estimates should consider whether the target sections are code-heavy (closer to 1:1) or prose-heavy (closer to 0.5:1).
-7. _(more entries to come)_
+6. **Trim ratio depends on duplication shape** (refined from Skill 6). The 50% rule of thumb (refinement #3) applies when duplication is mostly **prose** — cross-reference paragraphs and expanded `Upstream` blocks consume most of the savings. When duplication is mostly **code blocks** (Skill 6's case), trims remove dense short lines that don't get fully replaced by prose; actual trim approaches `~1.0 × raw_lines_removed`. Skill 6 estimated ~120 lines, actual was ~125 — nearly 1:1. Skill 7 confirmed: ~160 lines actual (8.2% byte reduction). Future estimates should consider whether the target sections are code-heavy (closer to 1:1) or prose-heavy (closer to 0.5:1).
+7. **Section presence in Cab implies Cab uses it** (from Skill 7). When auditing a Cab skill, distinguish between two categories of content the audit may flag for action: (a) **mechanic duplicates ai-skills** → trim/cross-reference (the standard pattern through Skills 1–6); (b) **tool/pattern Cab doesn't use** → remove entirely. Skill 7 surfaced this when Erik flagged that the MassTransit/NServiceBus interop section was incorrect: Cab doesn't use MT/NSB and never will. The section was likely content drift from ai-skills or generic Wolverine docs during original authoring. The audit should explicitly check: does Cab actually use the patterns this section describes? If no, remove rather than trim. Future Phase 5 audits should look for content-drift sections of this kind.
+8. _(more entries to come)_
 
 ---
 
@@ -324,6 +399,16 @@ Compiled list of Cab patterns/sections flagged as upstream-contribution candidat
 | 5 | `wolverine-grpc-handlers` + `wolverine-grpc-bidirectional-handlers` | Both Cab gRPC skills — proto-first auto-generated path (unary + server-streaming) AND hand-written workaround for client-streaming + bidirectional patterns, `[WolverineGrpcService]` stub, AIP-193 exception mapping, Wolverine 5.32+ wiring | **Erik is the planned author** of the future ai-skills `wolverine-grpc` skill. Cab content across both skills is the basis for that work; once ai-skills publishes, both Cab skills should be revisited and likely thinned to their Cab-specific layers (Aspire dev-cert, ADR-009 conventions, Cab BC examples, hand-written workaround status as Wolverine evolves). | **Active** (Erik's roadmap, not TBD) |
 | 6 | `wolverine-kafka` | EH Emulator AutoProvision constraint | ai-skills `wolverine-integrations-kafka` doesn't mention Azure Event Hubs Emulator at all. The EH Emulator's lack of Kafka admin APIs (so `AutoProvision()` fails) is a genuine pitfall for any Wolverine+Kafka deployment targeting Azure. Cab's framing ("use real Kafka container locally; switch to EH Emulator only for EH-specific integration tests") is Cab-discovered guidance worth upstreaming. | _TBD at close-out_ |
 | 7 | `wolverine-kafka` | `BatchMessagesOf<T>` for batch Kafka consumption | ai-skills omits batch consumption entirely. The mechanic is generic Wolverine; Cab's framing pairs it with high-volume Kafka topics where per-message invocation overhead is wasteful. Both the mechanic existence and the Kafka-pairing rationale could be upstream additions. | _TBD at close-out_ |
+| 8 | `wolverine-azure-service-bus` | MaxDeliveryCount × Wolverine retries multiplicative interaction | ai-skills mentions both retry types separately but doesn't articulate how they compose: a Wolverine retry of N inside ASB `MaxDeliveryCount` of M means up to N×M total processing attempts. This composition footgun is Cab-discovered framing. | _TBD at close-out_ |
+| 9 | `wolverine-sagas` | Entire skill — Wolverine saga patterns including the `Saga` base class, method-name conventions (Start/StartOrHandle/Handle/Orchestrate/NotFound), saga-ID resolution cascade, valid saga-ID types, TimeoutMessage scheduling, saga-not-found semantics, Marten + Polecat persistence, optimistic concurrency via IRevisioned, the static-allowed-vs-instance-required asymmetry | ai-skills has no `wolverine-sagas-*` skill at all. Cab's 39 KB skill is comprehensive coverage of an entire ai-skills topic gap. **No active author** — unlike the gRPC skills (Erik is the planned author), no one in the JasperFx ecosystem is writing this currently as far as we know. If someone decides to author it, Cab content is substantial fuel. | **Observed gap** (no active author) |
+
+## Cab content corrections during reconciliation
+
+Reconciliation occasionally surfaces Cab content that doesn't reflect Cab's actual usage — content drift from ai-skills or generic Wolverine docs during original authoring. These are corrected in place during the per-skill pass.
+
+| # | Skill | Section removed | Reason |
+|---|---|---|---|
+| 1 | `wolverine-azure-service-bus` | MassTransit and NServiceBus interop | Cab does not use MassTransit or NServiceBus and never will (per Erik). The section was likely content drift; not Cab-relevant. |
 
 ## Cab coverage gaps revealed
 
@@ -349,10 +434,11 @@ To be executed after all 39 per-skill reconciliations complete.
 
 _(updated at session end)_
 
-- Skills reconciled: 6 / 39
-- Total lines trimmed: ~235
-- Direct-equivalent (deduplicated): 4
-- No equivalent: 2 (both gRPC skills, ahead of ai-skills, scoped under Erik's active upstream roadmap)
-- Upstream-contribution candidates: 7 (6 footgun-style additions + 1 entire-skill-creation covering both gRPC skills, the latter actively planned by Erik)
+- Skills reconciled: 8 / 39
+- Total lines trimmed: ~398
+- Direct-equivalent (deduplicated): 5
+- No equivalent: 3 (both gRPC skills + sagas; gRPC scoped under Erik's active upstream roadmap, sagas an observed gap with no active author)
+- Upstream-contribution candidates: 9 (7 footgun-style additions + 1 entire-skill-creation covering both gRPC skills (Active, Erik's roadmap) + 1 entire-skill-creation for sagas (Observed gap, no active author))
 - Upstream-replacement candidates: 0
 - Cab coverage gaps revealed: 1 (messaging resiliency)
+- Cab content corrections: 1 (MT/NSB interop section removed from `wolverine-azure-service-bus`)
