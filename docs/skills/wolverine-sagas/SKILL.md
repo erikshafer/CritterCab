@@ -80,7 +80,7 @@ The static-method asymmetry is enforced by Wolverine at startup: `It is not lega
 
 ### Saga-ID resolution cascade
 
-Wolverine determines which saga instance a message correlates to by walking five rules in order. The first match wins. This is from `SagaChain.DetermineSagaIdMember`:
+Wolverine determines which saga instance a message correlates to by walking six rules in order. The first match wins. This is from `SagaChain.DetermineSagaIdMember`:
 
 1. A property or field on the message marked `[SagaIdentity]`.
 2. A property or field whose name matches a handler parameter's `[SagaIdentityFrom("PropertyName")]` attribute.
