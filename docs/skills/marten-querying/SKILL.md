@@ -614,7 +614,12 @@ The streaming APIs serve exactly what's persisted. If the on-the-wire shape need
 
 ## See also
 
-**Upstream** — load these first:
+**Upstream** — generic Marten querying-adjacent mechanics this skill defers to or doesn't currently cover. ai-skills (license required, install via `npx skills add`):
+
+- `marten-advanced-indexes-and-query-optimization` — index design (computed, GIN, duplicated fields, unique, partial, multi-column, full-text), `[DuplicateField]` attribute, `IndexMethod` options, `TenancyScope`, computed-vs-duplicated decision matrix. **No Cab parallel** — Cab has no skill covering index registration; load this directly when adding indexes in `service-bootstrap`.
+- `marten-advanced-optimization` — bootstrap-level performance tuning: `EventAppendMode.Quick` vs `Rich`, identity-map for aggregates, mandatory stream types, async daemon error handling, projection throughput options (`IncludeType<T>`, `BatchSize`, `CacheLimitPerTenant`), daemon progress monitoring. Most of this overlaps with Cab `marten-projections` (snapshot strategies) and the upcoming `marten-async-daemon`; load this directly for bootstrap-level event-append tuning.
+
+**Prerequisites** — Cab-internal skills to load first if unfamiliar:
 
 - `marten-aggregates` — aggregate shape and the snapshot/evolve idiom that produces queryable state.
 - `marten-projections` — single-stream, multi-stream, and event projections; lifecycle choice; what gets queried here.
@@ -635,9 +640,7 @@ The streaming APIs serve exactly what's persisted. If the on-the-wire shape need
 
 **External:**
 
-- ai-skills `marten-event-sourcing-fundamentals` — generic Marten event-store mechanics that underpin event-sourced aggregate queries.
 - ai-skills `marten-aggregate-handler-workflow` — the complete read-and-write workflow reference.
-- All ai-skills installed via `npx skills add` (license required).
 - [Marten Querying Documents](https://martendb.io/documents/querying/) — the canonical querying reference.
 - [Marten Compiled Queries](https://martendb.io/documents/querying/compiled-queries.html) — compiled-query patterns and gotchas in depth.
 - [Marten Batched Queries](https://martendb.io/documents/querying/batched-queries.html).
