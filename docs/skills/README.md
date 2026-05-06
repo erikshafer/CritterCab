@@ -23,11 +23,11 @@ Cross-references between skills are explicit. Each skill's `See Also` section na
 |---|---|---|
 | Phase 1 | Pre-implementation foundations: language standards, design conventions, contract governance, transport decisions, service skeleton | **Complete** (6 skills) |
 | Phase 2 | First service implementation: composition root, store wiring, handlers, projections, testing, local-dev orchestration | **Complete** (16 skills) |
-| Phase 3 | First cross-service flow: gRPC services, Kafka and ASB transports, identity ACL, distributed observability | Pending |
+| Phase 3 | First cross-service flow: gRPC services, Kafka and ASB transports, identity ACL, distributed observability | **Complete** (8 skills) |
 | Phase 4 | Complexity arrives: sagas, advanced patterns, Polecat event sourcing, polyglot Go service, complete observability, advanced testing | Pending |
 | Phase 5 | Reconciliation pass — cross-check against ai-skills, eliminate duplication, contribute generic patterns upstream | Pending |
 
-22 skills authored across Phases 1 and 2. The phase plan, including which skills land in each phase and why, is captured in the conversation history that produced this library. Each phase wraps with a README update like this one.
+30 skills authored across Phases 1, 2, and 3. Phase 4 covers sagas (`wolverine-sagas`), Polecat event sourcing and document store (`polecat-event-sourcing`, `polecat-document-store`), polyglot Go service (`polyglot-go-service`), bidirectional gRPC streaming (`wolverine-grpc-bidirectional-handlers`), distributed saga considerations (`distributed-saga-considerations`), transport comparison (`grpc-vs-other-transports`), advanced testing (`testing-advanced`), and metrics observability (`observability-metrics`).
 
 ## Skill index by cluster
 
@@ -38,10 +38,10 @@ CritterCab's skill clusters split into product/library clusters and topic/concer
 | Cluster | Authored | Planned |
 |---|---|---|
 | `core` | `csharp-coding-standards`, `domain-event-conventions`, `event-modeling` | — |
-| `wolverine` | `wolverine-handlers`, `wolverine-http-handlers`, `wolverine-messaging-handlers` | `wolverine-grpc-handlers`, `wolverine-grpc-bidirectional-handlers`, `wolverine-kafka`, `wolverine-azure-service-bus`, `wolverine-sagas` |
+| `wolverine` | `wolverine-handlers`, `wolverine-http-handlers`, `wolverine-messaging-handlers`, `wolverine-grpc-handlers`, `wolverine-kafka`, `wolverine-azure-service-bus` | `wolverine-grpc-bidirectional-handlers`, `wolverine-sagas` |
 | `marten` | `marten-aggregates`, `marten-wolverine-aggregates`, `marten-projections`, `marten-querying`, `marten-async-daemon`, `dynamic-consistency-boundary` | — |
 | `polecat` | — | `polecat-event-sourcing`, `polecat-document-store` |
-| `infrastructure` | `aspire`, `cli-aspire`, `cli-jasperfx` | `cli-grpc-tooling`, `cli-kafka-tooling`, `cli-azure-messaging` |
+| `infrastructure` | `aspire`, `cli-aspire`, `cli-jasperfx`, `cli-grpc-tooling`, `cli-kafka-tooling`, `cli-azure-messaging` | — |
 
 ### Topic/concern clusters
 
@@ -50,10 +50,10 @@ CritterCab's skill clusters split into product/library clusters and topic/concer
 | `distributed-services` | `adding-a-service`, `service-bootstrap`, `vertical-slice-organization` | `distributed-saga-considerations` |
 | `grpc` | `protobuf-contracts` | `grpc-vs-other-transports` |
 | `transports` | `transport-selection` | — |
-| `identity` | — | `identity-acl` |
+| `identity` | `identity-acl` | — |
 | `polyglot` | — | `polyglot-go-service` |
 | `testing` | `testing-fundamentals`, `testing-integration` | `testing-advanced` |
-| `observability` | — | `observability-tracing`, `observability-metrics` |
+| `observability` | `observability-tracing` | `observability-metrics` |
 
 ## Entry-point hubs
 
@@ -65,16 +65,16 @@ When starting a task, the entry-point skill is the first to load. Upstream skill
 |---|---|---|---|
 | Designing a new feature or journey | `event-modeling` | — | `domain-event-conventions`, eventual implementation skills |
 | Authoring or reviewing C# code | `csharp-coding-standards` | — | `domain-event-conventions`, plus the relevant implementation skill |
-| Designing a domain event | `domain-event-conventions` | `csharp-coding-standards` | `marten-aggregates`, transport skills (Phase 3) |
-| Designing a cross-service contract | `protobuf-contracts` | `csharp-coding-standards`, `domain-event-conventions` | `cli-grpc-tooling` (Phase 3), `wolverine-grpc-handlers` (Phase 3) |
-| Choosing a transport for a cross-service flow | `transport-selection` | `protobuf-contracts`, `domain-event-conventions` | per-transport implementation skills (Phase 3) |
+| Designing a domain event | `domain-event-conventions` | `csharp-coding-standards` | `marten-aggregates`, transport skills |
+| Designing a cross-service contract | `protobuf-contracts` | `csharp-coding-standards`, `domain-event-conventions` | `cli-grpc-tooling`, `wolverine-grpc-handlers` |
+| Choosing a transport for a cross-service flow | `transport-selection` | `protobuf-contracts`, `domain-event-conventions` | `wolverine-kafka`, `wolverine-azure-service-bus`, `wolverine-grpc-handlers` |
 
 ### Service implementation
 
 | Task | Entry-point skill | Loads upstream | Loads downstream as work progresses |
 |---|---|---|---|
 | Adding a new service from scratch | `adding-a-service` | `transport-selection`, `protobuf-contracts`, `domain-event-conventions` | `service-bootstrap`, `vertical-slice-organization` |
-| Bootstrapping a service's `Program.cs` | `service-bootstrap` | `csharp-coding-standards`, `adding-a-service` | `wolverine-handlers`, `marten-aggregates`, `aspire` |
+| Bootstrapping a service's `Program.cs` | `service-bootstrap` | `csharp-coding-standards`, `adding-a-service` | `wolverine-handlers`, `marten-aggregates`, `aspire`, `observability-tracing` |
 | Organizing code within a service | `vertical-slice-organization` | `service-bootstrap` | handler and aggregate skills |
 
 ### Wolverine handler authoring
@@ -84,6 +84,24 @@ When starting a task, the entry-point skill is the first to load. Upstream skill
 | Authoring a Wolverine handler (general) | `wolverine-handlers` | `service-bootstrap`, `vertical-slice-organization` | `wolverine-http-handlers`, `wolverine-messaging-handlers`, `marten-wolverine-aggregates`, `testing-fundamentals` |
 | Authoring an HTTP endpoint | `wolverine-http-handlers` | `wolverine-handlers` | `marten-wolverine-aggregates`, `testing-integration` |
 | Authoring a messaging handler | `wolverine-messaging-handlers` | `wolverine-handlers` | `marten-wolverine-aggregates`, `testing-integration` |
+
+### Cross-service flows (gRPC, Kafka, ASB)
+
+| Task | Entry-point skill | Loads upstream | Loads downstream as work progresses |
+|---|---|---|---|
+| Implementing a gRPC service | `wolverine-grpc-handlers` | `protobuf-contracts`, `service-bootstrap` | `cli-grpc-tooling`, `identity-acl`, `observability-tracing` |
+| Wiring Kafka for high-volume streams | `wolverine-kafka` | `transport-selection`, `wolverine-messaging-handlers` | `cli-kafka-tooling`, `observability-tracing` |
+| Wiring ASB for domain events | `wolverine-azure-service-bus` | `transport-selection`, `wolverine-messaging-handlers` | `cli-azure-messaging`, `observability-tracing` |
+| Testing gRPC endpoints from CLI | `cli-grpc-tooling` | `wolverine-grpc-handlers`, `protobuf-contracts` | `identity-acl` for auth tokens |
+| Inspecting Kafka topics and messages | `cli-kafka-tooling` | `wolverine-kafka` | `cli-azure-messaging` for Event Hubs management |
+| Inspecting ASB queues, topics, and DLQ | `cli-azure-messaging` | `wolverine-azure-service-bus` | — |
+
+### Identity and auth
+
+| Task | Entry-point skill | Loads upstream | Loads downstream as work progresses |
+|---|---|---|---|
+| Adding auth to a Cab service | `identity-acl` | `service-bootstrap`, `wolverine-grpc-handlers` | `observability-tracing` |
+| Obtaining a dev-mode token for CLI testing | `identity-acl` | `cli-grpc-tooling` | — |
 
 ### Marten event-sourced and document work
 
@@ -101,7 +119,7 @@ When starting a task, the entry-point skill is the first to load. Upstream skill
 | Task | Entry-point skill | Loads upstream | Loads downstream as work progresses |
 |---|---|---|---|
 | Writing a unit test for a handler or aggregate | `testing-fundamentals` | `wolverine-handlers` (or `marten-aggregates`) | `testing-integration` when the test grows beyond pure logic |
-| Writing an integration test | `testing-integration` | `testing-fundamentals`, `service-bootstrap`, `marten-async-daemon` | `wolverine-grpc-handlers` and other Phase 3 skills |
+| Writing an integration test | `testing-integration` | `testing-fundamentals`, `service-bootstrap`, `marten-async-daemon` | transport-specific testing in `testing-advanced` (Phase 4) |
 
 ### Infrastructure and tooling
 
@@ -110,6 +128,13 @@ When starting a task, the entry-point skill is the first to load. Upstream skill
 | Setting up local-dev orchestration | `aspire` | `service-bootstrap` | `cli-aspire` |
 | Operating the AppHost from a terminal or CI | `cli-aspire` | `aspire` | `cli-jasperfx` for service-internal commands |
 | Running CLI commands inside a Cab service | `cli-jasperfx` | `service-bootstrap` | `cli-aspire` for AppHost-level orchestration |
+
+### Observability
+
+| Task | Entry-point skill | Loads upstream | Loads downstream as work progresses |
+|---|---|---|---|
+| Setting up distributed tracing | `observability-tracing` | `service-bootstrap`, `aspire` | `observability-metrics` (Phase 4) |
+| Understanding Wolverine's trace spans | `observability-tracing` | `wolverine-handlers` | — |
 
 ## Cross-reference graph
 
@@ -209,7 +234,64 @@ graph TB
     class SB,VSO,WH,WHH,WMH,MA,MWA,MP,MQ,MAD,DCB,TF,TI,ASP,CLA,CLJ phase2
 ```
 
-The Phase 2 graph shows direct upstream → downstream relationships among the 16 Phase 2 skills, with two Phase 1 anchors (`adding-a-service`, `domain-event-conventions`) included to show where the cluster attaches. As Phase 3 lands, a third graph will show the cross-service flow skills (gRPC, Kafka, ASB, identity ACL) hanging off `wolverine-messaging-handlers`, `protobuf-contracts`, and `transport-selection`.
+### Phase 3 — First cross-service flow
+
+```mermaid
+graph TB
+    %% Anchors from earlier phases
+    TS[transport-selection<br/><i>Phase 1</i>]
+    PC[protobuf-contracts<br/><i>Phase 1</i>]
+    WMH[wolverine-messaging-handlers<br/><i>Phase 2</i>]
+    SB[service-bootstrap<br/><i>Phase 2</i>]
+    ASP[aspire<br/><i>Phase 2</i>]
+
+    %% gRPC flow
+    WGH[wolverine-grpc-handlers]
+    CGT[cli-grpc-tooling]
+
+    PC --> WGH
+    SB --> WGH
+    WGH --> CGT
+
+    %% Kafka flow
+    WK[wolverine-kafka]
+    CKT[cli-kafka-tooling]
+
+    TS --> WK
+    WMH --> WK
+    WK --> CKT
+
+    %% ASB flow
+    WASB[wolverine-azure-service-bus]
+    CAM[cli-azure-messaging]
+
+    TS --> WASB
+    WMH --> WASB
+    WASB --> CAM
+
+    %% Identity
+    IACL[identity-acl]
+
+    SB --> IACL
+    WGH --> IACL
+    WASB --> IACL
+
+    %% Observability
+    OT[observability-tracing]
+
+    SB --> OT
+    ASP --> OT
+
+    classDef phase1 fill:#90ee90,stroke:#333,stroke-width:2px
+    classDef phase2 fill:#87ceeb,stroke:#333,stroke-width:2px
+    classDef phase3 fill:#ffd700,stroke:#333,stroke-width:2px
+
+    class TS,PC phase1
+    class WMH,SB,ASP phase2
+    class WGH,WK,WASB,CGT,CKT,CAM,IACL,OT phase3
+```
+
+The Phase 3 graph shows three transport-specific vertical flows (gRPC, Kafka, ASB) anchored on Phase 1 decision skills (`transport-selection`, `protobuf-contracts`) and Phase 2 handler and composition skills (`wolverine-messaging-handlers`, `service-bootstrap`). Identity and observability cut across the transport flows — `identity-acl` draws from gRPC handlers and ASB, while `observability-tracing` draws from the service bootstrap and Aspire foundation. Phase 4 will add sagas, Polecat, and the polyglot Go service, extending the graph with cross-transport coordination and alternative event stores.
 
 ## Companion: JasperFx ai-skills
 
