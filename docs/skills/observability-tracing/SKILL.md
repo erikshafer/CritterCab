@@ -56,7 +56,7 @@ builder.Services.AddOpenTelemetry()
     })
     .WithMetrics(metrics =>
     {
-        metrics.AddMeter("Wolverine");      // Wolverine message counters and execution histograms
+        metrics.AddMeter("Wolverine:*");   // Wolverine message counters and execution histograms (per-service Meter, hence the wildcard)
     });
 ```
 
