@@ -93,110 +93,54 @@ public static async Task<IResult> UpdateTripFare(
 
 ## Anti-Pattern: Bare Event Return on an Aggregate-Handler HTTP Endpoint
 
-Subtle and silent. On an HTTP endpoint with `[WriteAggregate]`, a bare event return is treated as the HTTP response body and serialized. The event is *not* appended to the stream.
+Subtle and silent. On an HTTP endpoint with `[WriteAggregate]`, a bare event return is treated as the HTTP response body and serialized — the event is *not* appended to the stream.
 
 ```csharp
 // ❌ FAILS SILENTLY — TripCancelled serialized to response body, never appended to stream
 [WolverinePost("/api/trips/{tripId}/cancel")]
 public static TripCancelled Cancel(
-    [WriteAggregate(nameof(CancelTrip.TripId))] Trip trip,
-    CancelTrip cmd,
-    TimeProvider time)
-{
-    return new TripCancelled(trip.Id, cmd.Reason, time.GetUtcNow());
-}
-```
-
-Two correct shapes:
-
-```csharp
-// Shape 1 — [EmptyResponse] suppresses the HTTP body, event appended, 204 returned
-[WolverinePost("/api/trips/{tripId}/cancel"), EmptyResponse]
-public static TripCancelled Cancel(
-    [WriteAggregate(nameof(CancelTrip.TripId))] Trip trip,
-    CancelTrip cmd,
-    TimeProvider time)
+    [WriteAggregate(nameof(CancelTrip.TripId))] Trip trip, CancelTrip cmd, TimeProvider time)
     => new TripCancelled(trip.Id, cmd.Reason, time.GetUtcNow());
 
-// Shape 2 — explicit tuple with an HTTP result first; preferred when also publishing integration messages
-[WolverinePost("/api/trips/{tripId}/cancel")]
-public static (IResult, TripCancelled, OutgoingMessages) Cancel(
-    [WriteAggregate(nameof(CancelTrip.TripId))] Trip trip,
-    CancelTrip cmd,
-    TimeProvider time)
-{
-    var cancelled = new TripCancelled(trip.Id, cmd.Reason, time.GetUtcNow());
-    var outgoing = new OutgoingMessages();
-    outgoing.Add(new Integration.TripCancelled(trip.Id, trip.RiderId, cmd.Reason, time.GetUtcNow()));
-    return (Results.NoContent(), cancelled, outgoing);
-}
+// ✅ [EmptyResponse] suppresses the body, event appended, 204 returned
+[WolverinePost("/api/trips/{tripId}/cancel"), EmptyResponse]
+public static TripCancelled Cancel(
+    [WriteAggregate(nameof(CancelTrip.TripId))] Trip trip, CancelTrip cmd, TimeProvider time)
+    => new TripCancelled(trip.Id, cmd.Reason, time.GetUtcNow());
 ```
 
-**Cab rule:** never return a bare event type from an aggregate-handler HTTP endpoint. Either `[EmptyResponse]` + bare event, or an explicit tuple with the HTTP result first.
+**Cab rule:** never return a bare event type from an aggregate-handler HTTP endpoint. Either `[EmptyResponse]` + bare event (single event, no integration message), or an explicit tuple with `Results.NoContent()` first when also publishing integration messages — see ai-skills `wolverine-http-marten-integration` § Returning events as HTTP response body for the elaborated tuple shape.
 
 ---
 
 ## Concrete Return Types vs IResult
 
-Wolverine generates OpenAPI metadata from concrete return types. `IResult` is opaque to that inference and requires manual `[ProducesResponseType]` annotations. Reserve `IResult` for endpoints with genuinely runtime-variable response shapes; most Cab endpoints don't have this and benefit from automatic OpenAPI inference.
+Cab convention: prefer concrete return types so Wolverine infers OpenAPI metadata automatically. Reserve `IResult` for two cases — endpoints with genuinely runtime-variable response shapes (conditional redirects, content negotiation), and the `Results.NoContent()` first element of tuple returns on aggregate-handler endpoints (see § Bare Event Return).
 
 ```csharp
-// ✅ CONCRETE — OpenAPI infers 200 + Trip schema; nullable infers 200-or-404
+// ✅ Concrete — OpenAPI infers 200 + Trip schema; nullable infers 200-or-404
 [WolverineGet("/api/trips/{tripId}")]
 public static Task<Trip?> GetTrip(Guid tripId, IDocumentSession session) =>
     session.LoadAsync<Trip>(tripId);
-
-// ❌ OPAQUE — OpenAPI shows no response schema; manual [ProducesResponseType] required
-[WolverineGet("/api/trips/{tripId}")]
-public static async Task<IResult> GetTrip(Guid tripId, IDocumentSession session)
-{
-    var trip = await session.LoadAsync<Trip>(tripId);
-    return trip is null ? Results.NotFound() : Results.Ok(trip);
-}
 ```
 
-### Return type → OpenAPI mapping
-
-| Return type | Inferred status codes | Body |
-|---|---|---|
-| `T` (concrete, non-nullable) | 200 | JSON of `T` |
-| `T?` (nullable) | 200 or 404 | JSON of `T`, or empty on 404 |
-| `void` / `Task` | 200 | empty |
-| `CreationResponse<T>` | 201 | JSON of `T`, `Location` header |
-| `AcceptResponse` | 202 | empty, `Location` header |
-| A `Validate` method returning `ProblemDetails` | 400 added automatically | `application/problem+json` on failure |
-| `IResult` | opaque | manual `[ProducesResponseType]` required |
-
-**Reserve `IResult` for:**
-
-- Endpoints that genuinely have runtime-variable response shapes (conditional redirects, content negotiation).
-- The `Results.NoContent()` first element of tuple returns on aggregate-handler endpoints (covered above in the bare-event-return section).
-
-For all other endpoints, prefer concrete types — Wolverine and OpenAPI do the rest.
+For the full return-type → OpenAPI mapping (concrete `T`, nullable `T?`, `CreationResponse<T>`, `AcceptResponse`, `ProblemDetails` auto-400), see ai-skills `wolverine-http-fundamentals` § Return type conventions.
 
 ---
 
-## Route Binding
+## Aggregate ID — Cab Convention
 
-Wolverine binds route segments to parameters by name. The `{paramName}` in the route attribute matches the parameter name in the method signature.
+Cab uses the positional override `[WriteAggregate(nameof(Cmd.SomeId))]` on aggregate-handler endpoints, even when Wolverine's convention-based resolution would work without it. The `nameof()` argument is refactor-safe and makes the linkage between command property and aggregate ID source explicit at the handler.
 
 ```csharp
-// Route segment {tripId} binds to the Guid tripId parameter
-[WolverineGet("/api/trips/{tripId}")]
-public static Task<Trip?> GetTrip(Guid tripId, IDocumentSession session) =>
-    session.LoadAsync<Trip>(tripId);
+[WolverinePost("/api/trips/{tripId}/cancel"), EmptyResponse]
+public static TripCancelled Cancel(
+    [WriteAggregate(nameof(CancelTrip.TripId))] Trip trip,
+    CancelTrip cmd, TimeProvider time)
+    => new TripCancelled(trip.Id, cmd.Reason, time.GetUtcNow());
 ```
 
-For `[WriteAggregate]` and `[ReadAggregate]` on aggregate-handler endpoints, the aggregate ID resolves from the route segment when the parameter name matches. The convention chain is:
-
-1. Positional override on the attribute: `[WriteAggregate(nameof(Cmd.SomeId))]`
-2. Property on the command: `{camelCaseParameterName}Id` or `id`
-3. HTTP route segment with the matching name
-4. Strong-typed ID fallback
-
-Cab's convention uses the positional override with `nameof()` for refactor-safety, even when the convention-based resolution would work. The override makes the linkage between command property and aggregate ID source explicit at the handler.
-
-For custom identity sources (header, claim, computed), see ai-skills `wolverine-http-marten-integration`.
+For the full identity-resolution chain (route segment matching, header, claim, custom method via `[Aggregate(FromHeader = ...)]` etc.), see ai-skills `wolverine-http-marten-integration` § Aggregate identity resolution. For generic route parameter binding rules (route vs query vs body, `[FromHeader]`, `[FromServices]`), see ai-skills `wolverine-http-fundamentals` § Parameter binding.
 
 ---
 
@@ -224,9 +168,15 @@ dotnet run -- wolverine-diagnostics codegen-preview --handler StartTripHandler
 
 ## See also
 
-**Upstream** — load these first:
+**Upstream** — generic Wolverine HTTP mechanics this skill defers to. ai-skills (license required, install via `npx skills add`):
 
-- `wolverine-handlers` — general handler shape, validation pipeline, `IStartStream` semantics, lambda factory anti-pattern, logger convention.
+- `wolverine-http-fundamentals` — generic HTTP integration: routing, parameter binding, OpenAPI inference from signatures, ProblemDetails-based validation, return type conventions.
+- `wolverine-http-marten-integration` — aggregate handler endpoints (`[Aggregate]`/`[WriteAggregate]`), aggregate identity resolution chain, `UpdatedAggregate`, document operations.
+- `wolverine-http-hybrid-handlers` — single handler serving both HTTP and message-bus paths via `[WolverineVerb]`, `MiddlewareScoping` for context-gated middleware.
+
+**Prerequisites** — Cab-internal skills to load first if unfamiliar:
+
+- `wolverine-handlers` — general handler shape, validation pipeline, `IStartStream` semantics, service registration conventions, logger convention.
 - `csharp-coding-standards` — sealed records, `TimeProvider`, modern guard clauses.
 
 **Sibling skills:**
@@ -242,8 +192,4 @@ dotnet run -- wolverine-diagnostics codegen-preview --handler StartTripHandler
 
 **External:**
 
-- ai-skills `wolverine-http-fundamentals` — generic Wolverine HTTP integration.
-- ai-skills `wolverine-http-marten-integration` — aggregate handler endpoints, custom identity sources, `UpdatedAggregate`.
-- ai-skills `wolverine-http-hybrid-handlers` — handlers that serve both HTTP and message-bus paths.
-- All ai-skills installed via `npx skills add` (license required).
 - [Wolverine HTTP Endpoints Guide](https://wolverinefx.net/guide/http/).

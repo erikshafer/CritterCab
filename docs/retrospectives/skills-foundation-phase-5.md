@@ -52,7 +52,7 @@ Reference repo HEAD revisions at session start: _(not captured — would have be
 | # | Skill | Tier | ai-skills counterpart | Category | Lines saved | Notes |
 |---|---|---|---|---|---|---|
 | 1 | `wolverine-handlers` | 1 | `wolverine-handlers-fundamentals` (+ 7 fragmented siblings) | Direct equivalent (deduplicated) | ~18 | Hub-skill structure preserved; trimmed Lambda Factory anti-pattern + Logger Convention duplication; promoted `External` ai-skills entries to new `Upstream (ai-skills)` block |
-| 2 | `wolverine-http-handlers` | 1 | _pending_ | _pending_ | _pending_ | _pending_ |
+| 2 | `wolverine-http-handlers` | 1 | `wolverine-http-fundamentals` + `wolverine-http-marten-integration` + `wolverine-http-hybrid-handlers` | Direct equivalent (deduplicated) | ~60 | Trimmed Bare Event Return shape-2 elaboration, full Concrete-Return-Types-vs-IResult table, and generic Route Binding rules; renamed Route Binding section to "Aggregate ID — Cab Convention"; applied three-block See Also; 2 upstream-contribution candidates flagged |
 | 3 | `wolverine-messaging-handlers` | 1 | _pending_ | _pending_ | _pending_ | _pending_ |
 | 4 | `wolverine-grpc-handlers` | 1 | _pending_ | _pending_ | _pending_ | _pending_ |
 | 5 | `wolverine-grpc-bidirectional-handlers` | 1 | _pending_ | _pending_ | _pending_ | _pending_ |
@@ -141,6 +141,38 @@ The `Upstream` → `Prerequisites` rename is part of every Phase 5 skill reconci
 
 ---
 
+### 2. `wolverine-http-handlers`
+
+**Counterpart(s).** Three direct counterparts in ai-skills:
+
+- `wolverine-http-fundamentals` — generic HTTP integration: routing, parameter binding, OpenAPI inference from signatures, ProblemDetails-based validation, return type conventions.
+- `wolverine-http-marten-integration` — aggregate handler endpoints (`[Aggregate]`/`[WriteAggregate]`), aggregate identity resolution chain, `UpdatedAggregate`, document operations.
+- `wolverine-http-hybrid-handlers` — single handler serving both HTTP and message-bus paths via `[WolverineVerb]`, `MiddlewareScoping` for context-gated middleware.
+
+Note: ai-skills uses `[Aggregate]` and `[WriteAggregate]` interchangeably across the marten-integration skill (mostly `[Aggregate]`); Cab standardized on `[WriteAggregate]` per `wolverine-handlers`. Cab convention preserved across edits.
+
+**Section categorization.**
+
+| Section | Category | Action |
+|---|---|---|
+| Top framing + When to apply | Cab-specific | Kept (already names ai-skills counterparts as "Do NOT use this skill for" pointers) |
+| Anti-Pattern: Wrong Tuple Order | Cab-specific articulation of an ai-skills rule (footgun framing) | Kept |
+| Anti-Pattern: Mixed Route + JSON Body on Compound Handlers | **Upstream-contribution candidate** — limitation absent from ai-skills | Kept; flagged for upstream contribution |
+| Anti-Pattern: Bare Event Return on Aggregate-Handler HTTP Endpoint | Duplicates ai-skills (covered in both `fundamentals` + `marten-integration`) | **Trimmed** — kept brief callout + Cab `[WriteAggregate]` example with `TripCancelled`; deferred elaborate two-correct-shape treatment to ai-skills cross-reference |
+| Concrete Return Types vs `IResult` (with mapping table) | Duplicates ai-skills (covered comprehensively in `fundamentals`) | **Trimmed heavily** — short Cab note + cross-reference; dropped the table |
+| Route Binding (binding rule + `nameof()` convention + identity resolution chain) | Generic mechanics duplicate ai-skills; `nameof()` convention is Cab-specific | **Trimmed and renamed** to "Aggregate ID — Cab Convention" — kept only Cab's `nameof()`-for-refactor-safety convention; cross-referenced ai-skills for binding rules and identity resolution |
+| Diagnosing Endpoint Issues | Cab-specific framing | Kept |
+| See Also | Restructure | Applied three-block convention from Skill 1 (`Upstream` ai-skills → `Prerequisites` Cab-internal → `Sibling skills` → `Downstream` → `External`) |
+
+**Trim impact.** ~60 lines removed across three sections (Bare Event Return ~38 → ~14; Concrete Return Types vs IResult ~30 → ~10; Route Binding ~22 → ~12, renamed). File went from 11,829 → 10,567 bytes (~10% size reduction).
+
+**Upstream-contribution candidates flagged.**
+
+1. **Mixed route + JSON body breaks compound handlers.** The compound handler pattern (`Validate`/`Handle` shared-state) fails when the endpoint mixes route parameters and a JSON body — Wolverine's parameter resolution can't see across the route-vs-body boundary at the validation step. Genuine framework limitation absent from ai-skills `wolverine-http-fundamentals`.
+2. **Tuple-ordering silent failure on HTTP endpoints.** ai-skills states the rule ("first element of a tuple is the HTTP response body") but doesn't articulate what fails silently when the rule is violated — `IStartStream` getting serialized to the response body and the stream never starting is hard to diagnose without the explicit footgun callout. Closer call than #1; the rule is in ai-skills but the failure-mode framing is Cab-specific.
+
+---
+
 ## Methodology refinements emerging in Phase 5
 
 _(updated as the reconciliation progresses)_
@@ -158,6 +190,8 @@ Compiled list of Cab patterns/sections flagged as upstream-contribution candidat
 | # | Skill | Pattern / section | Rationale | Priority |
 |---|---|---|---|---|
 | 1 | `wolverine-handlers` | `session.Events.StartStream<T>(...)` direct-call silent-failure footgun (Marten-side) | Generic Wolverine+Marten pitfall not covered in any current ai-skills handler skill; reproduces silently and is hard to diagnose | _TBD at close-out_ |
+| 2 | `wolverine-http-handlers` | Mixed route + JSON body breaks compound handlers | Genuine framework limitation — `Validate`/`Handle` shared-state pattern fails because Wolverine's parameter resolution can't see across the route-vs-body boundary at the validation step | _TBD at close-out_ |
+| 3 | `wolverine-http-handlers` | Tuple-ordering silent failure on HTTP endpoints | ai-skills states the rule but doesn't articulate the failure mode (`IStartStream` serialized to response body, stream never starts) — Cab's footgun framing is the value-add | _TBD at close-out_ |
 
 ---
 
@@ -175,9 +209,9 @@ To be executed after all 39 per-skill reconciliations complete.
 
 _(updated at session end)_
 
-- Skills reconciled: 1 / 39
-- Total lines trimmed: ~18
-- Direct-equivalent (deduplicated): 1
+- Skills reconciled: 2 / 39
+- Total lines trimmed: ~78
+- Direct-equivalent (deduplicated): 2
 - No equivalent: 0
-- Upstream-contribution candidates: 1
+- Upstream-contribution candidates: 3
 - Upstream-replacement candidates: 0
