@@ -122,35 +122,24 @@ The attribute resolves the aggregate ID from the command (or HTTP route, header,
 
 ### Identity resolution
 
-Cab's convention uses the explicit positional override with `nameof()` for refactor-safety:
+Cab's convention pins the explicit positional override with `nameof()` even when the convention fallback would resolve correctly. The `nameof()` reference makes the command-to-aggregate linkage refactor-safe — if `CompleteTrip.TripId` is renamed to `CompleteTrip.TripIdentifier`, the compiler catches it.
 
 ```csharp
 [WriteAggregate(nameof(CompleteTrip.TripId))] Trip trip
 ```
 
-Wolverine's resolution chain (when `WriteAggregate` is given a parameter name):
-
-1. **Positional override** — the value passed to the attribute (`nameof(CompleteTrip.TripId)` resolves to `"TripId"`). Wolverine looks for a property of that name on the command/HTTP-bound type.
-2. **HTTP route segment** — if the parameter name matches a route segment (`{tripId}`), Wolverine pulls from the route.
-3. **Convention fallback** — `<aggregateTypeName>Id` (`TripId` for `Trip`) or `Id` on the command.
-4. **Natural-key projection** — if the aggregate type has a `NaturalKeyDefinition` registered with Marten, Wolverine uses it.
-
-Cab pins the explicit override even when the convention would work because `nameof()` makes the linkage refactor-safe. If `CompleteTrip.TripId` is renamed to `CompleteTrip.TripIdentifier`, the compiler catches it.
+For Wolverine's full resolution chain (positional override → HTTP route segment → `<AggregateTypeName>Id`/`Id` convention → Marten natural-key projection), see ai-skills `marten-aggregate-handler-workflow` § Aggregate identity conventions.
 
 ### Concurrency style
 
-`LoadStyle` controls how the aggregate is loaded and how concurrency is enforced:
+`LoadStyle` controls how the aggregate is loaded and how concurrency is enforced. **Cab's pin: Optimistic** — Marten checks the stream version on append and throws if it has advanced since load. Switch to `ConcurrencyStyle.Exclusive` (advisory lock for the handler's duration) only for long-running handlers, contended streams, or when optimistic-retry isn't acceptable.
 
 ```csharp
+// Optimistic is the default; shown for clarity:
 [WriteAggregate(nameof(CompleteTrip.TripId), LoadStyle = ConcurrencyStyle.Optimistic)] Trip trip
 ```
 
-| Value | Behavior | Use when |
-|---|---|---|
-| `ConcurrencyStyle.Optimistic` | Marten checks the stream version on append; throws if the version has advanced since load. | Default for most aggregates. Cab's pin. |
-| `ConcurrencyStyle.Exclusive` | Marten acquires an advisory lock on the stream for the duration of the handler. | Long-running handlers, contended streams, or when optimistic-retry isn't acceptable. |
-
-`LoadStyle` is `Optimistic` by default; the parameter is shown for clarity but typically omitted.
+For the Version-property auto-detection and `VersionSource` override surface, see ai-skills `marten-aggregate-handler-workflow` § Optimistic concurrency.
 
 ### `AlwaysEnforceConsistency`
 
@@ -166,7 +155,7 @@ Default is `false`. Use only when the handler's decision depends on the aggregat
 
 ## Return-Type Cheat Sheet
 
-Wolverine recognizes these return types from aggregate handlers. The shape of the tuple — and the order of elements within it — determines what Wolverine does.
+Wolverine recognizes these return types from aggregate handlers. The shape of the tuple — and the order of elements within it — determines what Wolverine does. The table below extends ai-skills `marten-aggregate-handler-workflow` § Return types for events with the tuple combinations Cab handlers commonly use.
 
 | Return type | What Wolverine does |
 |---|---|
@@ -281,7 +270,7 @@ For the UUID v7 vs v5 decision and the broader GUID conventions, see `csharp-cod
 
 ## Anti-Pattern: Manual Session Calls Inside the Handler
 
-Calling `session.Events.Append(...)`, `session.Events.StartStream(...)`, or `session.SaveChangesAsync(...)` directly inside an aggregate handler does not work. Wolverine's code generation intercepts persistence based on the handler's *return value*; manual session calls bypass interception entirely.
+Calling `session.Events.Append(...)` or `session.SaveChangesAsync(...)` directly inside an aggregate handler does not work — Wolverine's code generation intercepts persistence based on the handler's *return value*, and manual session calls bypass interception entirely. Same root cause as the "Starting a new stream without IStartStream" anti-pattern from `wolverine-handlers`.
 
 ```csharp
 // ❌ WRONG — events silently dropped
@@ -297,15 +286,11 @@ public static async Task Handle(
 // ✅ CORRECT — return the event(s); Wolverine handles persistence
 public static TripCompleted Handle(
     CompleteTrip cmd,
-    [WriteAggregate(nameof(CompleteTrip.TripId))] Trip trip)
-{
-    return new TripCompleted(/* ... */);
-}
+    [WriteAggregate(nameof(CompleteTrip.TripId))] Trip trip) =>
+    new TripCompleted(/* ... */);
 ```
 
-This pattern is the "Starting a new stream without IStartStream" anti-pattern from `wolverine-handlers`, applied to the append case. Same root cause: persistence runs on return values, not on side-effects inside the method body.
-
-If a handler genuinely needs `IDocumentSession` for a query that can't be expressed via `[ReadAggregate]` or LINQ helpers, the session is still injectable — just don't try to write to it.
+If a handler genuinely needs `IDocumentSession` for a query that can't be expressed via `[ReadAggregate]` or LINQ helpers, the session is still injectable — just don't try to write to it. See ai-skills `marten-aggregate-handler-workflow` § Common anti-patterns for the parallel "Manually calling FetchForWriting when Wolverine does it for you" framing.
 
 ---
 
@@ -460,7 +445,13 @@ What this handler illustrates:
 
 ## See also
 
-**Upstream** — load these first:
+**Upstream** — generic Wolverine + Marten aggregate-handler mechanics this skill defers to. ai-skills (license required, install via `npx skills add`):
+
+- `marten-aggregate-handler-workflow` — the full Marten + Wolverine aggregate handler workflow: FetchForWriting automation, `[WriteAggregate]` vs `[AggregateHandler]`, return types, optimistic concurrency via Version property + VersionSource override, multi-stream patterns, missing-aggregate handling (Required/OnMissing/MissingMessage), HTTP `[Aggregate]` integration, ProblemDetails validation, testing patterns (StubEventStream).
+- `wolverine-handlers-declarative-persistence` — broader `[Entity]`/`[WriteAggregate]`/`[ReadAggregate]` declarative-persistence surface.
+- `wolverine-handlers-fundamentals` — generic handler shape, return-types overview, IoC patterns.
+
+**Prerequisites** — Cab-internal skills to load first if unfamiliar:
 
 - `wolverine-handlers` — general handler shape, validation pipeline, return-types overview, the `IStartStream` general pattern, lambda-factory anti-pattern.
 - `marten-aggregates` — the aggregate side: `sealed record`, static `Create(IEvent<T>)`, static `Apply(@event, current)`, no business validation on the aggregate.
@@ -484,10 +475,6 @@ What this handler illustrates:
 
 **External:**
 
-- ai-skills `marten-aggregate-handler-workflow` — the full Marten + Wolverine aggregate workflow reference.
-- ai-skills `wolverine-handlers-declarative-persistence` — `[Entity]`, `[WriteAggregate]`, `[ReadAggregate]` deep reference.
-- ai-skills `wolverine-handlers-fundamentals` — generic handler shape.
-- All ai-skills installed via `npx skills add` (license required).
 - [Marten Event Sourcing Documentation](https://martendb.io/events/).
 - [Wolverine Aggregate Handler Workflow](https://wolverinefx.net/guide/durability/marten/event-sourcing/).
 - [UUIDNext](https://www.nuget.org/packages/UUIDNext) — the convention library for UUID v5 in CritterCab.

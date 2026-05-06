@@ -60,7 +60,7 @@ Reference repo HEAD revisions at session start: _(not captured — would have be
 | 7 | `wolverine-azure-service-bus` | 1 | `wolverine-integrations-azure-service-bus` + `wolverine-messaging-resiliency-policies` | Direct equivalent (deduplicated) | ~160 | Largest trim of Phase 5 (8.2% byte reduction). Heavy code-block duplication trimmed across Bootstrap (Managed Identity, AutoProvision, AutoPurgeOnStartup, System queues), Topics (Publishing, Subscribing, Subscription rules, Configuring properties), Queues (Publishing, Listening, Configuring), Sessions (Setting session ID, Sessions on subscriptions, ExclusiveNodeWithSessions), DLQ (Native, Wolverine routing, Circuit breakers), Scheduled delivery, Custom envelope mapper. **Erik flagged that the existing MassTransit/NServiceBus interop section was incorrect** — Cab does not use them and never will. Section removed entirely (not trimmed). Preserved Cab-specific content: Aspire connection-string integration, BC examples (TripCompleted, RiderRegistered, ProcessPayment), partition rationale, MaxDeliveryCount-vs-Wolverine-retries footgun, Aspire emulator package status, default envelope mapping table, local-vs-production table, 12-bullet Common pitfalls. 1 upstream-contribution candidate flagged (MaxDeliveryCount × Wolverine retries multiplicative interaction) |
 | 8 | `wolverine-sagas` | 1 | _none — ai-skills has no saga skill_ | **No equivalent** + observed coverage gap (no active author) | ~3 (rename only) | Light pass: counterpart `wolverine-sagas-saga-pattern` was assumed to exist but verified absent in ai-skills (no `wolverine-sagas-*` skills exist; only saga test fixtures inside `wolverine-converting-from-masstransit`/`-nservicebus`). Renamed `Upstream` → `Prerequisites`; removed forward-looking placeholder + install/license note. Cab's 39 KB skill stands as authoritative reference. ProcessManager<TState> framework references confirmed absent from body (only generic-pattern uses survive: `process-manager` tag for searchability and "process managers that do everything" anti-pattern phrasing on line 423 — both retained as standard pattern terminology). 1 upstream-contribution candidate flagged with **Observed gap** priority (no current author) |
 | 9 | `marten-aggregates` | 1 | `marten-projections-single-stream` + `marten-aggregate-handler-workflow` | Direct equivalent (deduplicated) | ~3 net (~5 saved from Snapshot Strategies + External trims, partially offset by ~5 added in new Upstream block) | First design-and-conventions skill in Phase 5 — minimal duplication by design, since Cab top framing explicitly defers mechanics to ai-skills. Trimmed Snapshot Strategies (removed Live-vs-Inline mechanic table; kept Cab "live aggregation default" guidance + cross-ref to `marten-projections-single-stream` § Projection lifecycles). Restructured See Also to three-block convention with new Upstream block referencing both ai-skills counterparts. Removed forward-looking placeholder for non-existent `marten-event-sourcing-fundamentals` (4th forward-looking placeholder removed in Phase 5; Skills 4, 5, 8, 9). Preserved entirely: When-to-event-source decision framework, Canonical Aggregate Shape (Trip + 6 conventions), Decider Pattern Critter Stack realization table, Stream Identity (incl. UUID v5 deterministic IDs), Apply Method Conventions (4 sub-rules), Aggregate Field Conventions, RideOffer worked example, 9-bullet Common Pitfalls. No upstream-contribution candidates flagged — content is genuinely Cab-specific design conventions (UUID v5 namespace, live default, ImmutableList preference, event-first parameter order, no-throw rule), not pitfalls or coverage gaps in ai-skills. |
-| 10 | `marten-wolverine-aggregates` | 1 | _pending_ | _pending_ | _pending_ | _pending_ |
+| 10 | `marten-wolverine-aggregates` | 1 | `marten-aggregate-handler-workflow` (primary) + `wolverine-handlers-declarative-persistence` + `wolverine-handlers-fundamentals` | Direct equivalent (deduplicated) | ~9 net body content (+~1 See Also; net file +247 bytes) | Hybrid skill — partly design+conventions (decider-pattern positioning, `nameof()` pin, UUIDNext convention, `MartenOps.StartStream` Action-overload), partly mechanic content overlapping ai-skills. Trimmed Identity resolution (4-step Wolverine resolution chain → cross-ref to ai-skills § Aggregate identity conventions; kept Cab `nameof()` pin rationale), Concurrency style (Optimistic/Exclusive table → Cab pin paragraph + cross-ref to ai-skills § Optimistic concurrency for Version-property + VersionSource surface), Manual Session Calls anti-pattern (collapsed leading prose, expression-bodied correct example, cross-ref to ai-skills § Common anti-patterns). Added cross-ref note to Return-Type Cheat Sheet (Cab table is genuinely more comprehensive — 10 rows vs ai-skills' 5 — so kept Cab and pointed users to ai-skills for return-types fundamentals). Restructured See Also to three-block convention with new Upstream block referencing all 3 ai-skills counterparts. Preserved entirely: top framing, When to apply, Two Canonical Shapes (StartTrip/CompleteTrip BC examples), `AlwaysEnforceConsistency` (not in ai-skills), Multi-Stream Handlers (TransferRiderToDriver with `[ReadAggregate]`), Stream Identity (UUIDNext convention, MD5 warning, Action overload), Anti-Pattern: Generating Stream ID for Auto-Assigned, Anti-Pattern: WriteAggregate on read handler, Worked Example: AcceptOffer, 9-bullet Common Pitfalls. 1 upstream-contribution candidate flagged (`MartenOps.StartStream` Action-overload for capturing assigned ID). Skill name flagged for potential post-Phase-5 rename (Erik noted he doesn't love `marten-wolverine-aggregates`). |
 | 11 | `marten-projections` | 1 | _pending_ | _pending_ | _pending_ | _pending_ |
 | 12 | `marten-querying` | 1 | _pending_ | _pending_ | _pending_ | _pending_ |
 | 13 | `marten-async-daemon` | 1 | _pending_ | _pending_ | _pending_ | _pending_ |
@@ -412,6 +412,52 @@ No edits made on the ProcessManager front. The two surviving uses are legitimate
 
 ---
 
+### 10. `marten-wolverine-aggregates`
+
+**Counterpart(s).** Three ai-skills counterparts, with `marten-aggregate-handler-workflow` as the primary direct-equivalent and the other two referenced for adjacent surface area:
+
+- `marten-aggregate-handler-workflow` (primary) — FetchForWriting automation, `[WriteAggregate]` vs `[AggregateHandler]`, return types, optimistic concurrency via Version property + VersionSource override, multi-stream patterns, missing-aggregate handling (Required/OnMissing/MissingMessage), HTTP `[Aggregate]` integration, ProblemDetails validation, testing patterns (StubEventStream).
+- `wolverine-handlers-declarative-persistence` — broader `[Entity]`/`[WriteAggregate]`/`[ReadAggregate]` declarative-persistence surface.
+- `wolverine-handlers-fundamentals` — generic handler shape, return-types overview, IoC patterns.
+
+**Hybrid skill.** Unlike Skill 9 (pure design+conventions), this skill mixes design-and-conventions content (decider-pattern positioning, Cab's `nameof()` pin, UUIDNext UUID v5 convention, `MartenOps.StartStream` Action-overload pattern) with mechanic content that overlaps ai-skills (Identity resolution chain, Optimistic/Exclusive concurrency table, return types, Manual Session Calls anti-pattern). Trim is moderate — between Skill 7's heavy mechanic-trim shape and Skill 9's pure-conventions shape.
+
+**Section categorization.** 15 sections audited; 4 substantively trimmed; rest preserved as Cab-specific value-add.
+
+**Trimmed sections:**
+
+- **Identity resolution** (~5 lines saved): removed the 4-step Wolverine resolution chain numbered list; kept Cab's `nameof()` pin rationale; cross-ref to ai-skills § Aggregate identity conventions for the full chain.
+- **Concurrency style** (~3 lines saved): removed Optimistic/Exclusive comparison table; kept the Cab pin ("Optimistic") with its rationale; cross-ref to ai-skills § Optimistic concurrency for the Version-property auto-detection and VersionSource override surface.
+- **Return-Type Cheat Sheet** (~0 net): added a single sentence cross-ref ("The table below extends ai-skills `marten-aggregate-handler-workflow` § Return types for events with the tuple combinations Cab handlers commonly use."). Cab's 10-row table is genuinely more comprehensive than ai-skills' 5-row table (Cab covers `IStartStream`, `IMartenOp`, `IEnumerable<IMartenOp>`, all the tuple shapes, `IResult` for HTTP, async via Task), so kept the Cab table and pointed to ai-skills for fundamentals rather than the reverse.
+- **Manual Session Calls anti-pattern** (~3 lines saved): collapsed leading prose, expression-bodied the correct-example handler, removed the standalone explanatory paragraph at the end (folded into intro); cross-ref to ai-skills § Common anti-patterns for the parallel framing.
+
+**See Also restructure:** applied three-block convention. New Upstream block with all 3 ai-skills counterparts (most detailed Upstream block of Phase 5 so far). Existing Upstream block became Prerequisites. Existing Sibling/Downstream/External blocks already used `**bold**` style; minor adjustments. Removed install/license note from External (now redundant with Upstream block lead-in).
+
+**Preserved entirely:**
+
+- Top framing (decider-pattern handler-side positioning + atomicity guarantee statement)
+- When to apply this skill
+- The Two Canonical Shapes (StartTrip/CompleteTrip BC examples — Cab BCs are the value-add)
+- `[WriteAggregate]` Parameter Resolution → `AlwaysEnforceConsistency` (not in ai-skills)
+- Multi-Stream Handlers (TransferRiderToDriver BC example with `[ReadAggregate]` — ai-skills' multi-stream example doesn't show ReadAggregate mixed in)
+- Stream Identity: Auto-Assigned vs Deterministic (UUIDNext convention, MD5-based-deterministic-IDs warning, `MartenOps.StartStream` Action-overload pattern)
+- Anti-Pattern: Generating the Stream ID for an Auto-Assigned Aggregate (incl. Action-overload pattern for capturing the assigned ID)
+- Anti-Pattern: `[WriteAggregate]` on a Handler That Doesn't Append (Cab-specific framing; ai-skills covers OutgoingMessages-when-meant-Events but not this)
+- Worked Example: AcceptOffer (Cab BC example)
+- Common Pitfalls (9 bullets — routing-rule pre-flight, MD5 ID warning, AlwaysEnforceConsistency reflexivity, etc.)
+
+**Trim impact.** ~9 lines of body content removed; net file +247 bytes (Upstream block additions outweigh trims, similar shape to Skill 9). Consistent with methodology refinement #6 — prose-heavy duplication compresses ~0.5×. The reconciliation gains here are the proper Upstream block (3 detailed counterpart entries), the in-section cross-refs (Identity, Concurrency, Return-Type, Manual Session Calls all now point to specific ai-skills sections), and the removal of redundant install/license note.
+
+**Upstream-contribution candidate flagged.** One:
+
+1. **`MartenOps.StartStream` Action-overload for capturing assigned ID.** Cab shows the pattern `MartenOps.StartStream<T>(s => { assignedId = s.Id; }, events)` for handlers that need the auto-assigned stream ID for the integration message body. ai-skills covers `MartenOps.StartStream<T>(events)` and `MartenOps.StartStream<T>(id, events)` but not this Action overload. Genuinely useful surface; ai-skills could add it as a brief note. Footgun-style addition (the surface exists; the docs miss it).
+
+**Future cleanup item recorded** (see Cab cleanup roadmap below).
+
+**No forward-looking placeholders removed.** All 3 ai-skills counterparts referenced in the External block (now Upstream) verified present in `C:\Code\JasperFx\ai-skills\skills`.
+
+---
+
 ## Methodology refinements emerging in Phase 5
 
 _(updated as the reconciliation progresses)_
@@ -443,6 +489,15 @@ Compiled list of Cab patterns/sections flagged as upstream-contribution candidat
 | 7 | `wolverine-kafka` | `BatchMessagesOf<T>` for batch Kafka consumption | ai-skills omits batch consumption entirely. The mechanic is generic Wolverine; Cab's framing pairs it with high-volume Kafka topics where per-message invocation overhead is wasteful. Both the mechanic existence and the Kafka-pairing rationale could be upstream additions. | _TBD at close-out_ |
 | 8 | `wolverine-azure-service-bus` | MaxDeliveryCount × Wolverine retries multiplicative interaction | ai-skills mentions both retry types separately but doesn't articulate how they compose: a Wolverine retry of N inside ASB `MaxDeliveryCount` of M means up to N×M total processing attempts. This composition footgun is Cab-discovered framing. | _TBD at close-out_ |
 | 9 | `wolverine-sagas` | Entire skill — Wolverine saga patterns including the `Saga` base class, method-name conventions (Start/StartOrHandle/Handle/Orchestrate/NotFound), saga-ID resolution cascade, valid saga-ID types, TimeoutMessage scheduling, saga-not-found semantics, Marten + Polecat persistence, optimistic concurrency via IRevisioned, the static-allowed-vs-instance-required asymmetry | ai-skills has no `wolverine-sagas-*` skill at all. Cab's 39 KB skill is comprehensive coverage of an entire ai-skills topic gap. **No active author** — unlike the gRPC skills (Erik is the planned author), no one in the JasperFx ecosystem is writing this currently as far as we know. If someone decides to author it, Cab content is substantial fuel. | **Observed gap** (no active author) |
+| 10 | `marten-wolverine-aggregates` | `MartenOps.StartStream` Action-overload for capturing assigned stream ID | ai-skills covers `MartenOps.StartStream<T>(events)` (auto-assigned) and `MartenOps.StartStream<T>(id, events)` (explicit ID) but not the Action-overload pattern: `MartenOps.StartStream<T>(s => { assignedId = s.Id; }, events)`. Genuinely useful when the handler needs the auto-assigned ID for an integration message body. Cab uses this pattern; ai-skills could add it as a brief note in § Starting new streams. | _TBD at close-out_ |
+
+## Cab cleanup roadmap (post-Phase-5 followups)
+
+Reconciliation surfaces things that should change but aren't part of the Phase 5 scope (which is reconciliation only — no authoring, no restructuring, no renaming). Captured here for the post-Phase-5 cleanup pass.
+
+| # | Skill | Item | Notes |
+|---|---|---|---|
+| 1 | `marten-wolverine-aggregates` | Skill rename | Erik noted (Skill 10 audit) that he doesn't love the name `marten-wolverine-aggregates`. ai-skills counterpart is named `marten-aggregate-handler-workflow`. Possible alternatives: `aggregate-command-handlers`, `marten-aggregate-handlers`, `aggregate-handler-workflow`. Defer to post-Phase-5 cleanup. |
 
 ## Cab content corrections during reconciliation
 
@@ -476,12 +531,13 @@ To be executed after all 39 per-skill reconciliations complete.
 
 _(updated at session end)_
 
-- Skills reconciled: 9 / 39
-- Total lines trimmed: ~401
-- Direct-equivalent (deduplicated): 6
+- Skills reconciled: 10 / 39
+- Total lines trimmed: ~410
+- Direct-equivalent (deduplicated): 7
 - No equivalent: 3 (both gRPC skills + sagas; gRPC scoped under Erik's active upstream roadmap, sagas an observed gap with no active author)
-- Upstream-contribution candidates: 9 (7 footgun-style additions + 1 entire-skill-creation covering both gRPC skills (Active, Erik's roadmap) + 1 entire-skill-creation for sagas (Observed gap, no active author))
+- Upstream-contribution candidates: 10 (8 footgun-style additions + 1 entire-skill-creation covering both gRPC skills (Active, Erik's roadmap) + 1 entire-skill-creation for sagas (Observed gap, no active author))
 - Upstream-replacement candidates: 0
 - Cab coverage gaps revealed: 1 (messaging resiliency)
 - Cab content corrections: 1 (MT/NSB interop section removed from `wolverine-azure-service-bus`)
 - Forward-looking placeholders removed: 4 (Skills 4, 5, 8, 9 — pre-Phase-5 Cab pattern of placeholdering not-yet-published ai-skills counterparts)
+- Cab cleanup items deferred to post-Phase-5: 1 (Skill 10 rename)
