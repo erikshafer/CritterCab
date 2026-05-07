@@ -8,6 +8,8 @@ The skill library follows the [agentskills.io](https://agentskills.io/specificat
 
 Skills are loaded into context by the Claude agent (or read manually by humans) when relevant to the current task. The frontmatter `description` field on each skill is loaded at agent startup to enable activation matching; the body is loaded when the skill is activated.
 
+On top of agent-side activation, the README exposes three navigation affordances for human and agent readers: the [skill index by cluster](#skill-index-by-cluster) (skills grouped by primary-value axis), the [skill index by tag](#skill-index-by-tag) (skills grouped by cross-cutting concern), and the [entry-point hubs](#entry-point-hubs) (task-keyed routing into the skill graph with explicit upstream prerequisites and downstream follow-ups). The [cross-reference graph](#cross-reference-graph) further visualizes the dependency topology phase-by-phase.
+
 When working on CritterCab:
 
 - Identify the task type (designing, implementing, testing, deciding).
@@ -25,9 +27,9 @@ Cross-references between skills are explicit. Each skill's `See Also` section na
 | Phase 2 | First service implementation: composition root, store wiring, handlers, projections, testing, local-dev orchestration | **Complete** (16 skills) |
 | Phase 3 | First cross-service flow: gRPC services, Kafka and ASB transports, identity ACL, distributed observability | **Complete** (8 skills) |
 | Phase 4 | Complexity arrives: sagas, advanced patterns, Polecat event sourcing, polyglot Go service, complete observability, advanced testing | **Complete** (9 skills) |
-| Phase 5 | Reconciliation pass — cross-check against ai-skills, eliminate duplication, contribute generic patterns upstream | **Substantive deliverable complete** (25 / 39 skills reconciled; 14 remain as Phase 6 follow-up — 3 substantive + 11 placeholder cleanup) |
+| Phase 5 | Reconciliation pass — cross-check against ai-skills, eliminate duplication, contribute generic patterns upstream | **Complete** (25 / 39 reconciled; 14 placeholder-cleanup items tracked as Phase 6) |
 
-39 skills authored across Phases 1–4. Phase 5 — the reconciliation pass against [JasperFx ai-skills](#companion-jasperfx-ai-skills) — closed 2026-05-06 with the substantive deliverable complete: every counterpart-rich skill across all four tiers reconciled, 53 upstream-contribution candidates flagged, 16 Cab coverage gaps documented, 2 ai-skills content drift entries surfaced. The remaining 14 skills are predicted out-of-scope (project-specific patterns, Microsoft tooling, generic ecosystem CLIs) and have been deferred to Phase 6. See [skills-foundation-phase-5 retrospective](../retrospectives/skills-foundation-phase-5.md) for the full reconciliation record, upstream-contribution roadmap, and Phase 6 follow-up plan.
+**All five phases complete as of 2026-05-06.** 39 skills authored across Phases 1–4; Phase 5 — the reconciliation pass against [JasperFx ai-skills](#companion-jasperfx-ai-skills) — closed at its substantive deliverable: every counterpart-rich skill reconciled, 53 upstream-contribution candidates flagged, 16 Cab coverage gaps documented, 2 ai-skills content drift entries surfaced. The remaining 14 skills (project-specific patterns, Microsoft tooling, generic ecosystem CLIs with no ai-skills counterpart) are scoped as a Phase 6 placeholder-cleanup pass. See the [skills-foundation-phase-5 retrospective](../retrospectives/skills-foundation-phase-5.md) for the full reconciliation record, the upstream-contribution roadmap, and the Phase 6 follow-up plan.
 
 ## Skill index by cluster
 
@@ -54,6 +56,60 @@ CritterCab's skill clusters split into product/library clusters and topic/concer
 | `polyglot` | `polyglot-go-service` | — |
 | `testing` | `testing-fundamentals`, `testing-integration`, `testing-advanced` | — |
 | `observability` | `observability-tracing`, `observability-metrics` | — |
+
+## Skill index by tag
+
+Tags are the complementary discovery surface to clusters. Where a cluster captures a skill's primary-value axis, tags surface its secondary dimensions — useful for cross-cutting searches like "all skills that touch Aspire" or "everything tagged `event-sourcing`". The high-frequency tags below are curated for navigation; for the full per-skill tag list, see each skill's frontmatter.
+
+### Stack
+
+| Tag | Skills |
+|---|---|
+| `wolverine` | `wolverine-handlers`, `wolverine-http-handlers`, `wolverine-messaging-handlers`, `wolverine-grpc-handlers`, `wolverine-grpc-bidirectional-handlers`, `wolverine-kafka`, `wolverine-azure-service-bus`, `wolverine-sagas`, `marten-wolverine-aggregates`, `dynamic-consistency-boundary`, `service-bootstrap`, `transport-selection`, `observability-tracing`, `observability-metrics` |
+| `marten` | `marten-aggregates`, `marten-wolverine-aggregates`, `marten-projections`, `marten-querying`, `marten-async-daemon`, `dynamic-consistency-boundary`, `domain-event-conventions`, `service-bootstrap`, `wolverine-sagas`, `observability-tracing`, `observability-metrics` |
+| `polecat` | `polecat-event-sourcing`, `polecat-document-store`, `service-bootstrap`, `wolverine-sagas`, `observability-metrics` |
+| `aspire` | `aspire`, `cli-aspire`, `adding-a-service`, `service-bootstrap`, `polyglot-go-service` |
+| `grpc` | `wolverine-grpc-handlers`, `wolverine-grpc-bidirectional-handlers`, `protobuf-contracts`, `grpc-vs-other-transports`, `polyglot-go-service`, `cli-grpc-tooling`, `transport-selection` |
+| `kafka` | `wolverine-kafka`, `cli-kafka-tooling`, `aspire`, `transport-selection`, `grpc-vs-other-transports`, `testing-integration`, `testing-advanced` |
+| `azure-service-bus` | `wolverine-azure-service-bus`, `cli-azure-messaging`, `aspire`, `grpc-vs-other-transports`, `testing-advanced` |
+| `event-hubs` | `wolverine-kafka`, `cli-kafka-tooling`, `cli-azure-messaging`, `transport-selection` |
+| `opentelemetry` | `observability-tracing`, `observability-metrics` |
+| `dotnet` | `csharp-coding-standards`, `adding-a-service` |
+| `go` | `polyglot-go-service` |
+
+### Patterns
+
+| Tag | Skills |
+|---|---|
+| `event-sourcing` | `domain-event-conventions`, `marten-aggregates`, `polecat-event-sourcing`, `dynamic-consistency-boundary` |
+| `decider-pattern` | `marten-aggregates`, `marten-wolverine-aggregates`, `marten-projections`, `testing-fundamentals` |
+| `dcb` (dynamic consistency boundary) | `dynamic-consistency-boundary`, `polecat-event-sourcing` |
+| `projections` | `marten-projections`, `marten-async-daemon`, `cli-jasperfx` |
+| `handlers` | `wolverine-handlers`, `wolverine-http-handlers`, `wolverine-messaging-handlers`, `marten-wolverine-aggregates` |
+| `saga` / `process-manager` | `wolverine-sagas`, `distributed-saga-considerations` |
+| `decision-framework` | `transport-selection`, `grpc-vs-other-transports` |
+| `conventions` | `csharp-coding-standards`, `domain-event-conventions`, `wolverine-handlers`, `vertical-slice-organization` |
+| `domain-modeling` | `csharp-coding-standards`, `domain-event-conventions` |
+| `anti-corruption-layer` | `identity-acl` |
+
+### Activities
+
+| Tag | Skills |
+|---|---|
+| `testing` | `testing-fundamentals`, `testing-integration`, `testing-advanced` |
+| `cli` | `cli-aspire`, `cli-jasperfx`, `cli-grpc-tooling`, `cli-kafka-tooling`, `cli-azure-messaging` |
+| `ci` | `cli-aspire`, `cli-jasperfx`, `cli-grpc-tooling` |
+| `bootstrap` | `service-bootstrap`, `adding-a-service` |
+| `debugging` | `cli-kafka-tooling`, `cli-azure-messaging` |
+| `event-modeling` | `event-modeling` |
+
+### ADR cross-references
+
+| ADR | Skills tagged |
+|---|---|
+| `adr-005` (transport selection) | `transport-selection`, `grpc-vs-other-transports`, `wolverine-kafka`, `wolverine-azure-service-bus` |
+| `adr-006` (identity provider design) | `identity-acl` |
+| `adr-009` (protobuf contracts as first-class artifacts) | `protobuf-contracts`, `cli-grpc-tooling` |
 
 ## Entry-point hubs
 
@@ -394,7 +450,7 @@ graph TB
 
 The Phase 4 graph shows complexity arriving from multiple directions. Sagas (`wolverine-sagas`, `distributed-saga-considerations`) build on the Phase 2 messaging-handler and aggregate-handler skills. Polecat (`polecat-event-sourcing`, `polecat-document-store`) anchors on the Phase 1 domain-event conventions and Phase 2 service-bootstrap as the SQL-Server alternative to Marten on PostgreSQL. The polyglot Go service (`polyglot-go-service`) braids Phase 3 cross-service primitives (gRPC, Kafka, identity, tracing) into a non-.NET runtime. `observability-metrics` is the metric companion to Phase 3's `observability-tracing`. `wolverine-grpc-bidirectional-handlers` and `grpc-vs-other-transports` complete the gRPC story. `testing-advanced` is the terminal node — every other Phase 4 implementation skill funnels into it because the test patterns it documents (multi-host scenarios, streaming gRPC harnesses, dynamic database-per-fixture, vhost isolation, polyglot boundary tests, OTel signal verification) are how each new capability gets exercised end-to-end.
 
-Phase 5 is the reconciliation pass against [JasperFx ai-skills](#companion-jasperfx-ai-skills). Phase 4 deliberately authored some skills (notably `wolverine-sagas`, `polecat-event-sourcing`, `polecat-document-store`) ahead of comparable ai-skills coverage where Cab needed the conventions to make implementation decisions. The Phase 5 pass will identify what's truly Cab-specific (kept here), what's generic enough to contribute upstream (offered to ai-skills), and what overlaps and should be deduplicated by deferring to ai-skills with a thinner Cab-specific layer on top.
+Phase 5 was the reconciliation pass against [JasperFx ai-skills](#companion-jasperfx-ai-skills). Phase 4 deliberately authored some skills (notably `wolverine-sagas`, `polecat-event-sourcing`, `polecat-document-store`) ahead of comparable ai-skills coverage where Cab needed the conventions to make implementation decisions. The Phase 5 pass identified what's truly Cab-specific (kept here), what's generic enough to contribute upstream (captured in the retrospective's 53-entry roadmap), and what overlapped and was deduplicated by deferring to ai-skills with a thinner Cab-specific layer on top.
 
 ## Companion: JasperFx ai-skills
 
@@ -407,7 +463,7 @@ Where applicable, CritterCab skills name their ai-skills counterparts in the `Ex
 npx skills add https://github.com/jasperfx/ai-skills/tree/v1.1.0/skills --skill '*' -g -a claude-code
 ```
 
-CritterCab does not duplicate or paraphrase ai-skills content. The composition is layered, not extracted. Phase 5 of the skill plan is a dedicated reconciliation pass: cross-check against ai-skills, eliminate any duplication that crept in, and contribute generic patterns upstream where appropriate.
+CritterCab does not duplicate or paraphrase ai-skills content. The composition is layered, not extracted. Phase 5 of the skill plan was a dedicated reconciliation pass that closed 2026-05-06: cross-checked against ai-skills, eliminated duplication where it crept in, and produced a 53-entry upstream-contribution roadmap captured in the [skills-foundation-phase-5 retrospective](../retrospectives/skills-foundation-phase-5.md).
 
 ## Authoring new skills
 
@@ -422,7 +478,7 @@ Then:
 1. Update the frontmatter (`name`, `description`, `cluster`, `tags`).
 2. Replace placeholder content with the actual skill body.
 3. Wire `See Also` references with upstream/downstream/external links.
-4. Update this README's cluster index and (if the new skill changes the topology meaningfully) the cross-reference graph.
+4. Update this README's cluster index, tag index, and entry-point hubs; if the new skill changes the topology meaningfully, update the cross-reference graph as well.
 
 The template's inline comments document the conventions in detail (frontmatter fields, length guideline, section structure, cross-reference format).
 
@@ -432,4 +488,4 @@ The template's inline comments document the conventions in detail (frontmatter f
 - **Length guideline**: aim for `SKILL.md` under 500 lines; pragmatic, not strict. Move conditionally-loaded deep-dive content to `references/`.
 - **Domain examples**: ground in CritterCab's actual bounded contexts (Trips, Dispatch, Telemetry, Pricing, Identity, etc.) — not generic placeholders.
 - **No back-references to CritterBids or CritterSupply**: these are sibling reference projects, not CritterCab's source of truth.
-- **README update at each phase boundary**: this README is the navigation hub. It's updated at the end of every phase to reflect newly-authored skills and any topology shifts.
+- **README update on each new skill addition**: this README is the navigation hub. Update the cluster index, tag index, entry-point hubs, and (if the new skill changes the topology meaningfully) the cross-reference graph in the same PR that adds the skill. The five-phase scaffolding is complete; subsequent skills land incrementally.
