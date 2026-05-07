@@ -75,3 +75,7 @@ Subsequent sections are prompt-specific. Existing prompts in this directory serv
 ### Decisions
 
 - [`decisions/001-protobuf-ride-assigned.md`](./decisions/001-protobuf-ride-assigned.md) — Author the three Dispatch business-event protobuf contracts (`RideAssigned`, `RideRequestCancelled`, `RideRequestAbandoned`) and establish the `/protos/` directory. First exercise of ADR-009. Status: complete (2026-05-07). Produced proto files in `/protos/crittercab/dispatch/v1/` and `/protos/crittercab/common/v1/`.
+
+### Implementations
+
+- [`implementations/001-dispatch-service-skeleton.md`](./implementations/001-dispatch-service-skeleton.md) — Bootstrap the Dispatch service as a runnable but logic-free skeleton. First code in the repository. Status: complete (2026-05-07). Produced `src/CritterCab.Dispatch/`, `tests/CritterCab.Dispatch.Tests/`, `apphost.cs`.

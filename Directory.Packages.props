@@ -10,13 +10,13 @@
     </ItemGroup>
     <!-- Wolverine -->
     <ItemGroup>
-        <PackageVersion Include="WolverineFx" Version="5.32.0" />
-        <PackageVersion Include="WolverineFx.Http" Version="5.32.0" />
-        <PackageVersion Include="WolverineFx.Grpc" Version="5.32.0" />
-        <PackageVersion Include="WolverineFx.Marten" Version="5.32.0" />
-        <PackageVersion Include="WolverineFx.Polecat" Version="5.32.0" />
-        <PackageVersion Include="WolverineFx.AzureServiceBus" Version="5.32.0" />
-        <PackageVersion Include="WolverineFx.Kafka" Version="5.32.0" />
+        <PackageVersion Include="WolverineFx" Version="5.38.0" />
+        <PackageVersion Include="WolverineFx.Http" Version="5.38.0" />
+        <PackageVersion Include="WolverineFx.Grpc" Version="5.38.0" />
+        <PackageVersion Include="WolverineFx.Marten" Version="5.38.0" />
+        <PackageVersion Include="WolverineFx.Polecat" Version="5.38.0" />
+        <PackageVersion Include="WolverineFx.AzureServiceBus" Version="5.38.0" />
+        <PackageVersion Include="WolverineFx.Kafka" Version="5.38.0" />
     </ItemGroup>
     <!-- Test packages -->
     <ItemGroup>

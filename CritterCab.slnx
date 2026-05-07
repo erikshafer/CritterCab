@@ -1,11 +1,13 @@
-﻿<Solution>
+<Solution>
 	<Folder Name="/.SolutionItems/">
 		<File Path="Directory.Build.props" />
 		<File Path="Directory.Packages.props" />
 		<File Path="README.md" />
 	</Folder>
 	<Folder Name="/src/">
+		<Project Path="src/CritterCab.Dispatch/CritterCab.Dispatch.csproj" />
 	</Folder>
 	<Folder Name="/tests/">
+		<Project Path="tests/CritterCab.Dispatch.Tests/CritterCab.Dispatch.Tests.csproj" />
 	</Folder>
 </Solution>
