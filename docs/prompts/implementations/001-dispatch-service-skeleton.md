@@ -37,7 +37,7 @@ Produce a buildable, testable Dispatch service skeleton with solution infrastruc
 2. `Directory.Packages.props` — central package versions for all Wolverine, Marten, Aspire, and test packages.
 3. `CritterCab.slnx` — solution file with src/ and tests/ folders.
 4. `src/CritterCab.Dispatch/CritterCab.Dispatch.csproj` — Marten-based service project.
-5. `src/CritterCab.Dispatch/Program.cs` — minimal composition root: Aspire service defaults, Marten + Wolverine wiring, health checks, `RunOaktonCommandsAsync`.
+5. `src/CritterCab.Dispatch/Program.cs` — minimal composition root: Marten + Wolverine wiring, health checks, `RunJasperFxCommands`.
 6. `src/CritterCab.Dispatch/appsettings.json` — minimal config.
 7. `src/CritterCab.Dispatch/README.md` — what the service owns.
 8. `tests/CritterCab.Dispatch.Tests/CritterCab.Dispatch.Tests.csproj` — test project with Alba + xUnit + Shouldly.

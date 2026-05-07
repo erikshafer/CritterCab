@@ -219,7 +219,7 @@ public sealed class RebuildOperationsDashboard
 }
 ```
 
-`RebuildProjectionAsync<T>(ct)` blocks until the rebuild completes (default timeout: 5 minutes per shard; pass an explicit `TimeSpan` for longer rebuilds). For non-trivial event stores, run rebuilds out of the request path — through a background job, an admin endpoint, or `RunOaktonCommandsAsync` per `service-bootstrap`.
+`RebuildProjectionAsync<T>(ct)` blocks until the rebuild completes (default timeout: 5 minutes per shard; pass an explicit `TimeSpan` for longer rebuilds). For non-trivial event stores, run rebuilds out of the request path — through a background job, an admin endpoint, or `RunJasperFxCommands` per `service-bootstrap`.
 
 ### Single-stream rebuild
 
