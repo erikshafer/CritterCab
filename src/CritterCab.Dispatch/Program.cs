@@ -1,6 +1,9 @@
+using CritterCab.Dispatch.RideRequesting;
 using JasperFx;
 using Marten;
+using JasperFx.Events.Projections;
 using Wolverine;
+using Wolverine.Http;
 using Wolverine.Marten;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -19,12 +22,22 @@ if (!string.IsNullOrEmpty(connectionString))
             : AutoCreate.None;
 
         opts.Events.UseMandatoryStreamTypeDeclaration = true;
+
+        // Event registration — every domain event in the Dispatch event streams.
+        opts.Events.AddEventType<RideRequested>();
+
+        // Projections
+        opts.Projections.LiveStreamAggregation<RideRequest>();
+        opts.Projections.Add(new ActiveRequestsByRiderProjection(), ProjectionLifecycle.Inline);
+        opts.Projections.Add(new RequestTimelineProjection(), ProjectionLifecycle.Inline);
     })
     .IntegrateWithWolverine()
     .UseLightweightSessions();
 }
 
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddHealthChecks();
+builder.Services.AddWolverineHttp();
 
 // Wolverine
 builder.Host.UseWolverine(opts =>
@@ -35,5 +48,6 @@ builder.Host.UseWolverine(opts =>
 var app = builder.Build();
 
 app.MapHealthChecks("/health");
+app.MapWolverineEndpoints();
 
 return await app.RunJasperFxCommands(args);

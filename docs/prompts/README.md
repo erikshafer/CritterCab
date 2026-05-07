@@ -79,3 +79,4 @@ Subsequent sections are prompt-specific. Existing prompts in this directory serv
 ### Implementations
 
 - [`implementations/001-dispatch-service-skeleton.md`](./implementations/001-dispatch-service-skeleton.md) — Bootstrap the Dispatch service as a runnable but logic-free skeleton. First code in the repository. Status: complete (2026-05-07). Produced `src/CritterCab.Dispatch/`, `tests/CritterCab.Dispatch.Tests/`, `apphost.cs`.
+- [`implementations/002-dispatch-slice-5-1-ride-requested.md`](./implementations/002-dispatch-slice-5-1-ride-requested.md) — First vertical slice: `RideRequested` command, aggregate, event, projections, HTTP endpoint, integration tests. Status: complete (2026-05-07).
