@@ -9,7 +9,7 @@ var builder = DistributedApplication.CreateBuilder(args);
 // === Infrastructure ===
 
 var postgres = builder.AddPostgres("postgres")
-    .WithImageTag("17-alpine")
+    .WithImageTag("18-alpine")
     .WithLifetime(ContainerLifetime.Persistent);
 
 var dispatchDb = postgres.AddDatabase("crittercab_dispatch");

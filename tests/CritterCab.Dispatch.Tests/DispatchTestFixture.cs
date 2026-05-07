@@ -6,7 +6,7 @@ namespace CritterCab.Dispatch.Tests;
 
 public class DispatchTestFixture : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:17-alpine")
+    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18-alpine")
         .Build();
 
     public IAlbaHost Host { get; private set; } = null!;

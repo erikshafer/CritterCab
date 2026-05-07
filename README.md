@@ -1,7 +1,7 @@
 # CritterCab
 
 [![.NET](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/download/dotnet/10.0)
-[![Wolverine](https://img.shields.io/badge/Wolverine-5.32%2B-512BD4)](https://wolverine.netlify.app/)
+[![Wolverine](https://img.shields.io/badge/Wolverine-5.38%2B-512BD4)](https://wolverine.netlify.app/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Marten-336791?logo=postgresql&logoColor=white)](https://martendb.io/)
 [![SQL Server](https://img.shields.io/badge/SQL_Server-Polecat-CC2927?logo=microsoftsqlserver&logoColor=white)](https://polecat.netlify.app/)
 [![Kafka](https://img.shields.io/badge/Kafka-Transport-231F20?logo=apachekafka&logoColor=white)](https://kafka.apache.org/)
@@ -15,6 +15,16 @@
 
 CritterCab is an open-source reference architecture for a ride-sharing platform, built on the Critter Stack, a family of .NET libraries maintained by JasperFx. Its distinguishing focus is **Wolverine's gRPC feature set**, which shipped in Wolverine 5.32. Ride-sharing was chosen because its natural shape (GPS streaming, dispatch matching, trip lifecycle) exercises gRPC in all four modes while leaving room for event sourcing, high-volume telemetry, and multi-transport messaging.
 
+### Technology Versions
+
+| Concern | Package | Version |
+|---|---|---|
+| Messaging, HTTP, handlers | Wolverine | 5.38+ |
+| Event sourcing (PostgreSQL) | Marten | 8.35+ |
+| Document store (SQL Server) | Polecat | 3.1+ |
+| Local dev orchestration | Aspire | 13.3 |
+| Database | PostgreSQL | 18 |
+
 ## What's Distinctive
 
 - **gRPC as a design concern.** All four modes (unary, server-streaming, client-streaming, bidirectional) exercised against natural domain use cases.
@@ -24,7 +34,7 @@ CritterCab is an open-source reference architecture for a ride-sharing platform,
 
 ## Status
 
-Early development. No runnable code yet; the project is in the design phase.
+Early development. The Dispatch service has its first vertical slice (`RideRequested`) implemented with Marten event sourcing, Wolverine HTTP, and integration tests.
 
 ## Learn More
 
