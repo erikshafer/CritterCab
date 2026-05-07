@@ -127,33 +127,11 @@ Cab uses `AsGuid` for Payments because payment-request IDs are UUIDs anyway and 
 
 ## Appending events
 
-The write-side surface lives on `session.Events` (typed as `IEventOperations`). The most-used overloads:
+The write-side surface lives on `session.Events` (typed as `IEventOperations`). Mechanic basics — the full overload surface for `StartStream<T>`, `Append`, `AppendOptimistic`, `AppendExclusive`, `ArchiveStream`, `TombstoneStream`, plus stream-key vs Guid identity variants — are documented in ai-skills `polecat-setup-and-decision-guide` § Event sourcing with Polecat. The Cab convention plus the two confusion-prone helpers:
 
 ```csharp
-// Start a brand-new stream (throws if it already exists)
 session.Events.StartStream<Payment>(paymentId, new PaymentRequested(...));
-session.Events.StartStream<Payment>(streamKey, new PaymentRequested(...));     // string-keyed stream
-session.Events.StartStream<Payment>(new PaymentRequested(...));                  // auto-generated Guid
-
-// Append to an existing stream (creates it if missing — beware of this for new streams)
-session.Events.Append(streamId, new PaymentAuthorized(...));
-
-// Append with explicit expected version (optimistic concurrency at append time)
-session.Events.Append(streamId, expectedVersion: 3, new PaymentCaptured(...));
-
-// Optimistic-concurrency variant: reads the current version, sets ExpectedVersionOnServer
-await session.Events.AppendOptimistic(streamId, ct, new PaymentCaptured(...));
-
-// Pessimistic-locking variant: opens a transaction and holds an exclusive row lock
-await session.Events.AppendExclusive(streamId, ct, new PaymentCaptured(...));
-
-// Mark a stream archived (soft delete; pc_events rows remain but the stream is hidden)
-session.Events.ArchiveStream(streamId);
-
-// Tombstone (hard DELETE — events gone permanently)
-session.Events.TombstoneStream(streamId);
-
-// All operations are queued; nothing hits the database until SaveChangesAsync
+session.Events.AppendOptimistic(streamId, ct, new PaymentCaptured(...));
 await session.SaveChangesAsync();
 ```
 
@@ -491,12 +469,7 @@ For Cab Payments BC: `UseFastEventForwarding = false` (compliance benefits from 
 
 ## Schema management with Weasel.SqlServer
 
-Polecat delegates all DDL to **Weasel.SqlServer** (sibling of Weasel.Postgresql for Marten). The schema lifecycle is diff-based — Weasel compares the desired schema (computed from configuration) against the actual database, generates DDL for differences, and applies it transactionally.
-
-Behavior depends on `opts.AutoCreateSchemaObjects`:
-
-- **`AutoCreate.CreateOrUpdate`** (default) — auto-creates new tables, adds new columns. **Never drops anything.**
-- **`AutoCreate.None`** — no runtime schema changes. Use the JasperFx CLI for production deployments.
+Polecat delegates all DDL to **Weasel.SqlServer** (sibling of Weasel.Postgresql for Marten). The schema lifecycle is diff-based — Weasel compares the desired schema (computed from configuration) against the actual database, generates DDL for differences, and applies it transactionally. The `AutoCreateSchemaObjects` modes (`CreateOrUpdate` default, `CreateOnly`, `None`) are documented in ai-skills `polecat-setup-and-decision-guide` § Schema management.
 
 The `pc_streams` v3.0 schema change (removed `snapshot`/`snapshot_version` columns) is one Weasel diff applies as part of an upgrade — but only for schemas where Polecat owns the migration. Cab's convention is to target v3.0 from the start in Payments, so the migration is moot for Cab specifically.
 
@@ -651,7 +624,13 @@ The Payments BC also runs a Wolverine saga (`PaymentLifecycleSaga`) that orchest
 
 ## See also
 
-**Upstream** — load these first:
+**Upstream** — generic Polecat mechanics this skill defers to. ai-skills (license required, install via `npx skills add`):
+
+- `polecat-setup-and-decision-guide` (primary) — full Marten-vs-Polecat decision matrix, SQL Server 2025 requirement and native JSON column type, NuGet packages, basic event-sourcing API surface, projection registration, async daemon basics, **Polecat MCP server (`app.MapPolecatMcp()`)** — Cab does not currently cover the MCP server.
+- `polecat-cross-stream-operations` — multiple `[WriteAggregate]` parameters with `VersionSource`, **`[ConsistentAggregate]` / `[ConsistentAggregateHandler]` attributes** for read-then-decide patterns (idempotency guard, authorization precondition, capacity reservation, secondary-stream protection), **`FakeEventStream<T>` unit-test stub** — Cab does not currently cover the attribute shortcuts or the test stub.
+- `critterstack-arch-new-project-wolverine-polecat` — bootstrap for a new Wolverine + Polecat project; lighter than the setup-and-decision-guide.
+
+**Prerequisites** — Cab-internal skills to load first if unfamiliar:
 
 - `service-bootstrap` — the composition root pattern this skill builds on. § Polecat-Backed Service: The Differences covers the per-service `AddPolecat` + `IntegrateWithWolverine` registration.
 - `marten-aggregates` — aggregate-shape conventions; the patterns transfer almost directly. The differences are the Polecat namespaces and the v3.0 Snapshot<T> shortcut.
@@ -685,6 +664,5 @@ The Payments BC also runs a Wolverine saga (`PaymentLifecycleSaga`) that orchest
 - [Polecat snapshots documentation](https://polecat.jasperfx.net/events/snapshots) — the v3.0 Snapshot<T> shortcut, lifecycle options, the under-the-hood SingleStreamProjection registration.
 - [Polecat async daemon documentation](https://polecat.jasperfx.net/events/projections/async-daemon) — polling architecture, high water mark detection, daemon settings.
 - [Polecat schema migrations](https://polecat.jasperfx.net/schema/migrations) — Weasel.SqlServer integration, AutoCreate behavior.
-- ai-skills `polecat-event-sourcing` and `polecat-document-store` — generic Polecat patterns from JasperFx if/when published, complementing Cab's positioning.
 - ADR in [`docs/decisions/`](../../decisions/) covering the Critter Stack as foundational technology and the per-BC engine choice between Marten and Polecat.
 - [`docs/rules/structural-constraints.md`](../../rules/structural-constraints.md) — immutable rules including the per-BC engine-choice constraint.

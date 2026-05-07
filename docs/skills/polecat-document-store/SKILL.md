@@ -50,7 +50,7 @@ This skill focuses on the document-only patterns. The event-sourced documents (t
 
 ## Sessions: lightweight is the default
 
-Polecat ships with three session shapes, identical in purpose to Marten's but with one key default flipped:
+Polecat ships with three session shapes, identical in purpose to Marten's but with one key default flipped. ai-skills `polecat-setup-and-decision-guide` § Basic setup mentions `LightweightSession()` in the bootstrap context; the three-shape enumeration and Polecat-3.0-default-flip framing below are Cab-specific.
 
 ```csharp
 // Default: no identity tracking, fastest, the right choice for CQRS handlers
@@ -86,7 +86,7 @@ Cab convention: in Wolverine handlers, the chain wires up the session for you an
 
 ## Storing and loading documents
 
-The three save operations have distinct semantics:
+The three save operations have distinct semantics. Basic `Store` and event-side `Append` shapes appear in ai-skills `polecat-setup-and-decision-guide` § Event sourcing with Polecat; the asymmetric Store-vs-Insert-vs-Update semantics and Cab convention below are Cab-specific.
 
 ```csharp
 // Upsert: insert if new, update if exists
@@ -495,10 +495,18 @@ Typical patterns: patch `MerchantConfig` to bump review timestamps without reloa
 
 ## See also
 
-**Upstream** — load these first:
+**Upstream** — generic Polecat mechanics this skill defers to. ai-skills (license required, install via `npx skills add`):
+
+- `polecat-setup-and-decision-guide` (primary) — setup-side surface that touches the document store at the bootstrap level: registered services (`IDocumentStore`/`IDocumentSession`/`IQuerySession`), basic `Store` example in the event-sourcing context, document type registration via `IConfigurePolecat`, schema management for `pc_doc_*` tables, Polecat MCP server. **No substantive coverage of session shapes, identity strategies, LINQ surface, soft deletes, patching, or document-level concurrency** — those are documented in this Cab skill.
+- `polecat-cross-stream-operations` — event-sourcing-side cross-stream patterns; not document-store-relevant directly, but pairs with `polecat-event-sourcing` for the full Polecat surface.
+- `critterstack-arch-new-project-wolverine-polecat` — bootstrap-focused; `PolecatOps.StartStream` example. Document-store coverage is limited to the registration shape.
+
+**Cab's coverage substantially exceeds ai-skills' coverage of the document database.** Cab adds session shapes (lightweight default vs identity-map vs query, Polecat-3.0-default-flip), `Store`/`Insert`/`Update` asymmetric semantics, identity strategies (Guid auto-assigned / HiLo numeric / string application-assigned / strong-typed wrapper auto-handling), the LINQ surface and Marten-vs-Polecat differences (T-SQL JSON functions vs PostgreSQL jsonb operators), Raw SQL via `IAdvancedSql`, soft-delete 3 opt-in mechanisms with LINQ extensions and restoration patterns, the patching API (`Set` / `Increment` / `Append` / `AppendIfNotExists` / `Insert` / `Remove` / `Duplicate` / `Rename` / `Delete` plus by-predicate), document-level optimistic concurrency (`IVersioned` Guid-based vs `IRevisioned` int-based, auto-detection, mutual exclusivity), and the calibration section listing Marten features deliberately omitted from Polecat. ai-skills has no dedicated document-database skill for either Marten or Polecat — a notable topic gap on the ai-skills side.
+
+**Prerequisites** — Cab-internal skills to load first if unfamiliar:
 
 - `polecat-event-sourcing` — the engine baseline (SQL Server 2025 native `json` type, `pc_doc_{type}` table convention, `AddPolecat` + `IntegrateWithWolverine` bootstrap, Weasel.SqlServer schema management). The companion to this skill on the event-store side.
-- `marten-querying` — the canonical LINQ patterns and decision frameworks. Most of marten-querying transfers to Polecat unchanged; the engine-specific differences are documented here.
+- `marten-querying` — the canonical LINQ patterns and decision frameworks. Most of `marten-querying` transfers to Polecat unchanged; the engine-specific differences are documented here.
 - `service-bootstrap` § Polecat-Backed Service: The Differences — the per-service registration shape that wires the document store into the Wolverine handler context.
 
 **Sibling skills:**
@@ -523,4 +531,3 @@ Typical patterns: patch `MerchantConfig` to bump review timestamps without reloa
 - [Polecat soft deletes](https://polecat.jasperfx.net/documents/deletes) — three opt-ins, LINQ extensions, restoration patterns.
 - [Polecat patching](https://polecat.jasperfx.net/documents/partial-updates-patching) — the `Patch<T>` API and operations.
 - [Polecat concurrency](https://polecat.jasperfx.net/documents/concurrency) — `IVersioned` vs `IRevisioned`, auto-detection, `JasperFx.ConcurrencyException`.
-- ai-skills `polecat-document-store` and `polecat-event-sourcing` — generic Polecat patterns from JasperFx if/when published.
