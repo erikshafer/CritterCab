@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package crittercab.dispatch.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option csharp_namespace = "CritterCab.Dispatch.V1";
+
+// Business event published to ASB when a rider cancels their request pre-assignment.
+// Topic: dispatch.ride-request-cancelled  |  Session key: ride_request_id
+message RideRequestCancelled {
+  string ride_request_id = 1;
+  string rider_id = 2;
+  CancellationReason reason = 3;
+  optional string notes = 4;
+  google.protobuf.Timestamp cancelled_at = 5;
+}
+
+enum CancellationReason {
+  CANCELLATION_REASON_UNSPECIFIED = 0;
+  CANCELLATION_REASON_CHANGED_MIND = 1;
+  CANCELLATION_REASON_WAITING_TOO_LONG = 2;
+  CANCELLATION_REASON_FOUND_ALTERNATE_TRANSPORT = 3;
+  CANCELLATION_REASON_WRONG_PICKUP_LOCATION = 4;
+  CANCELLATION_REASON_OTHER = 5;
+}

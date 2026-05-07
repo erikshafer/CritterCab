@@ -71,3 +71,7 @@ Subsequent sections are prompt-specific. Existing prompts in this directory serv
 
 - [`narratives/001-rider-books-a-ride.md`](./narratives/001-rider-books-a-ride.md) — Author the first NDD-informed narrative covering the rider's happy-path journey through Dispatch. Status: complete (2026-04-25). Produced [`docs/narratives/001-rider-books-a-ride.md`](../narratives/001-rider-books-a-ride.md).
 - [`narratives/002-driver-accepts-a-ride.md`](./narratives/002-driver-accepts-a-ride.md) — Author the driver-side companion narrative covering Dani's offer-receipt-through-acceptance journey. Pairs structurally with narrative 001. Status: complete (2026-05-04). Produced [`docs/narratives/002-driver-accepts-a-ride.md`](../narratives/002-driver-accepts-a-ride.md).
+
+### Decisions
+
+- [`decisions/001-protobuf-ride-assigned.md`](./decisions/001-protobuf-ride-assigned.md) — Author the three Dispatch business-event protobuf contracts (`RideAssigned`, `RideRequestCancelled`, `RideRequestAbandoned`) and establish the `/protos/` directory. First exercise of ADR-009. Status: complete (2026-05-07). Produced proto files in `/protos/crittercab/dispatch/v1/` and `/protos/crittercab/common/v1/`.

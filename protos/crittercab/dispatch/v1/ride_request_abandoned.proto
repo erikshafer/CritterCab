@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package crittercab.dispatch.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option csharp_namespace = "CritterCab.Dispatch.V1";
+
+// Business event published to ASB when the system abandons a ride request
+// after exhausting all dispatch attempts or timing out.
+// Topic: dispatch.ride-request-abandoned  |  Session key: ride_request_id
+message RideRequestAbandoned {
+  string ride_request_id = 1;
+  AbandonmentReason reason = 2;
+  google.protobuf.Timestamp abandoned_at = 3;
+  int32 final_round_number = 4;
+}
+
+enum AbandonmentReason {
+  ABANDONMENT_REASON_UNSPECIFIED = 0;
+  ABANDONMENT_REASON_MAX_ROUNDS_EXHAUSTED = 1;
+  ABANDONMENT_REASON_NO_CAPABLE_DRIVERS_AVAILABLE = 2;
+  ABANDONMENT_REASON_FARE_QUOTE_FAILED = 3;
+  ABANDONMENT_REASON_REQUEST_TIMEOUT = 4;
+}
