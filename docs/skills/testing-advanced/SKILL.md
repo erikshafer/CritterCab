@@ -236,7 +236,7 @@ Both patterns assume one PostgreSQL Testcontainer or one SQL Server Testcontaine
 public class SharedTestcontainersFixture : IAsyncLifetime
 {
     public PostgreSqlContainer Postgres { get; } = new PostgreSqlBuilder()
-        .WithImage("postgres:17-alpine").Build();
+        .WithImage("postgres:18-alpine").Build();
 
     public MsSqlContainer SqlServer { get; } = new MsSqlBuilder()
         .WithImage("mcr.microsoft.com/mssql/server:2025-latest").Build();
