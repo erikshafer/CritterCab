@@ -415,6 +415,15 @@ This is the highest-leverage debugging tool when a handler's behavior surprises 
 
 The `--handler`, `--route`, and `--grpc` flags are mutually exclusive — pass one per invocation.
 
+### Additional surfaces in ai-skills
+
+ai-skills `wolverine-observability-command-line-diagnostics` covers two surfaces Cab's skill doesn't enumerate:
+
+- **`wolverine-diagnostics describe-resiliency`** — third sub-command alongside `describe-routing` and `codegen-preview`. Inspects active error-handling and circuit-breaker configuration scoped to an endpoint, a message type, or `--all` for full-system audit. The natural pair with `describe-routing` for pre-go-live verification: routing tells you *where* messages go, resiliency tells you *what happens when they fail*.
+- **Programmatic equivalents.** `opts.DescribeHandlerMatch(typeof(Handler))` for handler-discovery diagnostics in code; `bus.PreviewSubscriptions(message)` for routing preview in tests; `host.SetupResources()`/`TeardownResources()`/`ResetResourceState()` and `IMessageStore.Admin.RebuildAsync()`/`ClearAllAsync()` for the test-fixture and admin-endpoint equivalents of the CLI surface. Cab's tests use Testcontainers + `CleanAllMartenDataAsync` rather than these programmatic resource APIs (per `testing-integration`), but the APIs are the right primitive for in-process admin endpoints when those are needed.
+
+ai-skills also documents a useful `Environment.GetCommandLineArgs().Contains("codegen")` guard for disabling persistence connections during codegen-only runs — prevents the host from trying to reach databases that aren't available at codegen time (e.g., when running CLI from CI without an Aspire-orchestrated database).
+
 ---
 
 ## Wolverine capabilities — `capabilities`
@@ -692,7 +701,11 @@ Every JasperFx command returns 0 on success, non-zero on failure. CI scripts can
 
 ## See also
 
-**Upstream** — load these first:
+**Upstream** — generic Wolverine CLI fundamentals this skill builds on. ai-skills (license required, install via `npx skills add`):
+
+- `wolverine-observability-command-line-diagnostics` (primary) — Wolverine slice of the JasperFx CLI: `RunJasperFxCommands` enablement, `describe` with section-by-section troubleshooting framing, `capabilities` JSON export, schema commands (`db-apply`, `db-assert`, `db-patch`, `db-dump`, `db-list` with `-d` flag for multi-database), `storage` (rebuild/clear/release), `resources` (setup/teardown), `check-env`, `wolverine-diagnostics describe-routing`, `wolverine-diagnostics codegen-preview`, **`wolverine-diagnostics describe-resiliency`** (covered there but not in Cab), programmatic equivalents (`opts.DescribeHandlerMatch`, `bus.PreviewSubscriptions`, `host.SetupResources`/`TeardownResources`/`ResetResourceState`, `IMessageStore.Admin`), and the disabling-persistence-for-codegen-runs pattern. Cab's skill extends this with the comprehensive five-contributor surface (JasperFx core / JasperFx.Events / Weasel / Wolverine / Marten), full `projections` and `marten` command surfaces, decision matrices (`db-apply` vs `resources setup`; `projections rebuild` vs daemon API), Aspire composition guidance, CI/CD pipeline patterns, and 17 Cab-specific pitfalls.
+
+**Prerequisites** — Cab-internal skills to load first:
 
 - `service-bootstrap` — the `Program.cs` registration that ends with `RunJasperFxCommands(args)`. Without that line, none of these commands exist on a service.
 - `csharp-coding-standards` — invocation conventions, formatting; relevant when scripting CLI invocations alongside other tooling.
@@ -718,8 +731,6 @@ Every JasperFx command returns 0 on success, non-zero on failure. CI scripts can
 
 **External:**
 
-- ai-skills — generic Critter Stack CLI skills if/when JasperFx publishes any. Complements this skill.
-- All ai-skills installed via `npx skills add` (license required).
 - [JasperFx CLI Documentation](https://jasperfx.github.io/jasperfx/) — the canonical reference for the JasperFx command framework.
 - [Marten CLI Documentation](https://martendb.io/configuration/cli/) — Marten-specific commands and the `marten` healing command.
 - [Wolverine Diagnostics Documentation](https://wolverinefx.io/guide/diagnostics/) — `wolverine-diagnostics` commands, `describe-routing`, codegen previews.

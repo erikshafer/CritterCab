@@ -614,7 +614,16 @@ For network-level faults (transport unavailability), Testcontainers' `PauseConta
 
 ## See also
 
-**Upstream** — load these first:
+**Upstream** — ai-skills covers the foundation (Alba, integration testing, parallelization, Testcontainers) that this skill extends with advanced multi-host, streaming, polyglot, and verification patterns. ai-skills (license required, install via `npx skills add`):
+
+- `wolverine-testing-alba` — Alba HTTP scenario testing patterns: `IAlbaHost`, `Scenario` builder, JSON request/response handling, `TrackedHttpCall` integration. Cab's testing-integration relies on these patterns; testing-advanced extends to multi-host scenarios via `TrackActivity().AlsoTrack(otherHost)`.
+- `wolverine-testing-integration` — the baseline integration testing surface (covered as Skill 38's primary counterpart). Cab's testing-advanced builds on the tracked-session API documented there.
+- `wolverine-testing-test-parallelization` — xUnit parallelization fundamentals. Cab's testing-advanced extends with namespace-per-fixture isolation (RabbitMQ vhost, Kafka topic prefix, ASB queue prefix; PostgreSQL schema-per-fixture and SQL Server database-per-fixture for the storage side).
+- `wolverine-testing-with-testcontainers` — Testcontainers fundamentals. Cab's testing-advanced extends with cross-language Testcontainer composition (`cab-go` alongside .NET hosts) and broker-specific patterns (Kafka, ASB) including `IncludeExternalTransports()`.
+
+Most of testing-advanced's surface is genuinely advanced and Cab-specific: multi-host `TrackActivity().AlsoTrack()` scenarios, gRPC streaming test harnesses (in-process clients via `WebApplicationFactory<Program>` for unary/server-streaming/bidirectional/client-streaming), dynamic database-per-fixture isolation, OpenTelemetry in-memory exporter verification of span trees and metric counters, polyglot boundary tests, OpenIddict-shaped JWT test-token factories, and middleware-based fault injection. These don't have direct ai-skills counterparts.
+
+**Prerequisites** — Cab-internal skills to load first:
 
 - `testing-fundamentals` — the test stack (xUnit 2.9.3, Shouldly, Alba, Testcontainers 4.11.0), unit testing patterns, FakeTimeProvider. Foundational.
 - `testing-integration` — the per-service `TestFixture` pattern, the canonical race condition, tracked sessions basics, Alba HTTP scenarios, IInitialData, parallelization. This skill extends those patterns to the multi-host and cross-cutting cases.
@@ -647,4 +656,3 @@ For network-level faults (transport unavailability), Testcontainers' `PauseConta
 - [WebApplicationFactory<TEntryPoint> documentation](https://learn.microsoft.com/en-us/aspnet/core/test/integration-tests) — in-process ASP.NET Core hosting.
 - [OpenTelemetry .NET testing documentation](https://opentelemetry.io/docs/languages/dotnet/) — in-memory exporter, `MeterListener` patterns.
 - [Alba documentation](https://jasperfx.github.io/alba/) — HTTP scenario assembly.
-- ai-skills `testing-advanced` — generic patterns from JasperFx if/when published.

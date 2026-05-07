@@ -420,7 +420,13 @@ Go's `go.opentelemetry.io/otel/metric` package provides the equivalent of .NET's
 
 ## See also
 
-**Upstream** — load these first:
+**Upstream** — generic Wolverine + Marten metrics, auditing, and Grafana dashboard fundamentals this skill builds on. ai-skills (license required, install via `npx skills add`):
+
+- `wolverine-observability-metrics-and-auditing` (primary) — generic Wolverine + Marten metrics surface, **audit middleware patterns** (`AuditMiddleware` with `Before`/`Finally` hooks + `Stopwatch` for timing logs; writing audit events to Marten/EF Core sessions via `After` hook), Prometheus exporter setup (`AddPrometheusExporter()` + `MapPrometheusScrapingEndpoint()`), Grafana PromQL query examples (handler throughput rate, error rate, DLQ accumulation, P95 execution/effective time, inbox depth, projection lag), `[WolverineLogging(telemetryEnabled: false)]` attribute. Cab's skill substantially exceeds the metrics scope (full Wolverine instrument catalog with Meter wildcard registration, multi-database observable gauge suffix behavior, Polecat 3.1 `IDocumentStoreUsageSource` monitoring discovery, `EnableExtendedProgressionTracking` daemon health columns, per-BC custom Meter convention, view bucket boundary configuration, cardinality risk analysis with Metric View `TagKeys` filtering, cross-language `cab-go` metrics integration).
+  - **Note: ai-skills content drift.** This skill incorrectly uses `AddMeter("Wolverine")` exact-match. Wolverine creates the Meter as `Wolverine:{ServiceName}`, so the correct registration is the wildcard `AddMeter("Wolverine:*")`. ai-skills' separate `wolverine-observability-opentelemetry-setup` skill DOES note the per-service-suffix correctly — so the two ai-skills are internally inconsistent. See Cab's roadmap entry for ai-skills content drift.
+- `wolverine-observability-grafana-dashboard-templates` — starter Grafana dashboard JSON templates for Wolverine + Marten metric surfaces. Cab doesn't ship dashboard JSON; production deployments should adapt these templates.
+
+**Prerequisites** — Cab-internal skills to load first:
 
 - `observability-tracing` — the canonical tracing companion. Same bootstrap shape, same sampling concerns. Both skills register Wolverine's Meter via the wildcard form `AddMeter("Wolverine:*")` — Wolverine's Meter name is per-service-suffixed (`Wolverine:{ServiceName}`), and the wildcard is the correct prefix-match registration.
 - `service-bootstrap` — the `Program.cs` shape this skill plugs into. The `AddOpenTelemetry().WithMetrics(...)` block layers cleanly on top of the bootstrap pattern documented there.
@@ -447,4 +453,3 @@ Go's `go.opentelemetry.io/otel/metric` package provides the equivalent of .NET's
 - [Wolverine telemetry documentation](https://wolverinefx.net/) — Wolverine's official OTel guidance; verify metric names against current docs at the time of integration.
 - [Marten OpenTelemetry options](https://martendb.io/) — the `TrackEventCounters` and `ExportCounterOnChangeSets` API surface.
 - [Polecat OpenTelemetry options](https://polecat.jasperfx.net/) — the parallel API for SQL-Server-backed stores.
-- ai-skills `observability-metrics` — generic patterns from JasperFx if/when published; complements this skill's Cab specifics.

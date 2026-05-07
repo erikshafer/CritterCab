@@ -143,6 +143,8 @@ app.MapDefaultEndpoints();
 await app.RunOaktonCommandsAsync(args);
 ```
 
+> **Greenfield Marten + Wolverine recommendations beyond what's shown above.** ai-skills `critterstack-arch-new-project-wolverine-marten` documents additional greenfield-recommended options Cab's example doesn't enumerate: `EventAppendMode.Quick` (~50% throughput improvement), `UseArchivedStreamPartitioning`, `EnableEventSkippingInProjectionsOrSubscriptions`, `Projections.UseIdentityMapForAggregates`, `Projections.EnableAdvancedAsyncTracking`, `DisableNpgsqlLogging`, plus Wolverine durability optimizations (`Durability.EnableInboxPartitioning`, `InboxStaleTime`/`OutboxStaleTime`, `UnknownMessageBehavior = DeadLetterQueue`) and the `Policies.AutoApplyTransactions()` policy. For document-store index registration (which Cab's bootstrap example doesn't cover), see ai-skills `marten-advanced-indexes-and-query-optimization`. The `WolverineFx.Http.Marten` metapackage convention and the version-alignment warning across all `WolverineFx.*` packages are also documented there.
+
 **Key conventions visible above:**
 
 - **`builder.AddServiceDefaults()`** is Aspire's hook for OpenTelemetry, service discovery, and health-check defaults. Every service calls it; it's the single line that wires the Aspire ecosystem.
@@ -303,7 +305,13 @@ There is no separate "test bootstrap" — tests use the production composition r
 
 ## See also
 
-**Upstream** — load these first:
+**Upstream** — generic Wolverine + Marten/Polecat bootstrap fundamentals this skill builds on. ai-skills (license required, install via `npx skills add`):
+
+- `critterstack-arch-new-project-wolverine-marten` (primary) — Wolverine + Marten greenfield bootstrap: NuGet metapackage convention with version-alignment warning, full canonical Program.cs with greenfield-recommended event-store options (`EventAppendMode.Quick`, `UseArchivedStreamPartitioning`, `EnableEventSkippingInProjectionsOrSubscriptions`, `Projections.UseIdentityMapForAggregates`, `Projections.EnableAdvancedAsyncTracking`, `DisableNpgsqlLogging`), Wolverine durability optimizations (`Durability.EnableInboxPartitioning`, `InboxStaleTime`/`OutboxStaleTime`, `UnknownMessageBehavior = DeadLetterQueue`), `Policies.AutoApplyTransactions()`, full Alba test fixture pattern with vertical slice example, anti-patterns (repository over Marten, missing AutoApplyTransactions, manual SaveChangesAsync). Cab's skill adds project-specific framing (6-step Service Composition Contract, Aspire-injected configuration with explicit null checks, environment-aware schema/policy decisions, connection-string casing conventions, per-service variation patterns for gRPC/Kafka/publish-only/BFF, Polecat-backed differences, Cab-specific pitfalls).
+- `critterstack-arch-new-project-wolverine-polecat` — Wolverine + Polecat greenfield bootstrap. Equivalent surface for SQL-Server-backed services.
+- `wolverine-handlers-ioc-and-service-optimization` — deep reference for `ServiceLocationPolicy`, codegen modes (`TypeLoadMode.Dynamic`/`Static`), pre-generation (`AssertAllPreGeneratedTypesExist`), and IoC bits this skill summarizes.
+
+**Prerequisites** — Cab-internal skills to load first:
 
 - `adding-a-service` — establishes the project skeleton and database; this skill picks up at `Program.cs`.
 - `csharp-coding-standards` — sealed records, `TimeProvider`, modern guard clauses.
@@ -325,10 +333,6 @@ There is no separate "test bootstrap" — tests use the production composition r
 
 **External:**
 
-- ai-skills `critterstack-arch-new-project-wolverine-marten` — generic Critter Stack project bootstrap with Marten.
-- ai-skills `critterstack-arch-new-project-wolverine-polecat` — generic Critter Stack project bootstrap with Polecat.
-- ai-skills `wolverine-handlers-ioc-and-service-optimization` — `ServiceLocationPolicy`, codegen modes, pre-generation; the deep reference for the IoC bits this skill summarizes.
-- All ai-skills installed via `npx skills add` (license required).
 - ADR-002 in [`docs/decisions/`](../../decisions/) — services per bounded context.
 - ADR-005 in [`docs/decisions/`](../../decisions/) — transport selection.
 - ADR-007 in [`docs/decisions/`](../../decisions/) — Azure as deployment target.

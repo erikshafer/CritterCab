@@ -33,6 +33,8 @@ This skill does NOT govern:
 
 **Organize by what the system does, not by what kinds of artifacts it contains.**
 
+For VSA fundamentals — what vertical slices are, why Wolverine improves on MediatR, "why not Clean/Onion/Hexagonal," slice testing examples, and the broader decision guidance — see ai-skills `critterstack-arch-vertical-slice-fundamentals`. This Cab skill focuses on the project-specific *how* of organization within a CritterCab service.
+
 ### ✅ Feature-oriented organization
 
 ```
@@ -371,7 +373,11 @@ For services with very few queries (1–2), they can sit at the project root or 
 
 ## See also
 
-**Upstream** — load these first if unfamiliar:
+**Upstream** — generic VSA fundamentals this skill builds on. ai-skills (license required, install via `npx skills add`):
+
+- `critterstack-arch-vertical-slice-fundamentals` (primary) — VSA principle, Wolverine-vs-MediatR comparison, complete vertical slice example, aggregate file convention, "why not Clean/Onion/Hexagonal" rationale, slice testing examples, query slices, message handler slices, decision guidance. Cab's skill applies these fundamentals with project-specific naming conventions, file colocation rules, anti-patterns, and the AI-agent counter-pressure framing.
+
+**Prerequisites** — Cab-internal skills to load first if unfamiliar:
 
 - `csharp-coding-standards` — sealed records, init-only properties, validators-as-nested-classes pattern.
 - `domain-event-conventions` — naming, file placement at the project root level (this skill aligns with it).
@@ -385,6 +391,5 @@ For services with very few queries (1–2), they can sit at the project root or 
 
 **External:**
 
-- ai-skills `wolverine-handlers-fundamentals` — generic Wolverine handler-and-validator placement. Install via `npx skills add` (license required).
 - ADR-002 in [`docs/decisions/`](../../decisions/) — service-per-bounded-context (the inter-service boundary that complements this skill's intra-service organization).
 - ADR-009 in [`docs/decisions/`](../../decisions/) — protobuf contracts as first-class artifacts (governs cross-service shared types).

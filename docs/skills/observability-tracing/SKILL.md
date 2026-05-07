@@ -213,6 +213,17 @@ builder.Services.AddMarten(opts =>
 
 Verbose mode is useful for diagnosing slow Marten operations but adds significant trace volume. Enable it for targeted debugging sessions, not as a default.
 
+### Async daemon spans
+
+Marten's async daemon emits per-shard spans for projection and subscription work. Cab's tracing skill doesn't enumerate these in detail; ai-skills `wolverine-observability-opentelemetry-setup` documents the full set:
+
+- `marten.{name}.all.execution` — per-page event processing (tags: tenant ID, sequence range)
+- `marten.{name}.all.loading` — per-page event load
+- `marten.{name}.all.grouping` — grouping step (projections only)
+- `marten.daemon.highwatermark` — high-water mark calculation (tags: sequence, status)
+
+These spans are operationally significant for diagnosing async daemon stuck-state, projection lag, or unexpected daemon CPU usage. The `marten.connection` span on its own doesn't show projection-side work — the daemon spans are the right surface for that. See `marten-async-daemon` for the runtime model these spans instrument.
+
 ## Trace context propagation across transports
 
 ### How it works
@@ -330,6 +341,13 @@ opts.ListenToKafkaTopic("telemetry.location-pings")
 
 Suppress GPS-ping listener tracing only if the trace volume is genuinely problematic. In local dev, keep everything on — the volume is manageable and the traces are the primary debugging tool.
 
+### Per-message-type and InvokeAsync suppression
+
+Two additional suppression surfaces ai-skills `wolverine-observability-opentelemetry-setup` covers that aren't enumerated above:
+
+- **`[WolverineLogging(telemetryEnabled: false)]` attribute** on a handler suppresses tracing for that specific message type, regardless of which endpoint it arrived on. Useful for per-message-type suppression that endpoint-level config can't express (e.g., a heartbeat message processed on the same endpoint as business messages).
+- **`opts.InvokeTracing = InvokeTracingMode.Full`** changes `InvokeAsync()` (mediator-mode in-process invocation) from lightweight tracking to full OTEL spans. Default is lightweight; flip to `Full` when you need complete spans for in-process command flows.
+
 ## Audit tags
 
 Wolverine's `[Audit]` attribute on handler parameters writes custom tags to the current `Activity`:
@@ -377,6 +395,12 @@ The `[Audit]` attribute is code-generated middleware — it calls `Activity.Curr
 
 ### Upstream
 
+Generic Wolverine + Marten OpenTelemetry fundamentals this skill builds on. ai-skills (license required, install via `npx skills add`):
+
+- `wolverine-observability-opentelemetry-setup` (primary) — combined Wolverine + Marten OTEL surface covering both tracing and metrics: AddSource/AddMeter registration, Wolverine metrics (counters + histograms), Marten metrics (event.append, projection counters), Wolverine trace events, Marten async daemon spans (per-shard execution/loading/grouping + high-water-mark), Prometheus scrape endpoint setup, correlation envelope properties, `[Audit]` attribute, custom metric tags via middleware (`envelope.SetMetricsTag`), per-endpoint and per-message-type suppression, `[WolverineLogging(telemetryEnabled: false)]` attribute, `opts.InvokeTracing = InvokeTracingMode.Full`, Aspire integration. Cab's skill focuses on the tracing slice with project-specific framing (manual-AddSource emphasized as the single most important idea, per-BC ActivitySource naming convention `CritterCab.{BcName}`, Aspire dashboard trace view walkthrough, parent-based head sampling defaults, packages-to-add checklist, 12 Cab-specific pitfalls). Metrics are split into `observability-metrics` (sibling skill).
+
+### Prerequisites
+
 - `service-bootstrap` — the `Program.cs` composition pattern where `AddServiceDefaults()` and the OTel registration live. The bootstrap-side decision is "always call `AddServiceDefaults` first; layer Wolverine and Marten sources after."
 - `aspire` — Aspire orchestration; the dashboard that visualizes traces in local dev, and the `OTEL_EXPORTER_OTLP_ENDPOINT` injection.
 - `wolverine-handlers` — the handler pipeline that Wolverine instruments with send/receive/process spans.
@@ -399,4 +423,3 @@ The `[Audit]` attribute is code-generated middleware — it calls `Activity.Curr
 - [OpenTelemetry Messaging Semantic Conventions](https://opentelemetry.io/docs/specs/semconv/messaging/)
 - [Aspire telemetry fundamentals](https://learn.microsoft.com/en-us/dotnet/aspire/fundamentals/telemetry)
 - [Aspire dashboard trace visualization](https://learn.microsoft.com/en-us/dotnet/aspire/fundamentals/dashboard/explore-traces)
-- ai-skills: `opentelemetry-dotnet`, `aspire-observability`

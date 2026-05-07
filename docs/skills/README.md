@@ -25,9 +25,9 @@ Cross-references between skills are explicit. Each skill's `See Also` section na
 | Phase 2 | First service implementation: composition root, store wiring, handlers, projections, testing, local-dev orchestration | **Complete** (16 skills) |
 | Phase 3 | First cross-service flow: gRPC services, Kafka and ASB transports, identity ACL, distributed observability | **Complete** (8 skills) |
 | Phase 4 | Complexity arrives: sagas, advanced patterns, Polecat event sourcing, polyglot Go service, complete observability, advanced testing | **Complete** (9 skills) |
-| Phase 5 | Reconciliation pass — cross-check against ai-skills, eliminate duplication, contribute generic patterns upstream | Pending |
+| Phase 5 | Reconciliation pass — cross-check against ai-skills, eliminate duplication, contribute generic patterns upstream | **Substantive deliverable complete** (25 / 39 skills reconciled; 14 remain as Phase 6 follow-up — 3 substantive + 11 placeholder cleanup) |
 
-39 skills authored across Phases 1–4. Phase 5 — the reconciliation pass against [JasperFx ai-skills](#companion-jasperfx-ai-skills) — is the remaining work: cross-check generic mechanics, eliminate any duplication that crept in, and contribute upstream where a pattern is genuinely Cab-agnostic.
+39 skills authored across Phases 1–4. Phase 5 — the reconciliation pass against [JasperFx ai-skills](#companion-jasperfx-ai-skills) — closed 2026-05-06 with the substantive deliverable complete: every counterpart-rich skill across all four tiers reconciled, 53 upstream-contribution candidates flagged, 16 Cab coverage gaps documented, 2 ai-skills content drift entries surfaced. The remaining 14 skills are predicted out-of-scope (project-specific patterns, Microsoft tooling, generic ecosystem CLIs) and have been deferred to Phase 6. See [skills-foundation-phase-5 retrospective](../retrospectives/skills-foundation-phase-5.md) for the full reconciliation record, upstream-contribution roadmap, and Phase 6 follow-up plan.
 
 ## Skill index by cluster
 

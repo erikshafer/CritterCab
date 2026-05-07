@@ -730,5 +730,4 @@ This is the same wrapper-record pattern used for value objects, but the motivati
 
 **External:**
 
-- ai-skills `wolverine-handlers-fundamentals` — generic Wolverine handler idioms; assumes installed at user level.
 - ADR-001 in [`docs/decisions/`](../../decisions/) — tradeoffs as explicit principle.

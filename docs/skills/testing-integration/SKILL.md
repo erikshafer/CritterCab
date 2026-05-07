@@ -737,7 +737,15 @@ var session = await Host.TrackActivity()
 
 ## See also
 
-**Upstream** — load these first:
+**Upstream** — generic Wolverine + Marten integration testing fundamentals this skill builds on. ai-skills (license required, install via `npx skills add`):
+
+- `wolverine-testing-integration` (primary) — baseline integration testing patterns: `IAlbaHost.For<Program>`, `ExecuteAndWaitAsync`/`InvokeMessageAndWaitAsync`, tracked-session API, `RunWolverineInSoloMode`, `DisableAllExternalWolverineTransports`. Cab's skill applies these with project-specific framing (per-service TestFixture pattern with Testcontainer-per-fixture, the `JasperFxEnvironment.AutoStartHost` requirement, `ConfigureServices`-not-`ConfigureAppConfiguration` connection-string override rule, `MartenDaemonModeIsSolo()` for solo daemon, dispose-path exception swallows for Alba/Wolverine shutdown races).
+- `wolverine-testing-integration-marten` — Marten-specific integration testing: `CleanAllMartenDataAsync` vs `ResetAllMartenDataAsync` (when async projections are registered), `WaitForNonStaleProjectionDataAsync` for projection catch-up, `IInitialData` seeding patterns, the race condition between Wolverine's transactional middleware and the HTTP response.
+- `wolverine-testing-with-testcontainers` — Testcontainers-driven integration testing: Postgres/SQL Server/Kafka/ServiceBus container builders, image pinning, unique container naming for parallel test runs, the lifecycle integration with `IAsyncLifetime`.
+- `wolverine-testing-with-aspire` — Aspire-orchestrated integration testing: composing tests against an Aspire AppHost rather than per-service Testcontainers, when each strategy is appropriate.
+- `wolverine-testing-test-parallelization` — xUnit parallelization strategies: `[CollectionDefinition(DisableParallelization = true)]` for sequential-within-collection, unique-ID discipline for cross-test parallelism, project-level `CollectionBehavior` baseline, tracked-session timeout adjustments under parallel load. Cab's skill calls out both Strategy 1 (sequential, default) and Strategy 2 (parallel with unique IDs) explicitly.
+
+**Prerequisites** — Cab-internal skills to load first:
 
 - `testing-fundamentals` — committed test stack, xUnit lifecycle, unit testing pure handlers, Shouldly conventions, `FakeTimeProvider`. Read first.
 - `service-bootstrap` — `AddMarten`, `IntegrateWithWolverine`, `AddAsyncDaemon`, `DurabilityMode`; the Program.cs surface fixtures compose against.
@@ -763,8 +771,6 @@ var session = await Host.TrackActivity()
 
 **External:**
 
-- ai-skills `critter-stack-integration-testing` — generic Critter Stack integration testing baseline; complements this skill.
-- All ai-skills installed via `npx skills add` (license required).
 - [Wolverine's Baked In Integration Testing Support (Jeremy Miller, March 25, 2024)](https://jeremydmiller.com/2024/03/25/wolverines-baked-in-integration-testing-support/) — the testing philosophy behind `ExecuteAndWaitAsync` and `InvokeMessageAndWaitAsync`.
 - [Integration Testing an HTTP Service that Publishes a Wolverine Message (Jeremy Miller, July 9, 2023)](https://jeremydmiller.com/2023/07/09/integration-testing-an-http-service-that-publishes-a-wolverine-message/) — the canonical `TrackedHttpCall` pattern.
 - [Testing Asynchronous Projections in Marten (Jeremy Miller, March 26, 2024)](https://jeremydmiller.com/2024/03/26/testing-asynchronous-projections-in-marten/) — `WaitForNonStaleProjectionDataAsync` + `FakeTimeProvider` for event timestamps.

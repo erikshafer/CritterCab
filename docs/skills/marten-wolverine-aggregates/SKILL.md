@@ -143,13 +143,13 @@ For the Version-property auto-detection and `VersionSource` override surface, se
 
 ### `AlwaysEnforceConsistency`
 
-If `true`, Marten enforces the optimistic-concurrency check **even if the handler decides not to emit any new events.** Useful for handlers that read the aggregate's state to make a decision but want guaranteed read isolation.
+If `true`, Marten enforces the optimistic-concurrency check **even if the handler decides not to emit any new events.** This is the underlying flag for the read-then-decide pattern; in practice Cab uses the attribute shortcuts `[ConsistentAggregate]` (parameter-level) and `[ConsistentAggregateHandler]` (handler-level) instead of setting this flag directly. See § `[ConsistentAggregate]` and `[ConsistentAggregateHandler]` below for the preferred surface, decision criteria, and Cab BC scenarios.
 
 ```csharp
 [WriteAggregate(nameof(Cmd.Id), AlwaysEnforceConsistency = true)] SomeAggregate agg
 ```
 
-Default is `false`. Use only when the handler's decision depends on the aggregate not having advanced under it.
+Default is `false`.
 
 ---
 
@@ -214,6 +214,104 @@ public static class TransferRiderToDriverHandler
 When multiple `[WriteAggregate]` parameters share a single handler, each needs its own version variable for optimistic concurrency. Wolverine looks for a `version` parameter by default; specify `VersionSource` to override.
 
 This pattern is rare and the substantive coverage lives in `dynamic-consistency-boundary` (Phase 2). For Cab's typical aggregate handler, single `[WriteAggregate]` is the shape.
+
+---
+
+## `[ConsistentAggregate]` and `[ConsistentAggregateHandler]` — read-then-decide consistency
+
+`AlwaysEnforceConsistency = true` (above) is the underlying flag. In practice Cab uses the **attribute-driven shortcuts** that wrap it:
+
+- `[ConsistentAggregateHandler]` at the handler/class level — equivalent to `[AggregateHandler(AlwaysEnforceConsistency = true)]`.
+- `[ConsistentAggregate]` at the parameter level — equivalent to `[WriteAggregate(...)]` with `AlwaysEnforceConsistency = true`.
+
+Both attributes are for handlers where the aggregate is **read for a decision** but the decision may produce zero events. Without consistency enforcement on the no-event path, a concurrent change between load and decision is silently overruled — the handler reports success against state that no longer exists. The `[Consistent…]` attributes close that hole.
+
+### When to use which
+
+| Need | Attribute |
+|---|---|
+| Append events based on aggregate state | `[WriteAggregate]` (default — version check fires automatically when events are appended) |
+| Read state, never append, just need the snapshot | `[ReadAggregate]` (no lock, no consistency check) |
+| Read state, sometimes append nothing, **still need concurrency guarantee** on the no-op path | **`[ConsistentAggregate]`** (parameter-level) or **`[ConsistentAggregateHandler]`** (whole class) |
+
+`[ConsistentAggregateHandler]` applies to every aggregate parameter on the handler class — use it when *all* aggregate loads in the handler are for read-then-decide. `[ConsistentAggregate]` applies to a single parameter — use it when one parameter is a primary write and another is read-only validation that still needs version protection.
+
+### Handler-level: `[ConsistentAggregateHandler]`
+
+The idempotency-guard pattern. A handler can be invoked twice for the same logical action (network retry, at-least-once delivery from a driver mobile app); the second invocation should be a no-op, but the no-op decision still has to be based on a current view of the aggregate.
+
+```csharp
+namespace CritterCab.Dispatch;
+
+public sealed record ConfirmDriverArrival(Guid OfferId);
+
+[ConsistentAggregateHandler]
+public static class ConfirmDriverArrivalHandler
+{
+    public static IEnumerable<object> Handle(ConfirmDriverArrival cmd, RideOffer offer)
+    {
+        // Already confirmed (retry, late callback) → no-op.
+        // Already cancelled or expired → also no-op (race lost).
+        if (offer.Status is OfferStatus.DriverArrived
+            or OfferStatus.Cancelled
+            or OfferStatus.Expired)
+            yield break;
+
+        yield return new DriverArrivedAtPickup(cmd.OfferId, DateTimeOffset.UtcNow);
+    }
+}
+```
+
+The `yield break` no-op branches still get a version check at save time. Without `[ConsistentAggregateHandler]`, a concurrent `OfferCancelled` (the rider cancelled while the driver was arriving) that lands between load and decision is silently overruled — the handler reports success on an offer that no longer exists in the state we read.
+
+`[ConsistentAggregateHandler]` is shorthand for `[AggregateHandler(AlwaysEnforceConsistency = true)]`. Both forms are equivalent; prefer `[ConsistentAggregateHandler]` for readability.
+
+### Parameter-level: `[ConsistentAggregate]`
+
+The protect-the-secondary-stream pattern. A handler may load a primary stream to write events plus a secondary stream purely to read and validate. Events are only appended to the primary, but the secondary still needs a version check so a concurrent change can't silently invalidate the precondition.
+
+```csharp
+namespace CritterCab.Trips;
+
+public sealed record AssignDriverToTrip(Guid TripId, Guid DriverId);
+
+public static class AssignDriverToTripHandler
+{
+    public static (DriverAssigned, OutgoingMessages) Handle(
+        AssignDriverToTrip cmd,
+        [WriteAggregate(nameof(AssignDriverToTrip.TripId))] Trip trip,
+        [ConsistentAggregate(nameof(AssignDriverToTrip.DriverId))] Driver driver,
+        TimeProvider time)
+    {
+        if (driver.Status is not DriverStatus.Available)
+            throw new InvalidOperationException("Driver is not available for assignment.");
+
+        // Events appended only to Trip stream. Driver stream is read for the
+        // precondition; [ConsistentAggregate] keeps the version check active so
+        // a concurrent DriverSuspended that races with this assignment fails
+        // with ConcurrencyException instead of being silently overruled.
+        var assigned = new DriverAssigned(cmd.DriverId, time.GetUtcNow());
+
+        var outgoing = new OutgoingMessages();
+        outgoing.Add(new Integration.DriverAssignedToTrip(cmd.TripId, cmd.DriverId));
+
+        return (assigned, outgoing);
+    }
+}
+```
+
+Plain `[WriteAggregate]` on `driver` would work for the read but skip the version check on the no-event path (no events ever land on `driver` here). Plain `[ReadAggregate]` would skip the version check entirely. `[ConsistentAggregate]` is the right tool: load + version-check at save time, no events appended.
+
+### Two more patterns where these earn their place
+
+- **Authorization precondition** (Onboarding BC, `ApproveDriverApplication` on the `DriverApplication` aggregate). Approval only proceeds when all required documents are `Verified`. The decline path (`yield break` when some doc is still `Pending`) must run under `[ConsistentAggregateHandler]` — a concurrent `DocumentRejected` that lands between load and decision should invalidate the no-op rather than be silently overruled.
+- **Capacity / reservation** (Dispatch BC, `AcceptZoneAssignment` on the `DispatchZone` aggregate). The zone has `MaxConcurrentDrivers`. The decline path (`yield break` when capacity is full) must run under `[ConsistentAggregateHandler]` — a concurrent `DriverLeftZone` that lands just before the decline should invalidate "zone is full" against state that's already changed and free a slot.
+
+In both, the dangerous branch is the no-op. The append branch is already covered by the default `[WriteAggregate]` version check; the `[Consistent…]` attribute extends that protection to the no-event paths.
+
+### Cross-store: same shape on Polecat
+
+`[ConsistentAggregate]` and `[ConsistentAggregateHandler]` work identically for Polecat-backed handlers (Cab Payments BC). The attribute names, semantics, and `JasperFx.ConcurrencyException` retry pattern transfer unchanged. See `polecat-event-sourcing` § Wolverine integration for the Polecat-side handler shape and ai-skills `polecat-cross-stream-operations` for the canonical scenario set these patterns are drawn from.
 
 ---
 

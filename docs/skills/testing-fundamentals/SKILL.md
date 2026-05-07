@@ -604,7 +604,14 @@ If an assertion feels awkward in Shouldly, the test is usually checking too much
 
 ## See also
 
-**Upstream** — load these first:
+**Upstream** — ai-skills doesn't currently publish a unit-testing-fundamentals skill (the testing surface starts at the integration layer). The most relevant adjacent ai-skills (license required, install via `npx skills add`):
+
+- `wolverine-testing-test-parallelization` — xUnit parallelization patterns for the Critter Stack. Relevant when `IClassFixture<T>` and `ICollectionFixture<T>` choices interact with xUnit's parallelization defaults (Cab's testing-integration covers this in detail).
+- `wolverine-testing-integration` — the integration testing counterpart Cab defers to in its scope-bounding statement. Pairs with this skill: stop here for unit tests; cross over there when the test needs the host, transport, or store.
+
+Cab's testing-fundamentals scope is pure-function unit tests of decider-pattern handlers, validators, aggregates, and `FakeTimeProvider`-driven time-dependent code — a project-specific test-stack baseline (xUnit v2.9.3, Shouldly, snake_case naming) outside ai-skills' current scope.
+
+**Prerequisites** — Cab-internal skills to load first:
 
 - `csharp-coding-standards` — `TimeProvider` injection convention; `required` over `null!`; modern guard clauses; `Guid.CreateVersion7()` for new IDs.
 - `vertical-slice-organization` — feature folders and the absence of `Handlers/`/`Commands/` directories that test layout mirrors.
@@ -625,8 +632,6 @@ If an assertion feels awkward in Shouldly, the test is usually checking too much
 
 **External:**
 
-- ai-skills `critter-stack-testing-fundamentals` — generic Critter Stack testing baseline; complements this skill.
-- All ai-skills installed via `npx skills add` (license required).
 - [Wolverine's Baked In Integration Testing Support (Jeremy Miller, March 25, 2024)](https://jeremydmiller.com/2024/03/25/wolverines-baked-in-integration-testing-support/) — the testability philosophy that informs Cab's test conventions.
 - [Testing Asynchronous Projections in Marten (Jeremy Miller, March 26, 2024)](https://jeremydmiller.com/2024/03/26/testing-asynchronous-projections-in-marten/) — `FakeTimeProvider` pattern for event timestamps; relevant when integration tests assert against `IEvent.Timestamp`.
 - [Faster, More Reliable Integration Testing Against Marten Projections (Jeremy Miller, August 19, 2025)](https://jeremydmiller.com/2025/08/19/faster-more-reliable-integration-testing-against-marten-projections-or-subscriptions/) — Marten 8.8 / Wolverine 4.10 testing improvements.
