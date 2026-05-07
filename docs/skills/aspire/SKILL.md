@@ -97,7 +97,7 @@ var builder = DistributedApplication.CreateBuilder(args);
 // === Infrastructure ===
 
 var postgres = builder.AddPostgres("postgres")
-    .WithImageTag("17-alpine")
+    .WithImageTag("18-alpine")
     .WithLifetime(ContainerLifetime.Persistent);
 
 var tripsDb     = postgres.AddDatabase("trips-db");
@@ -302,7 +302,7 @@ import { createBuilder } from './.modules/aspire.js';
 const builder = await createBuilder();
 
 const postgres = await builder.addPostgres("postgres")
-    .withImageTag("17-alpine");
+    .withImageTag("18-alpine");
 
 const trips = await builder.addProject("trips", "../src/CritterCab.Trips")
     .withReference(postgres)

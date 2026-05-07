@@ -311,7 +311,7 @@ var app = builder.Build();
 app.MapHealthChecks("/health");
 // Map gRPC services and HTTP endpoints as the service's contract requires.
 
-app.Run();
+return await app.RunJasperFxCommands(args);
 ```
 
 Everything between the comment placeholders — Wolverine configuration, Marten event-type registration, transport routing, gRPC service mapping, observability bootstrap — lives in `service-bootstrap`, `marten-aggregates`, the per-transport skills, and `observability-tracing`.

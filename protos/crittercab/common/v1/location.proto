@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package crittercab.common.v1;
+
+option csharp_namespace = "CritterCab.Common.V1";
+
+// A geographic location with optional street address.
+// Used across services wherever pickup/dropoff or position is represented.
+message Location {
+  double lat = 1;
+  double lon = 2;
+  optional string street_address = 3;
+}

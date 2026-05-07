@@ -55,31 +55,32 @@ Per ADR-009 and `structural-constraints.md`: proto files reside in a dedicated `
 /protos/
 ├── buf.yaml                     # buf workspace configuration
 ├── buf.gen.yaml                 # buf code generation configuration
-├── common/
-│   └── v1/
-│       └── geo.proto            # shared types (GeoLocation, Money, etc.)
-├── dispatch/
-│   └── v1/
-│       └── dispatch.proto       # the Dispatch service contract
-├── trips/
-│   └── v1/
-│       └── trips.proto          # the Trips service contract
-└── telemetry/
-    └── v1/
-        └── telemetry.proto      # the Telemetry service contract
+└── crittercab/
+    ├── common/
+    │   └── v1/
+    │       └── geo.proto            # shared types (GeoLocation, Money, etc.)
+    ├── dispatch/
+    │   └── v1/
+    │       └── dispatch.proto       # the Dispatch service contract
+    ├── trips/
+    │   └── v1/
+    │       └── trips.proto          # the Trips service contract
+    └── telemetry/
+        └── v1/
+            └── telemetry.proto      # the Telemetry service contract
 ```
 
-Convention: `/protos/<service-or-package>/v<major-version>/<package-name>.proto`. The version directory is part of the path so that v2 introduces `/protos/dispatch/v2/dispatch.proto` alongside the v1 file rather than overwriting it.
+Convention: `/protos/crittercab/<service-or-package>/v<major-version>/<file>.proto`. The directory path mirrors the protobuf package name (`crittercab.<service>.v<major>`) because buf's `PACKAGE_DIRECTORY_MATCH` lint rule requires them to match. The version directory is part of the path so that v2 introduces `/protos/crittercab/dispatch/v2/dispatch.proto` alongside the v1 file rather than overwriting it.
 
 ### Package naming
 
 Pattern: `crittercab.<service-or-package>.v<major>`.
 
 ```protobuf
-// In dispatch/v1/dispatch.proto:
+// In crittercab/dispatch/v1/dispatch.proto:
 package crittercab.dispatch.v1;
 
-// In common/v1/geo.proto:
+// In crittercab/common/v1/geo.proto:
 package crittercab.common.v1;
 ```
 
@@ -184,10 +185,10 @@ The `_UNSPECIFIED = 0` value is required by proto3 semantics — proto3 has no w
 
 ### Shared types
 
-Types used by more than one service live in a shared package under `/protos/common/v<version>/`. The canonical example is `GeoLocation`:
+Types used by more than one service live in a shared package under `/protos/crittercab/common/v<version>/`. The canonical example is `GeoLocation`:
 
 ```protobuf
-// /protos/common/v1/geo.proto
+// /protos/crittercab/common/v1/geo.proto
 syntax = "proto3";
 
 package crittercab.common.v1;
@@ -203,7 +204,7 @@ message GeoLocation {
 Consumers import:
 
 ```protobuf
-import "common/v1/geo.proto";
+import "crittercab/common/v1/geo.proto";
 
 message RequestRideRequest {
   crittercab.common.v1.GeoLocation pickup  = 3;
@@ -218,7 +219,7 @@ Shared messages are governed exactly as service-specific ones — every change c
 Monetary values appear across Pricing, Payments, and Trips. Modeling them as primitives invites the `float`/`double` mistake at every reference site, and propagates rounding errors across calculation chains. Use a custom `Money` message in the shared package:
 
 ```protobuf
-// /protos/common/v1/money.proto
+// /protos/crittercab/common/v1/money.proto
 syntax = "proto3";
 
 package crittercab.common.v1;
@@ -346,7 +347,7 @@ When a `.proto` change is reviewed, classify it against this table. When in doub
 
 ### Major version transitions
 
-A breaking change that consumers cannot adopt incrementally is signaled with a new major version. For example, replacing the `DispatchService` with a redesigned interface produces `crittercab.dispatch.v2` in `/protos/dispatch/v2/dispatch.proto`. The v1 service continues to exist until all consumers migrate; the v2 service is the new canonical contract.
+A breaking change that consumers cannot adopt incrementally is signaled with a new major version. For example, replacing the `DispatchService` with a redesigned interface produces `crittercab.dispatch.v2` in `/protos/crittercab/dispatch/v2/dispatch.proto`. The v1 service continues to exist until all consumers migrate; the v2 service is the new canonical contract.
 
 This is rare. Most changes can be expressed additively within v1.
 

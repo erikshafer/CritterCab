@@ -441,3 +441,12 @@ claude_desktop_config.json
 
 # Claude Code local settings (machine-specific, may contain sensitive config)
 .claude/
+
+# ==============================================================================
+# Protobuf Generated Code (ADR-009)
+# ==============================================================================
+# Generated stubs are build artifacts, not source. The .proto files are the
+# authoritative contracts; generated code is produced at build time.
+protos/gen/
+*.pb.go
+*_grpc.pb.go

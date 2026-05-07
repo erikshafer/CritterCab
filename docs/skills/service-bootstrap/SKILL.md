@@ -57,7 +57,6 @@ using CritterCab.Trips;
 using JasperFx;
 using Marten;
 using Marten.Events.Projections;
-using Oakton;
 using Wolverine;
 using Wolverine.AzureServiceBus;
 using Wolverine.Marten;
@@ -140,7 +139,7 @@ app.MapDefaultEndpoints();
 // See wolverine-grpc-handlers (Phase 3) for the handler shape.
 // (gRPC service mapping placeholder until Phase 3 lands.)
 
-await app.RunOaktonCommandsAsync(args);
+return await app.RunJasperFxCommands(args);
 ```
 
 > **Greenfield Marten + Wolverine recommendations beyond what's shown above.** ai-skills `critterstack-arch-new-project-wolverine-marten` documents additional greenfield-recommended options Cab's example doesn't enumerate: `EventAppendMode.Quick` (~50% throughput improvement), `UseArchivedStreamPartitioning`, `EnableEventSkippingInProjectionsOrSubscriptions`, `Projections.UseIdentityMapForAggregates`, `Projections.EnableAdvancedAsyncTracking`, `DisableNpgsqlLogging`, plus Wolverine durability optimizations (`Durability.EnableInboxPartitioning`, `InboxStaleTime`/`OutboxStaleTime`, `UnknownMessageBehavior = DeadLetterQueue`) and the `Policies.AutoApplyTransactions()` policy. For document-store index registration (which Cab's bootstrap example doesn't cover), see ai-skills `marten-advanced-indexes-and-query-optimization`. The `WolverineFx.Http.Marten` metapackage convention and the version-alignment warning across all `WolverineFx.*` packages are also documented there.
@@ -154,7 +153,7 @@ await app.RunOaktonCommandsAsync(args);
 - **Routing rules are explicit at the composition root**, one per integration event type. The skill responsible for catching missing routing rules is `wolverine-messaging-handlers` § The Routing Rule Pre-Flight.
 - **`ServiceLocationPolicy` is environment-aware.** Development tolerates fallbacks (you discover them in the log); CI and production hard-fail. This catches lambda-factory regressions before they reach production.
 - **`CritterStackDefaults` configures code-generation modes.** Dynamic in development (fast iteration); static in production (no startup latency). `AssertAllPreGeneratedTypesExist = true` is the safety net that fails startup if a handler shipped without its generated adapter.
-- **`RunOaktonCommandsAsync(args)` is the entry point**, not `app.Run()`. This enables the JasperFx CLI surface (`db-apply`, `codegen-write`, `wolverine-diagnostics`, etc.). See `cli-jasperfx`.
+- **`app.RunJasperFxCommands(args)` is the entry point**, not `app.Run()`. This enables the JasperFx CLI surface (`db-apply`, `codegen-write`, `wolverine-diagnostics`, etc.). See `cli-jasperfx`. Returns `Task<int>`, so use `return await app.RunJasperFxCommands(args);` in top-level statements.
 
 ---
 
@@ -193,7 +192,7 @@ builder.Services.AddPolecat(opts =>
 - **Async daemon API differs slightly.** Polecat's daemon configuration follows its own surface; see `polecat-event-sourcing` (Phase 4).
 - **Handlers use `PolecatOps.StartStream<T>` instead of `MartenOps.StartStream<T>`.** See `wolverine-handlers` § Anti-Pattern: Starting a New Stream Without Returning IStartStream.
 
-The rest of the composition root — Wolverine configuration, transport routing, observability, health checks, `RunOaktonCommandsAsync` — is identical between Marten and Polecat services.
+The rest of the composition root — Wolverine configuration, transport routing, observability, health checks, `RunJasperFxCommands` — is identical between Marten and Polecat services.
 
 ---
 
@@ -294,7 +293,7 @@ There is no separate "test bootstrap" — tests use the production composition r
 
 - **Missing routing rule for a published integration event.** The most consequential composition-root mistake. The handler appears to publish; nothing reaches the bus; tests fail with `tracked.Sent.MessagesOf<T>() == 0`. Mandatory pre-flight: every `OutgoingMessages.Add(new SomeIntegrationEvent(...))` must have a matching `opts.PublishMessage<SomeIntegrationEvent>()` rule. See `wolverine-messaging-handlers`.
 - **Missing `AddEventType` for a domain event.** Silent null returns from aggregate loads. Every event the service appends must be registered. `UseMandatoryStreamTypeDeclaration = true` makes this fail loudly at append time; if it's set to false, failures surface only at load time and are nearly impossible to diagnose.
-- **`app.Run()` instead of `RunOaktonCommandsAsync(args)`.** Service starts but the JasperFx CLI is unavailable. `dotnet run -- describe`, `dotnet run -- db-apply`, etc. all fail with "command not found." Always use `RunOaktonCommandsAsync(args)`.
+- **`app.Run()` instead of `RunJasperFxCommands(args)`.** Service starts but the JasperFx CLI is unavailable. `dotnet run -- describe`, `dotnet run -- db-apply`, etc. all fail with "command not found." Always use `return await app.RunJasperFxCommands(args);`.
 - **Auto-schema in production.** `AutoCreateSchemaObjects = AutoCreate.CreateOrUpdate` in production means the service mutates schema on every deploy. Production should use `AutoCreate.None` and run schema migrations explicitly via `dotnet run -- db-apply` as a deploy step.
 - **`ServiceLocationPolicy.AlwaysAllowed` to silence warnings.** Hides regressions. The right path is to fix the registration (concrete type, not lambda) or add an allow-list entry: `opts.CodeGeneration.AlwaysUseServiceLocationFor<IRefitClient>()`.
 - **Missing `AddServiceDefaults`.** Service starts but doesn't register with the Aspire dashboard, doesn't export OpenTelemetry, has no health endpoints. Always call it; it's the cheapest single line in the bootstrap.

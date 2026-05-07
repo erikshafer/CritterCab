@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package crittercab.dispatch.v1;
+
+import "crittercab/common/v1/location.proto";
+import "google/protobuf/timestamp.proto";
+
+option csharp_namespace = "CritterCab.Dispatch.V1";
+
+// Business event published to ASB when a driver accepts an offer.
+// Topic: dispatch.ride-assigned  |  Session key: ride_request_id
+message RideAssigned {
+  string ride_request_id = 1;
+  string offer_id = 2;
+  string rider_id = 3;
+  string driver_id = 4;
+  crittercab.common.v1.Location pickup = 5;
+  crittercab.common.v1.Location dropoff = 6;
+  VehicleClass vehicle_class = 7;
+  int64 fare_amount_minor_units = 8;
+  string currency = 9;
+  FareBreakdown fare_breakdown = 10;
+  string pricing_policy_version = 11;
+  optional string notes_for_driver = 12;
+  google.protobuf.Timestamp assigned_at = 13;
+}
+
+enum VehicleClass {
+  VEHICLE_CLASS_UNSPECIFIED = 0;
+  VEHICLE_CLASS_STANDARD = 1;
+  VEHICLE_CLASS_PREMIUM = 2;
+  VEHICLE_CLASS_ACCESSIBLE = 3;
+}
+
+message FareBreakdown {
+  int64 base_minor_units = 1;
+  int64 distance_minor_units = 2;
+  int64 time_minor_units = 3;
+  optional int64 fees_minor_units = 4;
+}

@@ -256,7 +256,7 @@ CritterCab.Trips/
 
 Rules:
 
-- **`Shared/` is for service-internal sharing.** It does not cross service boundaries (cross-service shared types live in `/protos/common/` per `protobuf-contracts`).
+- **`Shared/` is for service-internal sharing.** It does not cross service boundaries (cross-service shared types live in `/protos/crittercab/common/` per `protobuf-contracts`).
 - **Don't preemptively create `Shared/`.** Wait until duplication actually appears. Three+ references is the threshold; one or two stays colocated with the primary use site.
 - **`Shared/` is named for its purpose, not for its technical role.** It's the one acceptable structural-purpose folder name; even here, prefer a more specific name (e.g., `Money/`, `Identifiers/`) when the contents allow.
 

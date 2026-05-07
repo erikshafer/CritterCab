@@ -68,7 +68,7 @@ namespace CritterCab.Trips.Tests.Fixtures;
 public sealed class TripsTestFixture : IAsyncLifetime
 {
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder()
-        .WithImage("postgres:17-alpine")
+        .WithImage("postgres:18-alpine")
         .WithName($"trips-test-{Guid.NewGuid():N}")
         .WithCleanUp(true)
         .Build();
@@ -142,7 +142,7 @@ public sealed class TripsTestFixture : IAsyncLifetime
 
 ### Why every line is there
 
-- `PostgreSqlBuilder().WithImage("postgres:17-alpine").WithName($"trips-test-{Guid.NewGuid():N}")` — pinning a specific image avoids surprise upgrades; the unique name prevents container-name collisions when two fixtures happen to start in parallel.
+- `PostgreSqlBuilder().WithImage("postgres:18-alpine").WithName($"trips-test-{Guid.NewGuid():N}")` — pinning a specific image avoids surprise upgrades; the unique name prevents container-name collisions when two fixtures happen to start in parallel.
 - `JasperFxEnvironment.AutoStartHost = true` — required because Cab service `Program.cs` files use `RunJasperFxCommands` for CLI dispatch. Without this static toggle, the host doesn't start when Alba composes against `Program`.
 - `services.AddMarten(...).IntegrateWithWolverine()` in `ConfigureServices` — overrides Program.cs's inline `GetConnectionString` registration. The connection string from Aspire is null in tests; without this override, Marten doesn't get registered at all.
 - `RunWolverineInSoloMode()` — disables Wolverine's leader election. One node, one set of agents. Faster startup; no Postgres advisory lock contention.
@@ -527,7 +527,7 @@ Cab's stack commits four Testcontainers libraries. The fixture pattern adapts cl
 
 ### Postgres (Marten services — the canonical case)
 
-Shown in the `TripsTestFixture` example above. Image pin to `postgres:17-alpine` for fast cold start.
+Shown in the `TripsTestFixture` example above. Image pin to `postgres:18-alpine` for fast cold start.
 
 ### SQL Server (Polecat services)
 
@@ -608,7 +608,7 @@ Always set `WithPullPolicy(PullPolicy.Missing)` in CI configurations. Without it
 
 ```csharp
 private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder()
-    .WithImage("postgres:17-alpine")
+    .WithImage("postgres:18-alpine")
     .WithPullPolicy(PullPolicy.Missing)  // Use cached image when present
     .Build();
 ```
