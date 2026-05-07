@@ -514,7 +514,11 @@ Reach for the manual `FetchForWritingByTags` pattern only when the canonical pat
 
 ## See also
 
-**Upstream** — load these first:
+**Upstream** — generic Marten DCB mechanics this skill defers to. ai-skills (license required, install via `npx skills add`):
+
+- `marten-advanced-dynamic-consistency-boundary` — the basic three-part pattern (state + Load + Handle), `EventTagQuery` fluent API, `IEventBoundary<T>` brief mention, DCB-vs-standard-multi-stream comparison table, return-value handling, decision guidance. **Cab's coverage substantially exceeds ai-skills' coverage** — Cab adds the manual `FetchForWritingByTags` pattern, `Validate`/`HandlerContinuation` hook, `ValidateAsync` incompatibility, boundary state `Id` requirement under Marten 8, tag-type single-property record requirement under .NET 10, `StartStream`-drops-tags behavior, `DcbConcurrencyException`-vs-`ConcurrencyException` sibling rule, testing patterns, and an 8-step implementation checklist. Load this for the basic three-part pattern intro; the rest of this Cab skill is the operational layer.
+
+**Prerequisites** — Cab-internal skills to load first if unfamiliar:
 
 - `marten-aggregates` — aggregate shape and the decider pattern; the boundary state is a related but distinct shape.
 - `marten-wolverine-aggregates` — `[WriteAggregate]` and `MartenOps`; the single-stream complement to `[BoundaryModel]`.
@@ -535,9 +539,7 @@ Reach for the manual `FetchForWritingByTags` pattern only when the canonical pat
 
 **External:**
 
-- ai-skills `marten-event-sourcing-fundamentals` — generic event-store mechanics including DCB internals.
 - ai-skills `marten-aggregate-handler-workflow` — the broader aggregate workflow context that DCB sits within.
-- All ai-skills installed via `npx skills add` (license required).
 - [Sara Pellegrini — *Killing the Aggregate*](https://sara.event-thinking.io/2023/04/kill-aggregate-chapter-1-I-will-tell-you-a-story.html) — the originating essay for the DCB pattern.
 - [dcb.events](https://dcb.events/) — the pattern specification.
 - [Marten Dynamic Consistency Boundary](https://martendb.io/events/dcb.html) — Marten's DCB documentation.
