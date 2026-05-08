@@ -212,6 +212,20 @@ opts.UseGrpc();   // enables Wolverine.Grpc
 app.MapWolverineGrpcServices();   // maps all gRPC handlers in the assembly
 ```
 
+### Service that exposes Wolverine.HTTP endpoints
+
+Add `WolverineFx.Http`, register HTTP services before building the host, and map the endpoints after `app.Build()`. The `AddWolverineHttp()` registration is required — without it, `MapWolverineEndpoints()` throws at startup.
+
+```csharp
+// Before app.Build():
+builder.Services.AddWolverineHttp();
+
+// After app.Build():
+app.MapWolverineEndpoints();   // maps all [WolverinePost]/[WolverineGet]/etc. handlers
+```
+
+Detailed handler shapes for HTTP endpoints live in `wolverine-http-handlers`.
+
 ### Service that consumes Kafka (against Event Hubs)
 
 Add `WolverineFx.Kafka`, configure the Kafka transport against the Event Hubs connection string. The Event Hubs connection string format and emulator wiring details belong to `wolverine-kafka` and `cli-azure-messaging` (both Phase 3); the bootstrap-side hook:
@@ -297,6 +311,8 @@ There is no separate "test bootstrap" — tests use the production composition r
 - **Auto-schema in production.** `AutoCreateSchemaObjects = AutoCreate.CreateOrUpdate` in production means the service mutates schema on every deploy. Production should use `AutoCreate.None` and run schema migrations explicitly via `dotnet run -- db-apply` as a deploy step.
 - **`ServiceLocationPolicy.AlwaysAllowed` to silence warnings.** Hides regressions. The right path is to fix the registration (concrete type, not lambda) or add an allow-list entry: `opts.CodeGeneration.AlwaysUseServiceLocationFor<IRefitClient>()`.
 - **Missing `AddServiceDefaults`.** Service starts but doesn't register with the Aspire dashboard, doesn't export OpenTelemetry, has no health endpoints. Always call it; it's the cheapest single line in the bootstrap.
+- **Missing `TimeProvider` DI registration.** Handlers that inject `TimeProvider` (the canonical timestamp pattern per `csharp-coding-standards`) fail at runtime if `TimeProvider.System` isn't registered in DI. Register explicitly: `builder.Services.AddSingleton(TimeProvider.System);`.
+- **Missing `AddWolverineHttp()` for services that map Wolverine endpoints.** `MapWolverineEndpoints()` throws at startup if `AddWolverineHttp()` wasn't called. See § Per-Service Configuration Variation, "Service that exposes Wolverine.HTTP endpoints".
 - **Hardcoding connection strings.** Aspire injects them via configuration. Hardcoding works in dev for the wrong reasons (the Aspire-provisioned database happens to listen on the same port) and fails on every deploy. Always read from `builder.Configuration.GetConnectionString(...)`.
 - **Calling `IntegrateWithWolverine()` before `AddMarten`/`AddPolecat`.** Order matters; the `IntegrateWithWolverine` call extends the registration that came immediately before it. If the call chain is interrupted, the integration silently doesn't wire.
 
@@ -323,7 +339,7 @@ There is no separate "test bootstrap" — tests use the production composition r
 
 - `aspire` (Phase 2) — AppHost wiring, single-file `apphost.cs`, resource composition.
 - `cli-aspire` (Phase 2) — `aspire run`, `aspire describe`, dashboard.
-- `cli-jasperfx` (Phase 2) — `db-apply`, `codegen-write`, `wolverine-diagnostics`, the full Oakton CLI surface this bootstrap exposes.
+- `cli-jasperfx` (Phase 2) — `db-apply`, `codegen-write`, `wolverine-diagnostics`, the full JasperFx CLI surface this bootstrap exposes.
 - `marten-aggregates` (Phase 2) — what to do once `AddMarten` is wired.
 - `polecat-event-sourcing` (Phase 4) — what to do once `AddPolecat` is wired.
 - `marten-projections` (Phase 2) — async-daemon configuration and projection registration.
