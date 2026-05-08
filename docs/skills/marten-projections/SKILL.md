@@ -34,6 +34,21 @@ Do NOT use this skill for:
 
 ---
 
+## Namespaces
+
+Marten 8.0 (January 2026) extracted event-store interfaces and projection-lifecycle enums from `Marten.Events.*` into the `JasperFx.Events.*` package. The single-stream and multi-stream projection types remain in Marten but live in two different sub-namespaces — a counter-intuitive split that's easy to get wrong when authoring a new projection.
+
+| Type | Namespace |
+|---|---|
+| `IEvent<T>`, `Events` | `JasperFx.Events` |
+| `ProjectionLifecycle`, `SnapshotLifecycle` | `JasperFx.Events.Projections` |
+| `SingleStreamProjection<TDoc, TId>` | `Marten.Events.Aggregation` |
+| `MultiStreamProjection<TDoc, TId>`, `EventProjection` | `Marten.Events.Projections` |
+
+The `Single`/`Multi` namespace asymmetry is a legacy of the API surface predating the JasperFx extraction; pin to the table rather than inferring from type names.
+
+---
+
 ## Three Projection Recipes
 
 Marten supplies three primary projection recipes. Pick by the relationship between events and documents.
