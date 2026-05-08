@@ -18,35 +18,21 @@ This file is the working ledger between retros that surface gaps and the tidy se
 
 ## Open debt
 
-### `marten-projections`
-
-| Gap | Retro source |
-|---|---|
-| `IEvent<T>` namespace is `JasperFx.Events`, not `Marten.Events`. Marten 8.x extracted event interfaces to the `JasperFx.Events` package. | [`retrospectives/implementations/002-dispatch-slice-5-1-ride-requested.md`](../retrospectives/implementations/002-dispatch-slice-5-1-ride-requested.md) |
-| `SingleStreamProjection<T>` shape is actually `SingleStreamProjection<TDoc, TId>` (two type parameters). Skill shows a single type parameter. | [`retrospectives/implementations/002-dispatch-slice-5-1-ride-requested.md`](../retrospectives/implementations/002-dispatch-slice-5-1-ride-requested.md) |
-| `SingleStreamProjection` lives in `Marten.Events.Aggregation`, not `Marten.Events.Projections`. `MultiStreamProjection` lives in `Marten.Events.Projections`, not `Marten.Events.Aggregation`. The two namespaces are swapped from what the skill shows. | [`retrospectives/implementations/002-dispatch-slice-5-1-ride-requested.md`](../retrospectives/implementations/002-dispatch-slice-5-1-ride-requested.md) |
-| `ProjectionLifecycle` namespace is `JasperFx.Events.Projections`, not `Marten.Events.Projections`. Same JasperFx extraction as `IEvent<T>`. | [`retrospectives/implementations/002-dispatch-slice-5-1-ride-requested.md`](../retrospectives/implementations/002-dispatch-slice-5-1-ride-requested.md) |
-
-### `marten-wolverine-aggregates`
-
-| Gap | Retro source |
-|---|---|
-| `IEvent<T>` namespace is `JasperFx.Events`, not `Marten.Events`. Same Marten 8.x / JasperFx extraction. | [`retrospectives/implementations/002-dispatch-slice-5-1-ride-requested.md`](../retrospectives/implementations/002-dispatch-slice-5-1-ride-requested.md) |
-
-### `service-bootstrap`
-
-| Gap | Retro source |
-|---|---|
-| Missing `AddWolverineHttp()` prerequisite for `MapWolverineEndpoints()`. Without it, `MapWolverineEndpoints` throws at startup. | [`retrospectives/implementations/002-dispatch-slice-5-1-ride-requested.md`](../retrospectives/implementations/002-dispatch-slice-5-1-ride-requested.md) |
-| `TimeProvider` must be registered in DI (`builder.Services.AddSingleton(TimeProvider.System)`) for handlers that inject it. Wolverine HTTP handlers fail at runtime otherwise. | [`retrospectives/implementations/002-dispatch-slice-5-1-ride-requested.md`](../retrospectives/implementations/002-dispatch-slice-5-1-ride-requested.md) |
+*(none — the initial 7-row backlog from PR #4 was drained on 2026-05-08; see [Recently drained](#recently-drained).)*
 
 ---
 
 ## Recently drained
 
-*(none yet — first tidy session pending.)*
+### 2026-05-08 — initial tidy
 
-When a tidy session lands, briefly list the rows it closed under a session-dated heading here (last 1–2 sessions only) so reviewers can sanity-check the diff against the retro evidence. Older entries drop off; the retros and commits remain authoritative.
+7 rows drained across 3 skills via [`prompts/skills-tidy-marten-and-bootstrap.md`](../prompts/skills-tidy-marten-and-bootstrap.md):
+
+- **`marten-projections` (4 rows):** `IEvent<T>` namespace; `SingleStreamProjection`/`MultiStreamProjection` namespace asymmetry; `ProjectionLifecycle` namespace; `SingleStreamProjection<T>` → `SingleStreamProjection<TDoc, TId>` type-parameter shape. Fixed by adding a "Namespaces" cheat-sheet table near the top of the skill. **Note:** the type-parameter half of one row was already correct in the skill body (likely fixed in an earlier pass, not re-verified at DEBT-row registration); only the namespace half required edits. Captured as a methodology learning in the retro.
+- **`marten-wolverine-aggregates` (1 row):** `IEvent<T>` namespace. Fixed by adding a small "Namespaces" cheat-sheet listing `IEvent<T>`'s `JasperFx.Events` location.
+- **`service-bootstrap` (2 rows):** Missing `AddWolverineHttp()` prerequisite for `MapWolverineEndpoints()`; `TimeProvider` DI registration. Fixed by adding a new "Service that exposes Wolverine.HTTP endpoints" subsection in Per-Service Configuration Variation, plus two new Common Pitfalls bullets. Prose-pass also corrected one residual "Oakton CLI surface" reference to "JasperFx CLI surface" (decision-to-flag #3 from the prompt).
+
+Older entries drop off; the retros and commits remain authoritative.
 
 ---
 
@@ -61,4 +47,5 @@ When a tidy session lands, briefly list the rows it closed under a session-dated
 
 ## Document history
 
-- **2026-05-08.** Initial authoring. Five entries from the post-D→B→C session — four `marten-*` Marten 8.x / JasperFx namespace extractions plus two `service-bootstrap` registration prerequisites. Three other gaps from the same session (`RunOaktonCommandsAsync` → `RunJasperFxCommands`, `protobuf-contracts` directory layout, `service-bootstrap`/`aspire` connection-string contradiction) were fixed in-flight under the session-runner-blocking exception and do not appear here.
+- **2026-05-08.** Initial authoring. Seven rows from the post-D→B→C session — five `marten-*` Marten 8.x / JasperFx namespace extractions plus two `service-bootstrap` registration prerequisites. Three other gaps from the same session (`RunOaktonCommandsAsync` → `RunJasperFxCommands`, `protobuf-contracts` directory layout, `service-bootstrap`/`aspire` connection-string contradiction) were fixed in-flight under the session-runner-blocking exception and do not appear here.
+- **2026-05-08 (later same day).** Initial 7-row backlog drained via the first skill-tidy session. `Open debt` reset to empty. Retro at [`docs/retrospectives/skills-tidy-marten-and-bootstrap.md`](../retrospectives/skills-tidy-marten-and-bootstrap.md).
