@@ -92,9 +92,10 @@ Subsequent sections are prompt-specific. Existing prompts in this directory serv
 
 ## Current contents
 
-### Skill-library tidy and phase-level prompts (root)
+### Multi-artifact prompts (root)
 
 - [`skills-tidy-marten-and-bootstrap.md`](./skills-tidy-marten-and-bootstrap.md) — First skill-tidy session. Drained the 7 open `DEBT.md` rows surfaced by PR #4: Marten 8.x / JasperFx namespace extractions in `marten-projections` and `marten-wolverine-aggregates`, plus `service-bootstrap` Wolverine HTTP and `TimeProvider` registration prerequisites. Status: complete (2026-05-08). Produced retro at [`retrospectives/skills-tidy-marten-and-bootstrap.md`](../retrospectives/skills-tidy-marten-and-bootstrap.md).
+- [`housekeeping-pr4-followups.md`](./housekeeping-pr4-followups.md) — First housekeeping micro-PR after the skill-tidy session. Added the workshop §12.8 follow-ups index to `docs/workshops/README.md` and annotated the post-D→B→C handoff note as acted-on. Status: complete (2026-05-08). Produced retro at [`retrospectives/housekeeping-pr4-followups.md`](../retrospectives/housekeeping-pr4-followups.md).
 
 ### Workshops
 

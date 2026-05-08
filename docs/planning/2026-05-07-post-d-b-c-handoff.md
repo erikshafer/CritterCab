@@ -1,5 +1,7 @@
 # Post D→B→C Handoff — 2026-05-07
 
+> **Acted on (2026-05-08):** Skill-tidy completed via [PR #7](https://github.com/erikshafer/CritterCab/pull/7); the A-vs-E lean was acted upon as **A** (Trips workshop), deferred to its own session per the design-return cadence rule. This note remains in place per the [`docs/planning/README.md`](./README.md) "disposable by design" convention; expect supersession by the next handoff or archival when the Trips workshop session opens.
+
 > **Purpose:** Session-handoff note after completing the D→B→C implementation roadmap from the morning orientation. Captures what landed, what drifted, skill-file debt, and the next-session decision point. Disposable once the next session orients.
 
 ---
