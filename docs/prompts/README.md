@@ -92,6 +92,10 @@ Subsequent sections are prompt-specific. Existing prompts in this directory serv
 
 ## Current contents
 
+### Skill-library tidy and phase-level prompts (root)
+
+- [`skills-tidy-marten-and-bootstrap.md`](./skills-tidy-marten-and-bootstrap.md) — First skill-tidy session. Drained the 7 open `DEBT.md` rows surfaced by PR #4: Marten 8.x / JasperFx namespace extractions in `marten-projections` and `marten-wolverine-aggregates`, plus `service-bootstrap` Wolverine HTTP and `TimeProvider` registration prerequisites. Status: complete (2026-05-08). Produced retro at [`retrospectives/skills-tidy-marten-and-bootstrap.md`](../retrospectives/skills-tidy-marten-and-bootstrap.md).
+
 ### Workshops
 
 - [`workshops/001-dispatch-event-modeling.md`](./workshops/001-dispatch-event-modeling.md) — Captured retroactively after the session ran. Produced [`docs/workshops/001-dispatch-event-model.md`](../workshops/001-dispatch-event-model.md). Status: complete (2026-04-24).
