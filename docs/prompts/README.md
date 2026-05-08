@@ -72,6 +72,16 @@ If a session's scope expands mid-flight beyond what the prompt named, capture th
 
 A fourth consecutive implementation PR against the same BC without a design-or-tidy interleave is a signal to pause and ask whether the design has drifted. The retrospective can override this rule when implementation pressure clearly warrants — but the override should be explicit, not silent.
 
+### Scope: no opportunistic edits to other files
+
+A session's edits stay within the files named in its prompt's deliverable plan. Edits to *other* files — even small clarifications, typo fixes, or related improvements that surface during the session — are out of bounds and become a new session's scope (or a new DEBT row if applicable).
+
+**Same-file edits are in-bounds.** Correcting a factual error in a doc-history line of the same file as a session's primary deliverable is fine; correcting the same kind of typo in a different file is not. The rule is about *which files* the session touches, not *which lines*.
+
+**Why:** opportunistic edits expand session scope unpredictably, dilute PR review, and prevent cleanly reverting individual changes. The retro is the right place to capture issues observed but not in the session's scope; new sessions or DEBT rows are the right place to fix them.
+
+The rule originated as a refinement during the first skill-tidy session (PR #7) and was confirmed in practice by the PR #4 housekeeping session (PR #8) where the in-bounds same-file path enabled an index-section rename to ride alongside the new entry it was motivated by. For tidy-session-specific application, see [`docs/skills/DEBT.md`](../skills/DEBT.md) § Conventions.
+
 ---
 
 ## Format conventions inside a prompt file
@@ -96,6 +106,7 @@ Subsequent sections are prompt-specific. Existing prompts in this directory serv
 
 - [`skills-tidy-marten-and-bootstrap.md`](./skills-tidy-marten-and-bootstrap.md) — First skill-tidy session. Drained the 7 open `DEBT.md` rows surfaced by PR #4: Marten 8.x / JasperFx namespace extractions in `marten-projections` and `marten-wolverine-aggregates`, plus `service-bootstrap` Wolverine HTTP and `TimeProvider` registration prerequisites. Status: complete (2026-05-08). Produced retro at [`retrospectives/skills-tidy-marten-and-bootstrap.md`](../retrospectives/skills-tidy-marten-and-bootstrap.md).
 - [`housekeeping-pr4-followups.md`](./housekeeping-pr4-followups.md) — First housekeeping micro-PR after the skill-tidy session. Added the workshop §12.8 follow-ups index to `docs/workshops/README.md` and annotated the post-D→B→C handoff note as acted-on. Status: complete (2026-05-08). Produced retro at [`retrospectives/housekeeping-pr4-followups.md`](../retrospectives/housekeeping-pr4-followups.md).
+- [`encode-tidy-methodology-refinements.md`](./encode-tidy-methodology-refinements.md) — Second housekeeping micro-PR. Encodes two methodology refinements from the skill-tidy retro into permanent rules: "no opportunistic edits to other files" lifted into `prompts/README.md` § Session and PR cadence; source-of-truth precedence (working code → retro → external docs) lifted into `docs/skills/DEBT.md` § Conventions. Status: complete (2026-05-08). Produced retro at [`retrospectives/encode-tidy-methodology-refinements.md`](../retrospectives/encode-tidy-methodology-refinements.md).
 
 ### Workshops
 

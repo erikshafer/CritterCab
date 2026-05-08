@@ -13,6 +13,8 @@ This file is the working ledger between retros that surface gaps and the tidy se
 - **Add rows in the same PR that adds the surfacing retro.** Authoring a retro that names skill-file gaps without registering them here is a workflow gap — the debt evaporates between sessions otherwise.
 - **Remove rows when fixed.** This file is not a changelog. Commits and retros already record what changed and why.
 - **A row's existence is not a commitment to fix it next.** Tidy sessions choose what to drain based on cluster, blast radius, and which upcoming sessions the fix would unblock.
+- **Tidy sessions verify each row against current state before fixing** (source-of-truth precedence). Precedence: working code → retro evidence → external docs. The skill body itself is what's being corrected and cannot be its own reference. The retro is evidence the gap once existed, not proof it still does. (Lifted from the first skill-tidy retrospective: one of four `marten-projections` rows turned out to be already-superseded by the time the tidy ran.)
+- **No opportunistic edits to other files during a tidy.** A tidy session's scope is the skills listed for fixing in this file plus the prompt + retro files actively being authored. Other files require their own session. See [`docs/prompts/README.md` § Scope: no opportunistic edits to other files](../prompts/README.md#scope-no-opportunistic-edits-to-other-files) for the general rule and rationale.
 
 ---
 
