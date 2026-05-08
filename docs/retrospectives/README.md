@@ -79,6 +79,15 @@ Phase 1–3 retrospectives were not authored at the time those phases ran (the r
 
 *(none yet — will appear when the first single-skill authoring session lands.)*
 
-### Per-narrative, per-workshop, per-decision, per-implementation retros
+### Per-decision retros (`decisions/`)
+
+- [`001-protobuf-ride-assigned.md`](./decisions/001-protobuf-ride-assigned.md) — First proto-authoring session. Established `/protos/` directory layout and buf configuration. Four proto files authored per ADR-009. Triggered by [`prompts/decisions/001-protobuf-ride-assigned.md`](../prompts/decisions/001-protobuf-ride-assigned.md). Status: complete (2026-05-07).
+
+### Per-implementation retros (`implementations/`)
+
+- [`001-dispatch-service-skeleton.md`](./implementations/001-dispatch-service-skeleton.md) — Bootstrap Dispatch service skeleton: composition root, health checks, Alba smoke test, Aspire AppHost. First runnable code in the repository. Triggered by [`prompts/implementations/001-dispatch-service-skeleton.md`](../prompts/implementations/001-dispatch-service-skeleton.md). Status: complete (2026-05-07).
+- [`002-dispatch-slice-5-1-ride-requested.md`](./implementations/002-dispatch-slice-5-1-ride-requested.md) — First vertical slice: `RideRequested` command, aggregate, event, two projections, three Alba integration tests. Triggered by [`prompts/implementations/002-dispatch-slice-5-1-ride-requested.md`](../prompts/implementations/002-dispatch-slice-5-1-ride-requested.md). Status: complete (2026-05-07).
+
+### Per-narrative, per-workshop retros
 
 *(none yet — corresponding subdirectories will appear with their first retro.)*
