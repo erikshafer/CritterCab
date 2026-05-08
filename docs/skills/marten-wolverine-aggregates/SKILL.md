@@ -32,6 +32,16 @@ Do NOT use this skill for:
 
 ---
 
+## Namespaces
+
+| Type | Namespace |
+|---|---|
+| `IEvent<T>` | `JasperFx.Events` (extracted from `Marten.Events` in Marten 8.0, January 2026) |
+
+Other primitives this skill uses (`MartenOps`, `[WriteAggregate]`, `[ReadAggregate]`, `OutgoingMessages`, etc.) live in their respective Wolverine namespaces; see ai-skills `marten-aggregate-handler-workflow` for the full namespace surface.
+
+---
+
 ## The Two Canonical Shapes
 
 Aggregate handlers come in two shapes: starting a new stream, or appending events to an existing one. Every handler lands in one of these.
