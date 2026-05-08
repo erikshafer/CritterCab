@@ -69,10 +69,11 @@ Subsequent sections are session-specific. Existing retros in this directory serv
 
 ## Current contents
 
-### Skill library — phase-level and tidy retros (root)
+### Multi-artifact retros (root)
 
 - [`skills-foundation-phase-4.md`](./skills-foundation-phase-4.md) — Phase 4 of the skill-library foundation plan: 9 new skills (sagas, Polecat event sourcing and document store, polyglot Go service, bidirectional gRPC, advanced testing, metrics observability, transport comparison, distributed saga considerations) plus the README close-out and the Phase 5 handoff prompt. Triggered by [`prompts/skills-foundation-phase-4-handoff.md`](../prompts/skills-foundation-phase-4-handoff.md). Status: complete (2026-05-06).
 - [`skills-tidy-marten-and-bootstrap.md`](./skills-tidy-marten-and-bootstrap.md) — First skill-tidy session. Drained the 7 open `DEBT.md` rows surfaced by PR #4: Marten 8.x / JasperFx namespace extractions in `marten-projections` and `marten-wolverine-aggregates`; `service-bootstrap` Wolverine HTTP and `TimeProvider` registration prerequisites; plus one prose-pass (Oakton → JasperFx residual). Triggered by [`prompts/skills-tidy-marten-and-bootstrap.md`](../prompts/skills-tidy-marten-and-bootstrap.md). Status: complete (2026-05-08).
+- [`housekeeping-pr4-followups.md`](./housekeeping-pr4-followups.md) — First housekeeping micro-PR after the skill-tidy session. Added the workshop §12.8 follow-ups index to `docs/workshops/README.md` and annotated the post-D→B→C handoff note as acted-on; renamed the root-level subsection in this README and in prompts/README to `Multi-artifact` for future-proofing. Triggered by [`prompts/housekeeping-pr4-followups.md`](../prompts/housekeeping-pr4-followups.md). Status: complete (2026-05-08).
 
 Phase 1–3 retrospectives were not authored at the time those phases ran (the retrospective convention solidified during Phase 4). They may be reconstructed from the working transcripts and skill artifacts if needed; otherwise they remain a known gap in the project record.
 
