@@ -69,11 +69,12 @@ The Critter Stack is CritterCab's committed foundational technology (ADR-010). K
 
 ## Context7
 
-For Wolverine, Marten, and Polecat capabilities beyond what skill files already cover:
+For Wolverine, Marten, Polecat, and Alba capabilities beyond what skill files already cover:
 
 - Wolverine: `/jasperfx/wolverine`
 - Marten: `/jasperfx/marten`
 - Polecat: `/jasperfx/polecat`
+- Alba: `/jasperfx/alba`
 
 ---
 
