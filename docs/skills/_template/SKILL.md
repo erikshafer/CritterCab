@@ -113,6 +113,44 @@ Do NOT use this skill when:
 - `[other-cab-skill]` — brief reason this skill assumes its content.
 - ai-skills `[ai-skills-name]` — brief reason. Assumes installed at user level via `npx skills add`.
 
+## Namespaces
+
+<!--
+  Optional. Delete this entire section if the skill doesn't reference
+  types from multiple namespaces, or if all referenced types live in a
+  single intuitive namespace.
+
+  Use this section when:
+    - The skill's code examples span multiple namespaces and the layout
+      is non-obvious (recent JasperFx-style extractions, counter-
+      intuitive splits between sibling sub-namespaces, brand renames).
+    - A reader copy-pasting an example would otherwise have to hunt for
+      the right `using` statements.
+
+  Pattern (precedents: marten-projections § Namespaces with a 4-row
+  table; marten-wolverine-aggregates § Namespaces with a 1-row table +
+  forward-deferral note. Established in the first skill-tidy session,
+  PR #7; see retrospectives/skills-tidy-marten-and-bootstrap.md §
+  Methodology refinements #4):
+
+    | Type | Namespace |
+    |---|---|
+    | `IEvent<T>`, `Events` | `JasperFx.Events` |
+    | `SingleStreamProjection<TDoc, TId>` | `Marten.Events.Aggregation` |
+
+  Add a short paragraph above or below the table when the table earns
+  more than a raw cheat-sheet — typically a brand rename, recent API
+  change, or counter-intuitive split worth flagging. Skip the paragraph
+  when the table speaks for itself.
+
+  Future tidy sessions surfacing namespace gaps add rows to this table
+  rather than authoring a new section.
+-->
+
+| Type | Namespace |
+|---|---|
+| `<TypeName>` | `<Namespace.Path>` |
+
 ## (Core content sections — replace heading and structure to fit the skill)
 
 <!--
