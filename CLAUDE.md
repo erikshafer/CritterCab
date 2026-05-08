@@ -31,7 +31,7 @@ CritterCab implementation work runs through a **narrative → prompt → execute
 - [`docs/prompts/README.md`](./docs/prompts/README.md) — session prompt template and conventions. Read before authoring a new prompt.
 - [`docs/retrospectives/README.md`](./docs/retrospectives/README.md) — retrospective template and conventions. Read before writing a retro at session close.
 
-A session prompt and its retro share a slug so they sort together. The retro is part of the session's deliverable PR, not a follow-up.
+A session prompt and its retro share a slug so they sort together. The retro is part of the session's deliverable PR, not a follow-up. One prompt = one session = one PR; see [`docs/prompts/README.md`](./docs/prompts/README.md#session-and-pr-cadence) for the cadence rules, the two named exceptions, and the design-return interleave that prevents implementation runs from drifting away from the design phase.
 
 ---
 

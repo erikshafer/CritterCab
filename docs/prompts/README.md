@@ -45,6 +45,35 @@ Create a new prompt for any new session, including follow-ups. Do not edit a pro
 
 ---
 
+## Session and PR cadence
+
+A prompt corresponds to one session, and a session corresponds to one PR. The PR contains the prompt's deliverables plus its retrospective. This keeps PR scope predictable, makes review tractable, and preserves the prompt → artifact → retro audit trail.
+
+### One prompt, one PR
+
+The PR for a session contains exactly the artifacts produced by that session's prompt plus its retrospective. Do not absorb other sessions' prompts into the same PR.
+
+**Two named exceptions:**
+
+- **Skeleton + first slice.** When a service skeleton is bootstrapped, the first slice may share its PR — a defensible reading of the "blueprint architecture" step (hand-build a representative slice manually before turning the per-slice loop loose). Beyond the first slice, slices are one-per-PR.
+- **Session-runner-blocking skill fixes.** A skill-file fix that the current session's session-runner *had* to make to complete its work rides in that session's PR. Larger skill-file rewrites — including gaps merely *surfaced* by the session — go in a dedicated `tidy: skills` PR. Surfaced-but-not-fixed gaps are registered in [`docs/skills/DEBT.md`](../skills/DEBT.md).
+
+If a session's scope expands mid-flight beyond what the prompt named, capture the expansion in the retrospective and (if warranted) author a follow-up prompt for the additional work — do not retroactively re-scope the prompt or fold unrelated work into the PR.
+
+### Design-return cadence
+
+[ADR-004](../decisions/004-design-phase-workflow-sequence.md) frames the workflow as two phases: a one-time pre-code design phase (Context Map → Domain Storytelling → Event Modeling) and a per-slice implementation loop (Narrative → Prompt → Implementation+Retro). The per-slice loop is permitted to fan out across many sessions, but it should not run indefinitely without revisiting the design phase.
+
+**Working rule:** after every 2–3 implementation PRs against a single bounded context, the next PR is one of:
+
+- A new narrative for that BC (extending journey coverage to un-narrativized slices),
+- The next bounded context's workshop,
+- A skill-tidy or design-tidy PR that drains accumulated debt.
+
+A fourth consecutive implementation PR against the same BC without a design-or-tidy interleave is a signal to pause and ask whether the design has drifted. The retrospective can override this rule when implementation pressure clearly warrants — but the override should be explicit, not silent.
+
+---
+
 ## Format conventions inside a prompt file
 
 Each prompt file should include, at minimum:
