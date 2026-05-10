@@ -1,6 +1,6 @@
 # Workshop 001 — Dispatch Event Model
 
-**Status:** Complete (v0.2, 2026-04-24). All 12 slices walked and committed; retrospective closes the session.
+**Status:** Complete (v0.3, 2026-05-09). All 12 slices walked; v0.3 amendment to §5.12 applied per Workshop 002 §6.9 (added `RIDER_NO_SHOW` to outcome enums; documented override of preferred unified-event shape).
 **Started:** 2026-04-24.
 **Facilitator / modeler:** Erik Shafer (solo).
 **AI collaborator:** Claude (Opus 4.7), rotating through Facilitator, Developer, Skeptic, and Domain-Expert personas per `docs/research/event-modeling-workshop-guide.md` Lesson 8.
@@ -1711,6 +1711,7 @@ enum TerminationReason {
   PICKUP_ABANDONED = 3;
   DRIVER_CANCELLED = 4;
   OTHER = 5;
+  RIDER_NO_SHOW = 6;                    // added 2026-05-09 per Workshop 002 §6.9 amendment
 }
 ```
 
@@ -1723,7 +1724,7 @@ Emitted by the Translation-in handler when Trips' event is observed. **BC-owned 
 | Field | Shape | Notes |
 |---|---|---|
 | `rideRequestId` | opaque ID | Correlates with `RideAssigned`. |
-| `outcome` | enum (Dispatch-owned) `{ RIDER_CANCELLED_POST_ASSIGNMENT, DRIVER_NO_SHOW, PICKUP_ABANDONED, DRIVER_CANCELLED, OTHER }` | Mapped from Trips' reason in the handler; allows independent enum evolution. |
+| `outcome` | enum (Dispatch-owned) `{ RIDER_CANCELLED_POST_ASSIGNMENT, DRIVER_NO_SHOW, PICKUP_ABANDONED, DRIVER_CANCELLED, OTHER, RIDER_NO_SHOW }` | Mapped from Trips' reason in the handler; allows independent enum evolution. **`RIDER_NO_SHOW` added 2026-05-09 per Workshop 002 §6.9 amendment** (see §5.12 amendment subsection below). |
 | `observedAt` | timestamp | When Dispatch received the ASB message. |
 | `tripEventOccurredAt` | timestamp | From the Trips event payload. |
 | `tripEventReference` | opaque? | Optional identifier from Trips for cross-stream audit. |
@@ -1790,10 +1791,34 @@ Then: handler observes prior event and acks silently
 
 #### Cross-references
 
-- **Backward (cross-BC):** Triggered by Trips' upstream event (finalized at Trips workshop).
+- **Backward (cross-BC):** Triggered by Trips' upstream event (finalized at Trips workshop — see [Workshop 002 §6.9](./002-trips-event-model.md) and the amendment subsection below).
 - **On Dispatch's stream:** appended to the same Ride Request stream as `RideAssigned`; annotates the post-terminal story without transitioning state.
 - **Cross-BC consumers:** Driver Profile, Payments, Operations subscribe to `AssignmentOutcomeRecorded` via ASB.
-- **Trips workshop deliverable:** Trips authors the upstream event; subsequent return-pass on this slice may refine the outcome-enum mapping.
+- **Trips workshop deliverable:** Trips authored its event model in [Workshop 002 (2026-05-09)](./002-trips-event-model.md); see the amendment subsection below for the override of §5.12's preferred unified-event shape.
+
+#### Workshop 002 update (2026-05-09)
+
+[Workshop 002 §6.9](./002-trips-event-model.md) ran the Trips workshop and **overrode this slice's preferred unified-event shape**. The override was deliberate, with documented rationale (mirrors Workshop 001's own pattern of distinct events for distinct semantics — `RideRequestCancelled` vs. `RideRequestAbandoned` in §5.8/§5.9). Workshop 001 §5.12's original framing explicitly anticipated this override possibility ("preference, not constraint" / "Trips workshop is empowered to choose otherwise").
+
+**Trips' actual contract surface (4 distinct ASB topics, not 1 unified):**
+
+| Trips topic | Maps to Dispatch `outcome` |
+|---|---|
+| `trips.trip-completed` | (Not mapped — see "Happy-path scope" below.) |
+| `trips.trip-cancelled-by-rider` | `RIDER_CANCELLED_POST_ASSIGNMENT` |
+| `trips.trip-cancelled-by-driver` | `DRIVER_CANCELLED` |
+| `trips.trip-abandoned-as-no-show` | `RIDER_NO_SHOW` *(new enum value)* |
+
+**Enum amendments (this revision):**
+
+- `RIDER_NO_SHOW` **added** to both the Trips-side preferred `TerminationReason` enum and the Dispatch-local `outcome` enum. Resolves the semantic gap surfaced by Workshop 002 §11 — `TripAbandonedAsNoShow` is specifically rider no-show, distinct from `DRIVER_NO_SHOW` (driver flaked) and `PICKUP_ABANDONED` (catch-all). Original `PICKUP_ABANDONED` value retained for unanticipated cases.
+- `ASSIGNMENT_COMPLETED_NORMALLY` **deliberately not added.** Workshop 002 §11 surfaced this as a question; the resolution is that Workshop 001 §5.12's original framing was "post-assignment **early termination** signal" — the happy path was always implicit. Dispatch records `AssignmentOutcomeRecorded` only for non-success terminals; `trips.trip-completed` is observed by Dispatch (for projections like `AssignmentLatencyMetrics`) but does not fire `AssignmentOutcomeRecorded`. Implicit-happy-path is now explicit in this amendment.
+
+**Handler mapping (concrete):**
+
+Dispatch's Translation-in handler now subscribes to **three** Trips topics (the cancellation pair + the no-show terminal); maps each to the appropriate `outcome` enum value; emits one `AssignmentOutcomeRecorded` per inbound event. The `trips.trip-completed` topic is observed by Dispatch's other consumers (projections) but not by this slice's `AssignmentOutcomeRecorded` handler.
+
+**Decision history:** §5.12 v0.2 (2026-04-24) preferred the unified `TripTerminatedEarly` shape; Workshop 002 §6.9 (2026-05-09) overrode with four distinct events; this amendment formalizes the override on Dispatch's side and closes the two enum-gap parking-lot items from Workshop 002 §11.
 
 ---
 
@@ -2022,3 +2047,4 @@ Calibration guidance captured in memory:
 
 - **v0.1** (2026-04-24): Scope statement locked. Slice walk pending.
 - **v0.2** (2026-04-24): Slice walk complete (12 slices). Cross-references populated (§6 Translation, §7 Temporal, §8 Configuration-as-events, §9 Protobuf surface with full `RideAssigned` proto). 8 ADR candidates and 14 parking-lot items captured. Retrospective committed. Workshop status: complete.
+- **v0.3** (2026-05-09): §5.12 amendment per Workshop 002 §6.9. Added `RIDER_NO_SHOW` to both `TerminationReason` (Trips-side preferred) and `outcome` (Dispatch-local) enums. Documented Workshop 002's override of the preferred unified-event shape (4 distinct topics instead of 1). Made the implicit-happy-path scoping decision explicit (`ASSIGNMENT_COMPLETED_NORMALLY` deliberately not added; happy path observed by other Dispatch consumers but does not fire `AssignmentOutcomeRecorded`). Closes Workshop 002 §11 parking-lot items #1 and #2.
