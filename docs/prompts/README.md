@@ -112,6 +112,7 @@ Subsequent sections are prompt-specific. Existing prompts in this directory serv
 ### Workshops
 
 - [`workshops/001-dispatch-event-modeling.md`](./workshops/001-dispatch-event-modeling.md) — Captured retroactively after the session ran. Produced [`docs/workshops/001-dispatch-event-model.md`](../workshops/001-dispatch-event-model.md). Status: complete (2026-04-24).
+- [`workshops/002-trips-event-modeling.md`](./workshops/002-trips-event-modeling.md) — Author CritterCab's second Event Modeling workshop covering the Trips bounded context. Returns to the design phase per ADR-004's design-return cadence rule; closes the "Trips workshop pending" entry from Workshop 001's §12.8 follow-ups index; creates the second canonical data point for ADR candidates #6 and #7. Status: authored (2026-05-08).
 
 ### Narratives
 
