@@ -86,6 +86,7 @@ Phase 1–3 retrospectives were not authored at the time those phases ran (the r
 ### Per-decision retros (`decisions/`)
 
 - [`001-protobuf-ride-assigned.md`](./decisions/001-protobuf-ride-assigned.md) — First proto-authoring session. Established `/protos/` directory layout and buf configuration. Four proto files authored per ADR-009. Triggered by [`prompts/decisions/001-protobuf-ride-assigned.md`](../prompts/decisions/001-protobuf-ride-assigned.md). Status: complete (2026-05-07).
+- [`002-bundled-pattern-adrs.md`](./decisions/002-bundled-pattern-adrs.md) — Bundled ADR authorship session lifting four Workshop 001 §11 candidates plus one new Workshop 002 §12 candidate to authored ADRs (011–015). Four pattern ADRs with two-BC evidence (config-as-events bootstrap, aggregate-per-invariant, shared cross-BC identifier, ASB topic naming) plus one cross-cutting NFR (driver-app projection timing budget). Triggered by [`prompts/decisions/002-bundled-pattern-adrs.md`](../prompts/decisions/002-bundled-pattern-adrs.md). Status: complete (2026-05-10).
 
 ### Per-implementation retros (`implementations/`)
 

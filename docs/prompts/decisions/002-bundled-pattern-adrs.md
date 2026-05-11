@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Authored |
+| **Status** | Complete (2026-05-10). Five ADRs (011–015) authored at `Accepted`; ADR index updated; W001 §11 + W002 §12 cross-references updated. See [retrospective](../../retrospectives/decisions/002-bundled-pattern-adrs.md). |
 | **Authored** | 2026-05-10 |
 | **Target artifacts** | `docs/decisions/011-configuration-as-events-bootstrap.md`, `docs/decisions/012-aggregate-per-invariant.md`, `docs/decisions/013-shared-cross-bc-identifier.md`, `docs/decisions/014-asb-topic-naming-convention.md`, `docs/decisions/015-driver-app-projection-timing-budget.md` |
 | **Companion artifacts** | [`docs/decisions/README.md`](../../decisions/README.md) (index update — five new rows); cross-reference updates in [`docs/workshops/001-dispatch-event-model.md`](../../workshops/001-dispatch-event-model.md) §11 and [`docs/workshops/002-trips-event-model.md`](../../workshops/002-trips-event-model.md) §12 (replace "ADR-candidate #N" with "ADR-0NN"); [`docs/prompts/README.md`](../README.md) (this prompt's entry, if maintained) |
