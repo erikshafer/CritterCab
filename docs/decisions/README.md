@@ -16,3 +16,8 @@ For the template and guidelines on when to write an ADR, see [ADR-001](./001-rec
 | [008](./008-mit-license.md) | MIT License | Accepted |
 | [009](./009-protobuf-contracts-as-first-class-artifacts.md) | Protobuf Contracts as First-Class Artifacts | Accepted |
 | [010](./010-critter-stack-as-foundational-technology.md) | Critter Stack as Foundational Technology | Accepted |
+| [011](./011-configuration-as-events-bootstrap.md) | Configuration-as-Events Bootstrap Strategy | Accepted |
+| [012](./012-aggregate-per-invariant.md) | Aggregate-per-Invariant | Accepted |
+| [013](./013-shared-cross-bc-identifier.md) | Shared Cross-BC Identifier | Accepted |
+| [014](./014-asb-topic-naming-convention.md) | Azure Service Bus Topic Naming Convention | Accepted |
+| [015](./015-driver-app-projection-timing-budget.md) | Driver-App Projection Timing Budget | Accepted |
