@@ -78,6 +78,34 @@ For Wolverine, Marten, Polecat, and Alba capabilities beyond what skill files al
 
 ---
 
+## External Skills
+
+CritterCab vendors a curated subset of [Matt Pocock's skills](https://github.com/mattpocock/skills) under `.agents/skills/`, tracked via [`skills-lock.json`](./skills-lock.json) which records the upstream source and content hash for each entry. These cover session-invoked behaviors not encoded in [`docs/skills/`](./docs/skills/). Do not hand-edit the vendored files — they will desync from the lockfile. Steer them via the precedence table below instead.
+
+| Skill | Trigger | Purpose |
+|---|---|---|
+| `grill-me` | "grill me" / `/grill-me` | Relentless decision-tree interrogation of a plan |
+| `grill-with-docs` | "grill me against the docs" / design-phase planning | `grill-me` with cross-referencing against existing domain language and ADRs |
+| `improve-codebase-architecture` | "find refactoring opportunities", "deepen modules" | Hickey/Ousterhout deep-modules lens; most useful once implementation code exists |
+| `tdd` | "use TDD", "red-green-refactor" | Vertical-slice TDD rhythm — one test, one impl, repeat |
+| `zoom-out` | "zoom out" | Map the modules and callers in an unfamiliar area |
+
+### Precedence overrides
+
+Where a vendored skill conflicts with a CritterCab convention, the CritterCab convention wins. Apply these without prompting:
+
+| Concern | External skill default | CritterCab override |
+|---|---|---|
+| ADR format | `grill-with-docs/ADR-FORMAT.md` | [`docs/decisions/`](./docs/decisions/) — use the format already established there |
+| Domain language storage | Single root `CONTEXT.md`, created lazily | No root `CONTEXT.md`. Domain language lives in [`docs/workshops/`](./docs/workshops/) and [`docs/narratives/`](./docs/narratives/); cross-BC terms translate at boundaries (BCs own their own enums and language) |
+| Skill authoring template | `write-a-skill/SKILL.md` (not installed in this repo) | [`docs/skills/_template/SKILL.md`](./docs/skills/_template/SKILL.md) |
+| Architectural vocabulary | `improve-codebase-architecture/LANGUAGE.md` (module / interface / seam / adapter) | Layer the deep-modules vocabulary on top of CritterCab's own (service / bounded context / transport / handler / projection / aggregate) — use both, do not substitute one for the other |
+| Inline file creation during grilling | Skill creates `CONTEXT.md` and `docs/adr/` lazily | Do not create new top-level files mid-session. ADRs go in [`docs/decisions/`](./docs/decisions/) and require explicit user sign-off (the three-criteria gate still applies) |
+
+If a precedence override is unclear, ask the user before acting — do not silently follow the vendored default.
+
+---
+
 ## Do Not
 
 - Commit directly to `main` — branch and PR
