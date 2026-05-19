@@ -66,6 +66,8 @@ Top-level sections, in order:
 6. **`## Retrospective`** — session retrospective in the workshop §12 shape.
 7. **`## Document History`** — version log.
 
+Each `## Document History` entry names the prompt whose session produced the amendment and confirms what the prompt's spec delta added (a new moment, a forward-constraint update, an amended GWT cross-reference, etc.). This is the closure-loop's fourth step from [prompts README § Spec delta cadence](../prompts/README.md#spec-delta-cadence); the entry is the artifact's own record of the cumulative spec-delta history.
+
 ### Moment body structure
 
 Each Moment is composed of **prose paragraphs labeled by phase** (guardrail #1) — not bulleted fields:
