@@ -6,7 +6,7 @@ CritterCab is a reference architecture for a ride-sharing platform, built on the
 
 Where CritterSupply explores a modular monolith for e-commerce and CritterBids explores saga-driven auction orchestration, CritterCab focuses on distributed, event-driven services communicating over gRPC. The project exists in large part to showcase Wolverine's gRPC feature set, which shipped in Wolverine 5.32. The ride-sharing domain was chosen because its natural shape (driver location streaming, rider-driver matching, trip lifecycle) exercises every mode of gRPC communication while providing room for event sourcing, high-volume telemetry, and multi-transport messaging.
 
-This document captures the current state of our thinking as **version 0.3**. Bounded contexts, technology choices, and design principles will shift as Event Modeling and real implementation pressure the design. When they do, this document gets updated, and significant decisions get recorded as ADRs in [docs/decisions](../decisions).
+This document captures the current state of our thinking as **version 0.4**. Bounded contexts, technology choices, and design principles will shift as Event Modeling and real implementation pressure the design. When they do, this document gets updated, and significant decisions get recorded as ADRs in [docs/decisions](../decisions).
 
 ## Goals
 
@@ -122,7 +122,7 @@ The project uses several complementary design techniques, chosen to reinforce ea
 
 - **Event Modeling** (Adam Dymitruk style) as the primary design tool for building time-based system models
 - **Domain Storytelling** (Stefan Hofer) as a complementary workshop technique
-- **DDD strategic design**: context maps, ubiquitous language per context, explicit upstream and downstream relationships with anti-corruption layers where appropriate
+- **DDD strategic design**: context maps, ubiquitous language per context, explicit upstream and downstream relationships with anti-corruption layers where appropriate. The canonical cross-BC relationship inventory lives at [`docs/context-map/README.md`](../context-map/README.md), updated in the same PR as any workshop that adds a new BC or amends an existing relationship
 - **Prompt-document-driven sessions** with retrospectives, following the same workflow pattern established in CritterBids
 
 The distinguishing methodological addition in CritterCab, not present in the prior showcases, is an **NDD-informed approach to spec-driven development**. Narrative-Driven Development was created by Sam Hatoum at Xolvio as a concrete dialect of the broader Spec-Driven Development movement. NDD synthesizes BDD (Given/When/Then), EventStorming, Specification by Example, DDD, and User Story Mapping into structured narratives: sequences of moments through time told from the user's perspective, where each moment captures context, interaction, and system response.
@@ -217,3 +217,4 @@ Cross-cutting:
 - **v0.1** (2026-04-21): Initial capture of project vision, goals, tentative bounded contexts, tentative technology stack, design principles, and parked decisions.
 - **v0.2** (2026-04-21): Committed to an NDD-informed approach to spec-driven development, acknowledging Sam Hatoum's work at Xolvio on Narrative-Driven Development. Added `docs/narratives/` as a distinct document layer alongside workshops, skills, prompts, and retrospectives. Added the "Capture intent in durable, structured form" design principle, with a note on its kinship with event-sourcing philosophy. Clarified the layered structure of the project's documentation in the Related Documents section.
 - **v0.3** (2026-04-23): Cross-referenced ADRs 001–009 throughout. Committed Azure as the deployment platform (ADR-007) and Azure Service Bus as a planned transport (ADR-005). Removed resolved items from Open Questions and Explicitly Parked. Added ADR references to Design Principles.
+- **v0.4** (2026-05-19): Added cross-reference to the new [`docs/context-map/README.md`](../context-map/README.md) foundation artifact from §Methodology's DDD strategic-design bullet. Closes the "first-class context map" methodology commitment that has been open since v0.1; the artifact rolls up cross-BC relationships from ADRs 006, 013, 014 and Workshops 001 and 002 into a single named place using DDD strategic-design vocabulary.
