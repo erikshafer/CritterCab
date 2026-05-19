@@ -12,7 +12,7 @@
 
 ## Framing
 
-This session executed Session A of the two follow-up sessions queued by the [2026-05-15 spec-delta + context-map handoff](../planning/2026-05-15-spec-delta-and-context-map-handoff.md). Its job was lifting the spec-delta decision settled in the handoff session into the three READMEs that govern CritterCab's session workflow — prompts, retrospectives, narratives — so future sessions load the convention automatically rather than re-deriving it from a planning note that is destined for deletion.
+This session executed Session A of the two follow-up sessions queued by the 2026-05-15 spec-delta + context-map handoff. Its job was lifting the spec-delta decision settled in the handoff session into the three READMEs that govern CritterCab's session workflow — prompts, retrospectives, narratives — so future sessions load the convention automatically rather than re-deriving it from a planning note that is destined for deletion.
 
 Per the handoff doc's sequencing rationale, this session ran *after* Session B (context-map foundation, shipped as PR #17). That ordering was deliberate: this session's retro can itself exercise the new `Spec delta — landed?` discipline as its first real test — the self-referential opportunity named in the prompt's deliverable #7.
 
