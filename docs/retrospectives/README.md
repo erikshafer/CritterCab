@@ -61,6 +61,7 @@ Retro files are working documents, not essays. Each retro includes, at minimum:
 - **What was harder than expected** — challenges encountered with the lesson each surfaced. Honest, not defensive.
 - **Methodology refinements that emerged** — process changes the next session-runner should adopt. These are the durable lessons; capture them explicitly.
 - **Outstanding items / next-session inputs** — explicit list of things the next session inherits.
+- **Spec delta — landed?** — single line or short paragraph confirming whether the prompt's spec delta landed as planned, naming any divergence, and citing the spec amendment(s) made to the narrative or workshop in this session's PR. See [prompts README § Spec delta cadence](../prompts/README.md#spec-delta-cadence).
 - **Quantitative summary** *(optional, for larger sessions)* — counts, sizes, durations, or other measurable outcomes worth tracking.
 
 Subsequent sections are session-specific. Existing retros in this directory serve as references for shape.
