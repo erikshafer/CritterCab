@@ -82,6 +82,19 @@ A session's edits stay within the files named in its prompt's deliverable plan. 
 
 The rule originated as a refinement during the first skill-tidy session (PR #7) and was confirmed in practice by the PR #4 housekeeping session (PR #8) where the in-bounds same-file path enabled an index-section rename to ride alongside the new entry it was motivated by. For tidy-session-specific application, see [`docs/skills/DEBT.md`](../skills/DEBT.md) § Conventions.
 
+### Commit subjects: `tidy:` for maintenance sessions
+
+Use `tidy: <area> — <details>` as the commit and PR subject for sessions whose deliverable is **maintenance of existing artifacts** rather than new ones. Established areas:
+
+- `tidy: skills` — draining `DEBT.md` rows by amending skill files.
+- `tidy: housekeeping` — README updates, index entries, handoff-note annotations.
+- `tidy: encode-<rule>` — lifting an established refinement into a convention file (`docs/prompts/README.md`, `docs/skills/DEBT.md`, etc.).
+- `tidy: skill-template` — additions or refinements to `docs/skills/_template/SKILL.md`.
+
+The prefix signals review intent: a `tidy:` PR consolidates, clarifies, or fixes existing material; it does not introduce new architectural commitments. Sessions producing new workshops, narratives, ADRs, or implementation slices do **not** use `tidy:` — those carry their own subjects (the artifact name, slice number, or descriptive intent).
+
+The convention emerged organically across PRs #7–#10. A new area joins the list when a second `tidy:` session in that area lands; one-off maintenance subjects are fine without joining the established list.
+
 ---
 
 ## Format conventions inside a prompt file
@@ -108,6 +121,7 @@ Subsequent sections are prompt-specific. Existing prompts in this directory serv
 - [`housekeeping-pr4-followups.md`](./housekeeping-pr4-followups.md) — First housekeeping micro-PR after the skill-tidy session. Added the workshop §12.8 follow-ups index to `docs/workshops/README.md` and annotated the post-D→B→C handoff note as acted-on. Status: complete (2026-05-08). Produced retro at [`retrospectives/housekeeping-pr4-followups.md`](../retrospectives/housekeeping-pr4-followups.md).
 - [`encode-tidy-methodology-refinements.md`](./encode-tidy-methodology-refinements.md) — Second housekeeping micro-PR. Encodes two methodology refinements from the skill-tidy retro into permanent rules: "no opportunistic edits to other files" lifted into `prompts/README.md` § Session and PR cadence; source-of-truth precedence (working code → retro → external docs) lifted into `docs/skills/DEBT.md` § Conventions. Status: complete (2026-05-08). Produced retro at [`retrospectives/encode-tidy-methodology-refinements.md`](../retrospectives/encode-tidy-methodology-refinements.md).
 - [`skill-template-namespaces-pattern.md`](./skill-template-namespaces-pattern.md) — Third and final housekeeping micro-PR. Lifts the Namespaces cheat-sheet pattern (used in `marten-projections` and `marten-wolverine-aggregates` during PR #7) into an optional section in `docs/skills/_template/SKILL.md`. Future skill-authoring sessions can use the section directly; future tidy sessions adding namespace rows have a predictable structural home. Status: complete (2026-05-08). Produced retro at [`retrospectives/skill-template-namespaces-pattern.md`](../retrospectives/skill-template-namespaces-pattern.md).
+- [`refresh-claude-md-and-encode-tidy-convention.md`](./refresh-claude-md-and-encode-tidy-convention.md) — Routing-layer refresh session. Fixed three drifts in `CLAUDE.md` (stale "no runnable code yet" status; Session Workflow underspecified relative to ADR-004's two-phase pipeline; Technology Stack table with dated Wolverine version and missing Aspire/PostgreSQL rows) and encoded the `tidy:` commit-subject convention used across PRs #7–#10 as a new subsection of `docs/prompts/README.md` § Session and PR cadence. Status: complete (2026-05-19). Produced retro at [`retrospectives/refresh-claude-md-and-encode-tidy-convention.md`](../retrospectives/refresh-claude-md-and-encode-tidy-convention.md).
 
 ### Workshops
 
