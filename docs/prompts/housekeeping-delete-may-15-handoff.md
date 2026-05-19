@@ -5,7 +5,7 @@
 | **Status** | Pending (authored 2026-05-19; awaiting review before execution) |
 | **Authored** | 2026-05-19 |
 | **Target artifacts** | `docs/planning/2026-05-15-spec-delta-and-context-map-handoff.md` (delete); `docs/prompts/housekeeping-delete-may-15-handoff.md` (this prompt); `docs/prompts/README.md` (index entry); `docs/retrospectives/housekeeping-delete-may-15-handoff.md` (retro); `docs/retrospectives/README.md` (index entry) |
-| **Source-of-truth dependencies** | [`docs/planning/2026-05-15-spec-delta-and-context-map-handoff.md`](../planning/2026-05-15-spec-delta-and-context-map-handoff.md) (the file being deleted, including its own "Disposable" framing); [`docs/planning/README.md`](../planning/README.md) §Conventions (the directory's own lifecycle rule authorizing deletion); [`docs/retrospectives/encode-spec-delta-closure-loop.md`](../retrospectives/encode-spec-delta-closure-loop.md) §Outstanding items (where this micro-PR was named as a follow-up); [`docs/retrospectives/context-map-foundation.md`](../retrospectives/context-map-foundation.md) (confirms Session B's decisions also landed durably) |
+| **Source-of-truth dependencies** | `docs/planning/2026-05-15-spec-delta-and-context-map-handoff.md` (the file being deleted, including its own "Disposable" framing); [`docs/planning/README.md`](../planning/README.md) §Conventions (the directory's own lifecycle rule authorizing deletion); [`docs/retrospectives/encode-spec-delta-closure-loop.md`](../retrospectives/encode-spec-delta-closure-loop.md) §Outstanding items (where this micro-PR was named as a follow-up); [`docs/retrospectives/context-map-foundation.md`](../retrospectives/context-map-foundation.md) (confirms Session B's decisions also landed durably) |
 | **Workflow position** | Housekeeping micro-PR following PR #17 (Session B — context-map foundation) and PR #18 (Session A — spec-delta closure-loop discipline). **First session in CritterCab's history authored *after* the spec-delta convention exists**, and therefore the first prompt to include a `## Spec delta` section. |
 
 ---
@@ -36,7 +36,7 @@ Delete `docs/planning/2026-05-15-spec-delta-and-context-map-handoff.md`. Author 
 
 ## Orientation files
 
-1. **[`docs/planning/2026-05-15-spec-delta-and-context-map-handoff.md`](../planning/2026-05-15-spec-delta-and-context-map-handoff.md)** — the file being deleted. Confirm its "Disposable" framing and verify the two follow-up sessions it queued have shipped (PR #17 + PR #18).
+1. **`docs/planning/2026-05-15-spec-delta-and-context-map-handoff.md`** — the file being deleted. Confirm its "Disposable" framing and verify the two follow-up sessions it queued have shipped (PR #17 + PR #18).
 2. **[`docs/planning/README.md`](../planning/README.md)** — the directory's own lifecycle convention (the rule that authorizes the deletion). Confirms no index amendment is needed because `docs/planning/` does not maintain a per-file index.
 3. **[`docs/retrospectives/encode-spec-delta-closure-loop.md`](../retrospectives/encode-spec-delta-closure-loop.md) §Outstanding items** — where this housekeeping item was named.
 4. **[`docs/prompts/README.md`](./README.md) § Spec delta cadence** — the new convention this prompt and its retro exercise for the first time forward.

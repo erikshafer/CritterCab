@@ -40,7 +40,7 @@ Recommended ADR-016 disposition: **defer.** The cadence rule is best authored af
 
 ## Pre-work — handoff document inaccuracies to flag
 
-The handoff doc that motivated this session ([`docs/planning/2026-05-15-spec-delta-and-context-map-handoff.md`](../planning/2026-05-15-spec-delta-and-context-map-handoff.md)) contains two inaccuracies the session-runner should notice rather than blindly follow:
+The handoff doc that motivated this session (`docs/planning/2026-05-15-spec-delta-and-context-map-handoff.md`) contains two inaccuracies the session-runner should notice rather than blindly follow:
 
 1. **W001 has no §13.** The handoff lists "Workshop §13 forward-constraints in W001 and W002" as source material. Only W002 has a §13 (Forward-Constraints Handled), introduced in W002 because narratives didn't yet exist when W001 was authored. For W001, the analogous cross-BC content lives in **§6 (Translation Slices at BC Boundaries — cross-reference)**, **§7 (Temporal Automation Slices — cross-reference)**, **§9 (Candidate Protobuf Contract Surface)**, and **§11 (ADR Candidates)**. Source citations in the artifact should reflect this, not the handoff's wording.
 2. **Narratives DO already have Document History sections.** Both [narrative 001](../narratives/001-rider-books-a-ride.md) (v0.1, 2026-04-25) and [narrative 002](../narratives/002-driver-accepts-a-ride.md) (v0.1, 2026-05-04) have populated `## Document History` sections; the narratives README already names it as body-section #7. This inaccuracy affects Session A (spec-delta methodology), not this session — flagged here so it doesn't leak into the context-map artifact's narrative cross-references.
@@ -137,7 +137,7 @@ After all edges are signed off:
 - **Re-litigating ADR-006, ADR-013, or ADR-014.** The Identity ACL stance, the shared-identifier stance, and the ASB topic naming stance are committed. The context map *names and cross-references*, does not re-decide. If authoring surfaces a tension with an existing ADR, flag it for a follow-up session — do not modify the ADR in this PR.
 - **New ADR authorship beyond ADR-016.** If the context-map authoring surfaces new ADR candidates (it might — e.g., a candidate for "how the context map gets updated when a workshop runs"), capture them as parking-lot items in the artifact or retro, not as in-session ADR drafts.
 - **Workshop authorship.** The Identity, Pricing, Payments, Ratings, Telemetry, Onboarding, Rider Profile, Driver Profile, Operations workshops are all separate sessions. The context map defers explicitly on their relationship patterns rather than pre-empting their workshop output.
-- **Spec-delta methodology refinement.** That is Session A's job per the [handoff doc](../planning/2026-05-15-spec-delta-and-context-map-handoff.md). This session is the last session in CritterCab to run *before* the spec-delta convention exists. Its retro should note that as a baseline data point.
+- **Spec-delta methodology refinement.** That is Session A's job per the handoff doc. This session is the last session in CritterCab to run *before* the spec-delta convention exists. Its retro should note that as a baseline data point.
 - **Narrative authorship or revision.** Narratives 001 and 002 stand as-is; their forward-constraint outputs feed this artifact but are not modified by it.
 - **Vision-doc restructuring beyond the cross-reference + version bump.** The §Methodology section's bullet on "DDD strategic design" gets the cross-reference; no other vision-doc edits.
 

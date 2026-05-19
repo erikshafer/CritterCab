@@ -12,7 +12,7 @@
 
 ## Framing
 
-This session executed Session B of the two follow-up sessions queued by the [2026-05-15 spec-delta + context-map handoff](../planning/2026-05-15-spec-delta-and-context-map-handoff.md). Its job was rolling up cross-BC relationships from ADRs 006, 013, 014 and Workshops 001 and 002 into a single named artifact using DDD strategic-design vocabulary — a roll-up, deliberately not a re-decision.
+This session executed Session B of the two follow-up sessions queued by the 2026-05-15 spec-delta + context-map handoff. Its job was rolling up cross-BC relationships from ADRs 006, 013, 014 and Workshops 001 and 002 into a single named artifact using DDD strategic-design vocabulary — a roll-up, deliberately not a re-decision.
 
 ---
 
@@ -75,7 +75,7 @@ The prompt named four specific questions to capture in this retro. Answering eac
 - **ADR-016 ("Context Map as Living Artifact") — deferred.** **Trigger to revisit:** W003 lands (Identity is the strongest candidate per the artifact's §Pending workshops) and the context map is amended in the same PR. If the amendment runs cleanly, the cadence is empirically validated and the ADR question shifts from "what should the discipline say?" to "is this worth committing as a project-wide discipline?"
 - **Vision-doc inventory amendment for Trust & Safety.** Currently flagged in the artifact's §Pending workshops; the actual vision-doc amendment should happen either as part of Trust & Safety's eventual workshop or as a deliberate inventory-amendment tidy session, whichever comes first.
 - **Diagram density review at W003 close.** The Mermaid LR layout is workable at 13 edges; adding 2–4 Identity-workshop edges will likely push it toward needing subgraph grouping or an LR → TD swap. The W003 session-runner should review the diagram's legibility at close.
-- **Session A — [spec-delta closure-loop encoding](../prompts/encode-spec-delta-closure-loop.md) — is next in queue** per the [May 15 handoff](../planning/2026-05-15-spec-delta-and-context-map-handoff.md). Now that Session B is shipped, Session A's retro can include the `Spec delta — landed?` line as its first real exercise of the new convention. Worth noting: this session is the last session in CritterCab to run *before* the spec-delta convention exists; it is a baseline data point against which Session A's discipline will be evaluated.
+- **Session A — [spec-delta closure-loop encoding](../prompts/encode-spec-delta-closure-loop.md) — is next in queue** per the May 15 handoff. Now that Session B is shipped, Session A's retro can include the `Spec delta — landed?` line as its first real exercise of the new convention. Worth noting: this session is the last session in CritterCab to run *before* the spec-delta convention exists; it is a baseline data point against which Session A's discipline will be evaluated.
 - **Pricing-location and Operations-decomposition ADR candidates** (W001 §11 ADR-candidates #4 and the Operations decomposition open question from the vision doc) remain open. They fire when their respective BCs are workshopped; until then they sit in the artifact's §Pending workshops with named triggers.
 
 ---
