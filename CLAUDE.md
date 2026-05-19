@@ -2,7 +2,7 @@
 
 CritterCab is an open-source ride-sharing reference architecture built on the Critter Stack, showcasing Wolverine's gRPC feature set alongside event-driven messaging, event sourcing, and multi-transport messaging. It is structured as a set of **separately deployable services**, one per bounded context (or small group thereof), communicating exclusively via gRPC or Wolverine messages.
 
-The project is currently in the design phase. No runnable code yet.
+The Dispatch service has its first vertical slice (`RideRequested`) running end-to-end with Marten event sourcing, Wolverine.HTTP, and Alba integration tests. All other bounded contexts remain pre-workshop; the project is otherwise still in the design phase.
 
 > For the canonical project overview (goals, tentative bounded contexts, technology stack, design principles, parked decisions, open questions), see [`docs/vision/README.md`](./docs/vision/README.md). **This file is a routing layer, not a manual.**
 
@@ -25,13 +25,30 @@ The project is currently in the design phase. No runnable code yet.
 
 ## Session Workflow
 
-CritterCab implementation work runs through a **narrative → prompt → execute → retrospective** loop. Domain behavior is captured as narratives; prompts reference the narrative(s) they implement; implementation produces code; retrospectives close the session.
+CritterCab's session-driven workflow follows the two-phase structure committed in [ADR-004](./docs/decisions/004-design-phase-workflow-sequence.md). The sequence is not a waterfall — retrospectives are the feedback mechanism that loops findings back into upstream artifacts.
 
-- [`docs/narratives/README.md`](./docs/narratives/README.md) — what narratives are and how they inform prompts.
-- [`docs/prompts/README.md`](./docs/prompts/README.md) — session prompt template and conventions. Read before authoring a new prompt.
-- [`docs/retrospectives/README.md`](./docs/retrospectives/README.md) — retrospective template and conventions. Read before writing a retro at session close.
+**Pre-code design phase** (one-time per bounded context, in order):
 
-A session prompt and its retro share a slug so they sort together. The retro is part of the session's deliverable PR, not a follow-up. One prompt = one session = one PR; see [`docs/prompts/README.md`](./docs/prompts/README.md#session-and-pr-cadence) for the cadence rules, the two named exceptions, and the design-return interleave that prevents implementation runs from drifting away from the design phase.
+1. **Context Mapping** — name cross-BC relationships in DDD strategic-design vocabulary (partnership, customer-supplier, conformist, shared-kernel, published-language, anti-corruption-layer, separate-ways, open-host-service). Artifact: `docs/context-map/` *(directory pending; foundation prompt authored at [`docs/prompts/context-map-foundation.md`](./docs/prompts/context-map-foundation.md))*.
+2. **Domain Storytelling** — surface language boundaries between contexts before populating an event model. Complementary technique; not yet exercised in CritterCab.
+3. **Event Modeling workshop** — multi-session workshop producing events, commands, views, swim lanes, slices, GWT scenarios. Artifact: `docs/workshops/`.
+
+**Per-slice implementation loop** (iterates, with retro-driven feedback into upstream artifacts):
+
+4. **Narrative** — NDD-informed journey-scoped spec threading multiple workshop slices into one user's coherent experience. Artifact: `docs/narratives/`.
+5. **Prompt** — task-scoped build order referencing narrative(s) and skill files. Artifact: `docs/prompts/`.
+6. **Execute + Retrospective** — implementation produces code or another design artifact; retrospective closes the session. Artifact: `docs/retrospectives/` plus the session's deliverables.
+
+A session prompt and its retro share a slug so they sort together; the retro is part of the session's deliverable PR, not a follow-up. One prompt = one session = one PR — see [`docs/prompts/README.md`](./docs/prompts/README.md#session-and-pr-cadence) for the cadence rules, the two named exceptions, the design-return interleave that prevents implementation runs from drifting away from design, the no-opportunistic-edits scope rule, and the `tidy:` commit-subject convention for maintenance sessions.
+
+Per-layer operational manuals:
+
+- [`docs/workshops/README.md`](./docs/workshops/README.md) — workshop conventions and the cross-workshop follow-ups index.
+- [`docs/narratives/README.md`](./docs/narratives/README.md) — narrative format (frontmatter schema, Moment body structure, two-layer fidelity).
+- [`docs/prompts/README.md`](./docs/prompts/README.md) — session prompt template and Session-and-PR-cadence rules.
+- [`docs/retrospectives/README.md`](./docs/retrospectives/README.md) — retrospective format and per-artifact taxonomy.
+
+A **spec-delta** closure-loop discipline (borrowed in pattern from OpenSpec, not as a framework) is in flight: every prompt will name what the canonical spec gains when the session ships; every retro confirms what landed; the narrative's document history records the amendment. The encoding session is pending at [`docs/prompts/encode-spec-delta-closure-loop.md`](./docs/prompts/encode-spec-delta-closure-loop.md); convention details land in the per-layer READMEs when that session ships.
 
 ---
 
@@ -56,11 +73,12 @@ The Critter Stack is CritterCab's committed foundational technology (ADR-010). K
 | Concern | Tool |
 |---|---|
 | Language | C# 14 / .NET 10+ |
-| Messaging, gRPC, handlers, transports | Wolverine 5.32+ |
-| Event sourcing and document store (PostgreSQL) | Marten |
-| Document store (SQL Server) | Polecat |
+| Messaging, HTTP, gRPC, handlers, transports | Wolverine — 5.32+ floor (the gRPC release that motivated this project); currently on 5.39+ |
+| Event sourcing and document store (PostgreSQL 18) | Marten 8.35+ |
+| Document store (SQL Server) | Polecat 3.1+ |
 | Database schema management | Weasel (implicit via Marten/Polecat) |
 | Integration test host | Alba |
+| Local-dev orchestration | Aspire 13.3 |
 | High-volume telemetry transport | Kafka (via Wolverine's Kafka transport) |
 | Business-event transport | Azure Service Bus |
 | Polyglot service | Go (first non-.NET service, participates over gRPC) |
