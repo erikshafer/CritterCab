@@ -82,6 +82,16 @@ A session's edits stay within the files named in its prompt's deliverable plan. 
 
 The rule originated as a refinement during the first skill-tidy session (PR #7) and was confirmed in practice by the PR #4 housekeeping session (PR #8) where the in-bounds same-file path enabled an index-section rename to ride alongside the new entry it was motivated by. For tidy-session-specific application, see [`docs/skills/DEBT.md`](../skills/DEBT.md) § Conventions.
 
+### Spec delta cadence
+
+Every prompt names its **spec delta**: what the canonical spec (the narrative or workshop the session is satisfying) will gain when the session ships. The spec delta is expressed in spec-shaped terms (new moment, new slice, new forward-constraint, amended GWT, new translation slice, new ADR cross-reference) — distinct from the process-shaped session intent the rest of the prompt captures.
+
+The format is lightweight: 2–4 lines per prompt, named under a `## Spec delta` heading near the top of the prompt (after the metadata block, before the framing prose). Bulleted lines are fine; structured sub-schemas are not — the discipline lives in the naming, not in the formatting.
+
+At session close, the retrospective confirms whether the planned delta landed (see [retrospectives README § Format conventions](../retrospectives/README.md#format-conventions-inside-a-retro-file)). The narrative or workshop the session satisfies records the amendment in its `## Document History` section (see [narratives README § Body structure](../narratives/README.md#body-structure)). Together the four steps — prompt's spec delta → session executes → retro confirms → spec's document-history records — close the loop opened by [ADR-003 spec-anchored development](../decisions/003-spec-anchored-development.md), which committed to keeping specs current but did not name *how* per-session deltas are tracked.
+
+Pattern borrowed from OpenSpec's change-proposal payload; CritterCab does not adopt OpenSpec wholesale. The borrow is the discipline of capturing per-session spec amendments in spec-shaped terms, expressed inside the artifacts CritterCab already writes.
+
 ### Commit subjects: `tidy:` for maintenance sessions
 
 Use `tidy: <area> — <details>` as the commit and PR subject for sessions whose deliverable is **maintenance of existing artifacts** rather than new ones. Established areas:
@@ -104,6 +114,7 @@ Each prompt file should include, at minimum:
 - **Metadata block** at the top: status, target artifact (path or planned slug), date authored, optionally a one-line outcome once the session completes.
 - **Framing** — one or two sentences explaining why this session exists in the project's arc.
 - **Goal** — a single declarative sentence stating what the session produces.
+- **Spec delta** — 2–4 lines named in spec-shaped terms, capturing what the canonical narrative or workshop will gain when the session ships. See [§ Session and PR cadence ‣ Spec delta cadence](#spec-delta-cadence).
 - **Orientation files** — ordered list of files the session-runner should read before starting.
 - **Working pattern** — interactive cadence, sign-off discipline, what gets committed when.
 - **Deliverable plan** — what files the session should produce or modify.
