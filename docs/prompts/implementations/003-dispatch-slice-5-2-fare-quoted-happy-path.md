@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Pending (authored 2026-05-19; awaiting review before execution) |
+| **Status** | Complete (2026-05-19). All 5 tests pass (1 smoke + 3 slice 5.1 + 1 slice 5.2). |
 | **Authored** | 2026-05-19 |
 | **Target artifacts** | `protos/crittercab/pricing/v1/` (new directory + `get_fare_quote.proto`); `src/CritterCab.Dispatch/FareQuoting/` (new vertical-slice folder); `src/CritterCab.Dispatch/RideRequesting/RequestTimeline.cs` (same-file extension to fold `FareQuoted`); `tests/CritterCab.Dispatch.Tests/FareQuoting/` (new test folder); `docs/narratives/001-rider-books-a-ride.md` (`## Document History` v0.3 entry — closure-loop's fourth step); `docs/workshops/001-dispatch-event-model.md` (`## Document History` entry — happy-path GWT covered); `docs/prompts/implementations/003-dispatch-slice-5-2-fare-quoted-happy-path.md` (this prompt); `docs/prompts/README.md` (index entry); `docs/retrospectives/implementations/003-dispatch-slice-5-2-fare-quoted-happy-path.md` (retro); `docs/retrospectives/README.md` (index entry) |
 | **Source-of-truth dependencies** | [`docs/workshops/001-dispatch-event-model.md`](../../workshops/001-dispatch-event-model.md) §5.2 (slice spec); [`docs/narratives/001-rider-books-a-ride.md`](../../narratives/001-rider-books-a-ride.md) Moment 2 (journey); [`docs/decisions/009-protobuf-contracts-as-first-class-artifacts.md`](../../decisions/009-protobuf-contracts-as-first-class-artifacts.md); [`docs/prompts/implementations/002-dispatch-slice-5-1-ride-requested.md`](./002-dispatch-slice-5-1-ride-requested.md) + [retro](../../retrospectives/implementations/002-dispatch-slice-5-1-ride-requested.md) (closest structural precedent) |
