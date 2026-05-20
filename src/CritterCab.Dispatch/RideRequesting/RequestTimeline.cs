@@ -1,3 +1,4 @@
+using CritterCab.Dispatch.FareQuoting;
 using JasperFx.Events;
 using Marten.Events.Aggregation;
 
@@ -25,6 +26,12 @@ public class RequestTimelineProjection : SingleStreamProjection<RequestTimeline,
                     $"Ride requested: {FormatLocation(@event.Data.Pickup)} → {FormatLocation(@event.Data.Dropoff)}")
             ]
         };
+
+    public void Apply(IEvent<FareQuoted> @event, RequestTimeline view) =>
+        view.Entries.Add(new TimelineEntry(
+            nameof(FareQuoted),
+            @event.Data.QuotedAt,
+            $"Fare quoted: ${@event.Data.FareAmountMinorUnits / 100m:F2}"));
 
     private static string FormatLocation(Location loc) =>
         loc.StreetAddress ?? $"{loc.Lat:F4}, {loc.Lon:F4}";
