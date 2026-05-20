@@ -8,7 +8,7 @@ public sealed record FareQuoted(
     VehicleClass VehicleClass,
     DateTimeOffset QuotedAt,
     DateTimeOffset ValidUntil,
-    string PricingPolicyVersion);
+    string PricingPolicyVersion) : IFareQuoteOutcome;
 
 public sealed record FareBreakdown(
     long BaseMinorUnits,

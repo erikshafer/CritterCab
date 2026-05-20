@@ -25,6 +25,10 @@ public class Slice52FareQuotedHappyPathTests
     [Fact]
     public async Task fare_quote_automation_records_fare_quoted_on_stream()
     {
+        // Reset to the canned $21.50 stub — fixture state is shared across
+        // test classes; failure-path tests may have left a failing stub.
+        _fixture.PricingClient = new PricingClientStub();
+
         var riderId = Guid.CreateVersion7();
         var command = new SubmitRideRequest(
             RiderId: riderId,
@@ -69,5 +73,11 @@ public class Slice52FareQuotedHappyPathTests
         timeline.Entries[0].EventType.ShouldBe(nameof(RideRequested));
         timeline.Entries[1].EventType.ShouldBe(nameof(FareQuoted));
         timeline.Entries[1].Summary.ShouldContain("$21.50");
+
+        var attempts = await session.LoadAsync<FareQuoteAttempts>(response.RideRequestId);
+        attempts.ShouldNotBeNull();
+        attempts.Outcome.ShouldBe(FareQuoteOutcome.Quoted);
+        attempts.AttemptCount.ShouldBe(1);
+        attempts.FailureReason.ShouldBeNull();
     }
 }

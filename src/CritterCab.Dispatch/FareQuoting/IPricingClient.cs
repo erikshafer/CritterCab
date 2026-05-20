@@ -20,3 +20,25 @@ public sealed record GetFareQuoteResponse(
     FareBreakdown FareBreakdown,
     DateTimeOffset ValidUntil,
     string PricingPolicyVersion);
+
+// W001 §5.2 — curated enum on FareQuoteFailed, matches OfferDeclined pattern.
+public enum FareQuoteFailureReason
+{
+    Unspecified,
+    PricingUnavailable,
+    InvalidRoute,
+    NoCoverage,
+    Other
+}
+
+// Transient pricing fault — FareQuoteAutomation retries within its budget.
+public sealed class TransientPricingException(string message, Exception? innerException = null)
+    : Exception(message, innerException);
+
+// Non-transient pricing fault — FareQuoteAutomation emits FareQuoteFailed
+// immediately with the carried reason; no further attempts.
+public sealed class NonTransientPricingException(FareQuoteFailureReason reason, string message)
+    : Exception(message)
+{
+    public FareQuoteFailureReason Reason { get; } = reason;
+}
