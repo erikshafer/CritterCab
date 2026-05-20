@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package crittercab.pricing.v1;
+
+import "crittercab/common/v1/location.proto";
+import "google/protobuf/timestamp.proto";
+
+option csharp_namespace = "CritterCab.Pricing.V1";
+
+// Synchronous fare quote request/response pair. Dispatch's FareQuoteAutomation
+// is the v1 consumer; Pricing is the authoritative producer of fare decisions.
+// Slice reference: docs/workshops/001-dispatch-event-model.md §5.2.
+service PricingService {
+  rpc GetFareQuote(GetFareQuoteRequest) returns (GetFareQuoteResponse);
+}
+
+message GetFareQuoteRequest {
+  string ride_request_id = 1;
+  crittercab.common.v1.Location pickup = 2;
+  crittercab.common.v1.Location dropoff = 3;
+  VehicleClass vehicle_class = 4;
+  google.protobuf.Timestamp requested_at = 5;
+}
+
+message GetFareQuoteResponse {
+  int64 fare_amount_minor_units = 1;
+  string currency = 2;
+  FareBreakdown fare_breakdown = 3;
+  google.protobuf.Timestamp valid_until = 4;
+  string pricing_policy_version = 5;
+}
+
+// Pricing's vehicle-class vocabulary. Pricing owns its own enum per the
+// BC-owned-enums convention; Dispatch translates at the call site.
+enum VehicleClass {
+  VEHICLE_CLASS_UNSPECIFIED = 0;
+  VEHICLE_CLASS_STANDARD = 1;
+  VEHICLE_CLASS_PREMIUM = 2;
+  VEHICLE_CLASS_ACCESSIBLE = 3;
+}
+
+// Full decomposition carried on every quote per the workshop's transparency
+// principle (W001 §5.2 decisions).
+message FareBreakdown {
+  int64 base_minor_units = 1;
+  int64 distance_minor_units = 2;
+  int64 time_minor_units = 3;
+  optional int64 fees_minor_units = 4;
+}
