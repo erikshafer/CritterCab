@@ -27,11 +27,13 @@ if (!string.IsNullOrEmpty(connectionString))
         // Event registration — every domain event in the Dispatch event streams.
         opts.Events.AddEventType<RideRequested>();
         opts.Events.AddEventType<FareQuoted>();
+        opts.Events.AddEventType<FareQuoteFailed>();
 
         // Projections
         opts.Projections.LiveStreamAggregation<RideRequest>();
         opts.Projections.Add(new ActiveRequestsByRiderProjection(), ProjectionLifecycle.Inline);
         opts.Projections.Add(new RequestTimelineProjection(), ProjectionLifecycle.Inline);
+        opts.Projections.Add(new FareQuoteAttemptsProjection(), ProjectionLifecycle.Inline);
     })
     .IntegrateWithWolverine(integration =>
     {
@@ -44,6 +46,11 @@ if (!string.IsNullOrEmpty(connectionString))
 
 // Pricing client — stub until Pricing BC is workshopped and built.
 builder.Services.AddSingleton<IPricingClient, PricingClientStub>();
+
+// FareQuote retry budget. Hardcoded defaults per W001 §5.2 (3 attempts,
+// 2-second cooldown); Slice 11's DispatchPolicyConfigured will source these
+// from the DispatchPolicy projection instead.
+builder.Services.AddSingleton(FareQuoteRetryPolicy.Default);
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddHealthChecks();

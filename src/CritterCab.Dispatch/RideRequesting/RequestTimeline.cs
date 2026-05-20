@@ -33,6 +33,12 @@ public class RequestTimelineProjection : SingleStreamProjection<RequestTimeline,
             @event.Data.QuotedAt,
             $"Fare quoted: ${@event.Data.FareAmountMinorUnits / 100m:F2}"));
 
+    public void Apply(IEvent<FareQuoteFailed> @event, RequestTimeline view) =>
+        view.Entries.Add(new TimelineEntry(
+            nameof(FareQuoteFailed),
+            @event.Data.FailedAt,
+            $"Fare quote failed: {@event.Data.Reason} after {@event.Data.AttemptCount} attempt(s)"));
+
     private static string FormatLocation(Location loc) =>
         loc.StreetAddress ?? $"{loc.Lat:F4}, {loc.Lon:F4}";
 }
