@@ -26,6 +26,16 @@ Klefter's argument is that only answer (3) preserves the properties CritterCab w
 
 Bruun's post is adjacent but differently focused — it demonstrates that a small, bounded automation capability (temporary account lockout with a timed expiry) can be decomposed into five slices on an event model board. It is useful as a concrete reference for *what a complete slice set looks like* for an automation-heavy capability, which is exactly the shape CritterCab's dispatch and trust/safety flows will take.
 
+## What This Note Extends (Dymitruk 2019 Lineage)
+
+Klefter's and Bruun's posts both extend primitives Adam Dymitruk introduced in his June 2019 *[What is Event Modeling?](https://eventmodeling.org/posts/what-is-event-modeling/)* — specifically:
+
+- **Klefter's translation-decision events** extend Dymitruk's *Translation* pattern (Integration section) by promoting the translation choices themselves to first-class events on the timeline, rather than treating translation as a hidden integration concern.
+- **Klefter's agent-as-automation framing** extends Dymitruk's *Automation* primitive ("todo list pattern for background processors") by arguing the same primitive covers LLM agents — the agent is just a process sticky on the timeline that reads views and issues commands.
+- **Bruun's temporal-automation slicing** extends Dymitruk's *Automation* primitive by demonstrating how a single bounded automation capability (his five-slice temporary-account-lockout example) decomposes into a slice set on the model board.
+
+For the full corpus context, see [Event Modeling Canonical Sources](./event-modeling-canonical-sources.md).
+
 ---
 
 ## Klefter Post 1 — Agents as Automations in the Event Model

@@ -5,6 +5,7 @@ Exploratory work, curated notes, and spikes that inform CritterCab's design deci
 | Document | Summary |
 |---|---|
 | [Event Modeling: A Guide for CritterCab's First Workshop](./event-modeling-workshop-guide.md) | How to run an Event Modeling workshop — methodology, digital tooling, AI/LLM fit, and mapping to CritterCab's NDD vocabulary. |
+| [Event Modeling Canonical Sources](./event-modeling-canonical-sources.md) | Annotation of Dymitruk's 2019 originating article and the eventmodelers.de community corpus (10 articles, 2023–2026), with cross-references to Klefter/Bruun/Dilger extensions on existing notes. Documents vocabulary plurality (3-vs-4-vs-2-macro building blocks) and flags the Open Question for the vision doc. |
 | [Ride-Sharing Engineering: Lessons Learned](./ride-sharing-lessons-learned.md) | Curated notes from first-party engineering blogs by ride-sharing architects — why they ended up where they did, and what transfers to CritterCab. |
 | [Context Mapping: A Guide for CritterCab's First Session](./context-mapping-guide.md) | The nine relationship patterns, upstream/downstream dynamics, the Bounded Context Canvas and Domain Message Flow Modeling, how to run the session, and a concrete plan for CritterCab's first context map. |
 | [Agent Workflow Patterns](./agent-workflow-patterns.md) | Notes on deterministic Claude Code workflows — from naive agent orchestration through TypeScript workflow engines, hook-driven aggregates, and event-sourced session observability. Applied to CritterCab's narrative → prompt → execute → retrospective loop. |
