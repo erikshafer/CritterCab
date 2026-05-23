@@ -3,10 +3,10 @@
 ## Metadata
 
 - **Triggering prompt:** [`docs/prompts/skills-foundation-phase-5-handoff.md`](../prompts/skills-foundation-phase-5-handoff.md)
-- **Status:** In progress
+- **Status:** Complete (substantive deliverable closed 2026-05-06; metadata close-out applied 2026-05-23 by [`skills-tidy-ai-skills-sync`](../prompts/skills-tidy-ai-skills-sync.md)).
 - **Date authored:** 2026-05-06 (running record; updated as Phase 5 progresses)
 - **Output artifacts:** Per-skill trims to `docs/skills/*/SKILL.md` files; this retrospective; eventual README close-out.
-- **Outcome:** _(to be filled in at session end)_
+- **Outcome:** Reconciled 25 of 39 Cab skills against the JasperFx ai-skills library (all Tier 1, all Tier 2, plus Erik's curated Tier 3-4 queue: Skills 17, 24, 25, 31, 35-39); the remaining 14 Tier 3 skills (18-23, 26-30, 32-34) deferred to Phase 6 by explicit scope decision. Established the three-block `See Also` convention (`Upstream` ai-skills counterparts / `Prerequisites` Cab-internal load-first / `External` non-ai-skills) on Skill 1 and applied it uniformly across the reconciled set. Produced a 53-entry upstream-contribution roadmap with priority sub-categorization (Active / Observed gap / TBD), a 16-entry Cab-coverage-gap log, a 2-entry ai-skills content drift tracker (DCB-Polecat-only framing and `AddMeter` wildcard inconsistency), 10 methodology refinements applicable to future external-library reconciliation passes, 3 entire-skill-creation candidates (gRPC pair, sagas, polecat-document-store; plus polecat-monitoring-discovery surfaced in Tier 4), and removed 15 forward-looking placeholders for non-existent ai-skills. See `## Phase 5 deliverable summary` near the end of this document for the full enumeration.
 
 ---
 
@@ -1186,3 +1186,10 @@ What Phase 5 produced:
 - **README updated** with Phase 5 close-out status; full reconciliation record preserved in this document for the post-Phase-5 conversation surface.
 
 **Phase 5 substantive deliverable complete. Closed 2026-05-06.**
+
+---
+
+## Document history
+
+- **2026-05-06.** Phase 5 substantive deliverable complete. 25 of 39 Cab skills reconciled (Tier 1 + Tier 2 + Erik's curated Tier 3-4 queue); three-block `See Also` convention established and applied uniformly; 53 upstream-contribution candidates captured.
+- **2026-05-23.** Metadata close-out applied by [`skills-tidy-ai-skills-sync`](../prompts/skills-tidy-ai-skills-sync.md). `Status: In progress` → `Complete`; `Outcome` synthesized from the existing `## Phase 5 deliverable summary`. Sync floor for the next ai-skills reconciliation recorded as ai-skills @ `b0d0f7d` (HEAD as of 2026-05-22 evening; upstream catalog inventory at sync floor = 75 skills, 7% growth since Phase 5 close). The 14 Tier 3 skills deferred at Phase 5 close (18-23, 26-30, 32-34) remain deferred per the post-Phase-5 follow-ups section.
