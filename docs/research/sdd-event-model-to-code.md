@@ -1,12 +1,23 @@
 # Spec-Driven Development — Notes for CritterCab
 
-> **Source article:** [A Simple Guide to Spec-Driven Development](https://www.linkedin.com/pulse/simple-guide-spec-driven-development-martin-dilger-qotqf) by Martin Dilger
+> **Source article:** [A Simple Guide to Spec-Driven Development](https://www.linkedin.com/pulse/simple-guide-spec-driven-development-martin-dilger-qotqf) by Martin Dilger. Also republished with expansions as the [March 2026 eventmodelers.de version](https://www.eventmodelers.de/docs/blog/spec-driven-development/) — annotated alongside this note in the [canonical sources doc](./event-modeling-canonical-sources.md).
 
 ---
 
 ## Why This Matters for CritterCab
 
 Dilger's Spec-Driven Development (SDD) is the closest published methodology to what CritterCab's workflow is building toward. It names the same primitives already in place — skill files, event modeling, given/when/then specifications — and gives them a closed-loop implementation structure: the event model drives the agent, the skill files constrain it, the tests confirm it, and a learnings file makes it progressively smarter. CritterCab's narrative → prompt → execute → retrospective loop is a close relative; this article provides the vocabulary and mechanics to tighten it.
+
+## What This Note Extends (Dymitruk 2019 Lineage)
+
+Dilger's Spec-Driven Development extends two primitives Adam Dymitruk introduced in his June 2019 *[What is Event Modeling?](https://eventmodeling.org/posts/what-is-event-modeling/)*:
+
+- **Given-When-Then specifications** — Dymitruk introduces these as the behavioural contract per slice (via BDD). SDD operationalizes them as the AI agent's source of truth, status-gated by humans so the agent picks up slices only when their GWT rules are complete.
+- **The 7-step workshop format** — Dymitruk's seven steps (brainstorming, the plot, time travel, identifying inputs and outputs, applying Conway's Law, elaborating scenarios) inform the discovery half of SDD's *"Step Two — Event Model as the Source of Truth."*
+
+The eventmodelers.de March 2026 republication of the SDD article (annotated alongside this note in the canonical-sources doc) adds an origin-story opener and renames the Ralph Loop step to *"The Night Shift."* The methodology's substance — what this note documents — is unchanged.
+
+For the full corpus context, see [Event Modeling Canonical Sources](./event-modeling-canonical-sources.md).
 
 ---
 
