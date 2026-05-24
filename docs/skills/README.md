@@ -24,12 +24,12 @@ Cross-references between skills are explicit. Each skill's `See Also` section na
 | Phase | Description | Status |
 |---|---|---|
 | Phase 1 | Pre-implementation foundations: language standards, design conventions, contract governance, transport decisions, service skeleton | **Complete** (6 skills) |
-| Phase 2 | First service implementation: composition root, store wiring, handlers, projections, testing, local-dev orchestration | **Complete** (16 skills) |
+| Phase 2 | First service implementation: composition root, store wiring, handlers, projections, testing, local-dev orchestration | **Complete** (17 skills) |
 | Phase 3 | First cross-service flow: gRPC services, Kafka and ASB transports, identity ACL, distributed observability | **Complete** (8 skills) |
 | Phase 4 | Complexity arrives: sagas, advanced patterns, Polecat event sourcing, polyglot Go service, complete observability, advanced testing | **Complete** (9 skills) |
-| Phase 5 | Reconciliation pass — cross-check against ai-skills, eliminate duplication, contribute generic patterns upstream | **Complete** (25 / 39 reconciled; 14 placeholder-cleanup items tracked as Phase 6) |
+| Phase 5 | Reconciliation pass — cross-check against ai-skills, eliminate duplication, contribute generic patterns upstream | **Complete** (25 / 40 reconciled; 15 placeholder-cleanup items tracked as Phase 6) |
 
-**All five phases complete as of 2026-05-06.** 39 skills authored across Phases 1–4; Phase 5 — the reconciliation pass against [JasperFx ai-skills](#companion-jasperfx-ai-skills) — closed at its substantive deliverable: every counterpart-rich skill reconciled, 53 upstream-contribution candidates flagged, 16 Cab coverage gaps documented, 2 ai-skills content drift entries surfaced. The remaining 14 skills (project-specific patterns, Microsoft tooling, generic ecosystem CLIs with no ai-skills counterpart) are scoped as a Phase 6 placeholder-cleanup pass. See the [skills-foundation-phase-5 retrospective](../retrospectives/skills-foundation-phase-5.md) for the full reconciliation record, the upstream-contribution roadmap, and the Phase 6 follow-up plan.
+**All five phases complete as of 2026-05-06.** 40 skills authored across Phases 1–4; Phase 5 — the reconciliation pass against [JasperFx ai-skills](#companion-jasperfx-ai-skills) — closed at its substantive deliverable: every counterpart-rich skill reconciled, 53 upstream-contribution candidates flagged, 16 Cab coverage gaps documented, 2 ai-skills content drift entries surfaced. The remaining 15 skills (project-specific patterns, Microsoft tooling, generic ecosystem CLIs with no ai-skills counterpart) are scoped as a Phase 6 placeholder-cleanup pass. See the [skills-foundation-phase-5 retrospective](../retrospectives/skills-foundation-phase-5.md) for the full reconciliation record, the upstream-contribution roadmap, and the Phase 6 follow-up plan.
 
 ## Skill index by cluster
 
@@ -43,7 +43,7 @@ CritterCab's skill clusters split into product/library clusters and topic/concer
 | `wolverine` | `wolverine-handlers`, `wolverine-http-handlers`, `wolverine-messaging-handlers`, `wolverine-grpc-handlers`, `wolverine-grpc-bidirectional-handlers`, `wolverine-kafka`, `wolverine-azure-service-bus`, `wolverine-sagas` | — |
 | `marten` | `marten-aggregates`, `marten-wolverine-aggregates`, `marten-projections`, `marten-querying`, `marten-async-daemon`, `dynamic-consistency-boundary` | — |
 | `polecat` | `polecat-event-sourcing`, `polecat-document-store` | — |
-| `infrastructure` | `aspire`, `cli-aspire`, `cli-jasperfx`, `cli-grpc-tooling`, `cli-kafka-tooling`, `cli-azure-messaging` | — |
+| `infrastructure` | `aspire`, `aspire-service-defaults`, `cli-aspire`, `cli-jasperfx`, `cli-grpc-tooling`, `cli-kafka-tooling`, `cli-azure-messaging` | — |
 
 ### Topic/concern clusters
 
@@ -70,12 +70,12 @@ Tags are the complementary discovery surface to clusters. Where a cluster captur
 | `wolverine` | `wolverine-handlers`, `wolverine-http-handlers`, `wolverine-messaging-handlers`, `wolverine-grpc-handlers`, `wolverine-grpc-bidirectional-handlers`, `wolverine-kafka`, `wolverine-azure-service-bus`, `wolverine-sagas`, `marten-wolverine-aggregates`, `dynamic-consistency-boundary`, `service-bootstrap`, `transport-selection`, `observability-tracing`, `observability-metrics` |
 | `marten` | `marten-aggregates`, `marten-wolverine-aggregates`, `marten-projections`, `marten-querying`, `marten-async-daemon`, `dynamic-consistency-boundary`, `domain-event-conventions`, `service-bootstrap`, `wolverine-sagas`, `observability-tracing`, `observability-metrics` |
 | `polecat` | `polecat-event-sourcing`, `polecat-document-store`, `service-bootstrap`, `wolverine-sagas`, `observability-metrics` |
-| `aspire` | `aspire`, `cli-aspire`, `adding-a-service`, `service-bootstrap`, `polyglot-go-service` |
+| `aspire` | `aspire`, `aspire-service-defaults`, `cli-aspire`, `adding-a-service`, `service-bootstrap`, `polyglot-go-service` |
 | `grpc` | `wolverine-grpc-handlers`, `wolverine-grpc-bidirectional-handlers`, `protobuf-contracts`, `grpc-vs-other-transports`, `polyglot-go-service`, `cli-grpc-tooling`, `transport-selection` |
 | `kafka` | `wolverine-kafka`, `cli-kafka-tooling`, `aspire`, `transport-selection`, `grpc-vs-other-transports`, `testing-integration`, `testing-advanced` |
 | `azure-service-bus` | `wolverine-azure-service-bus`, `cli-azure-messaging`, `aspire`, `grpc-vs-other-transports`, `testing-advanced` |
 | `event-hubs` | `wolverine-kafka`, `cli-kafka-tooling`, `cli-azure-messaging`, `transport-selection` |
-| `opentelemetry` | `observability-tracing`, `observability-metrics` |
+| `opentelemetry` | `aspire-service-defaults`, `observability-tracing`, `observability-metrics` |
 | `dotnet` | `csharp-coding-standards`, `adding-a-service` |
 | `go` | `polyglot-go-service` |
 
@@ -134,6 +134,7 @@ When starting a task, the entry-point skill is the first to load. Upstream skill
 |---|---|---|---|
 | Adding a new service from scratch | `adding-a-service` | `transport-selection`, `protobuf-contracts`, `domain-event-conventions` | `service-bootstrap`, `vertical-slice-organization` |
 | Bootstrapping a service's `Program.cs` | `service-bootstrap` | `csharp-coding-standards`, `adding-a-service` | `wolverine-handlers`, `marten-aggregates`, `aspire`, `observability-tracing` |
+| Authoring or modifying the shared ServiceDefaults library | `aspire-service-defaults` | `service-bootstrap`, `aspire` | `observability-tracing`, `testing-integration` |
 | Organizing code within a service | `vertical-slice-organization` | `service-bootstrap` | handler and aggregate skills |
 
 ### Wolverine handler authoring
