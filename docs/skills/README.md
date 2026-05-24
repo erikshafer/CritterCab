@@ -56,6 +56,7 @@ CritterCab's skill clusters split into product/library clusters and topic/concer
 | `polyglot` | `polyglot-go-service` | — |
 | `testing` | `testing-fundamentals`, `testing-integration`, `testing-advanced` | — |
 | `observability` | `observability-tracing`, `observability-metrics` | — |
+| `security` | — | `security-headers` |
 
 ## Skill index by tag
 
