@@ -302,6 +302,7 @@ graph TB
 
     %% Infrastructure
     ASP[aspire]
+    ASD[aspire-service-defaults]
     CLA[cli-aspire]
     CLJ[cli-jasperfx]
 
@@ -309,12 +310,15 @@ graph TB
     ASP --> CLA
     SB --> CLJ
     MAD --> CLJ
+    SB --> ASD
+    ASP --> ASD
+    ASD --> TI
 
     classDef phase1 fill:#90ee90,stroke:#333,stroke-width:2px
     classDef phase2 fill:#87ceeb,stroke:#333,stroke-width:2px
 
     class AS,DEC phase1
-    class SB,VSO,WH,WHH,WMH,MA,MWA,MP,MQ,MAD,DCB,TF,TI,ASP,CLA,CLJ phase2
+    class SB,VSO,WH,WHH,WMH,MA,MWA,MP,MQ,MAD,DCB,TF,TI,ASP,ASD,CLA,CLJ phase2
 ```
 
 ### Phase 3 — First cross-service flow
