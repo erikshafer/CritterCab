@@ -196,6 +196,72 @@ The rest of the composition root — Wolverine configuration, transport routing,
 
 ---
 
+## Typed Configuration with `IOptions<T>` and `ValidateOnStart`
+
+Connection strings flow through `IConfiguration` as single values read directly with `GetConnectionString(...)` (as shown in the canonical Program.cs above). Richer configuration — feature flags, external API credentials, tuning parameters, BC-specific behavioral toggles — should bind to a typed options class with validation that fails at startup if any required value is missing or malformed.
+
+The pattern:
+
+```csharp
+// Configuration class — sealed record with required properties and validation attributes.
+public sealed record PaymentsGatewayOptions
+{
+    [Required, Url]
+    public required string BaseUrl { get; init; }
+
+    [Required, MinLength(32)]
+    public required string ApiKey { get; init; }
+
+    [Range(1, 300)]
+    public int TimeoutSeconds { get; init; } = 30;
+
+    [Required]
+    public required string MerchantId { get; init; }
+}
+
+// Registration in Program.cs — bind, validate, fail at startup if invalid.
+builder.Services
+    .AddOptions<PaymentsGatewayOptions>()
+    .BindConfiguration("PaymentsGateway")
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+// Consumption — inject IOptions<T>.
+public sealed class PaymentsGatewayClient
+{
+    private readonly PaymentsGatewayOptions _options;
+
+    public PaymentsGatewayClient(IOptions<PaymentsGatewayOptions> options)
+    {
+        _options = options.Value;
+    }
+    // ...
+}
+```
+
+**Why this pattern, not raw `IConfiguration` reads:**
+
+- **`ValidateOnStart()` fails the host at boot time.** A missing or malformed configuration value raises before the first request is served, with a clear exception identifying which field failed validation. Without it, you discover the missing config when a downstream call returns 401 or the first `NullReferenceException` fires deep in handler code.
+- **Data-annotation validation runs once, at startup.** `[Required]`, `[Url]`, `[Range]`, `[MinLength]` etc. are checked when the host starts; consumers can trust the values are well-formed without re-validating.
+- **The options class is the documentation.** A developer reading the service to understand its configuration surface reads one record, not the union of every `builder.Configuration["..."]` call scattered through Program.cs.
+- **Refactoring is safer.** Renaming a configuration key shows up as a compile error in the options class, not as a silent null at runtime.
+
+**When to use `IOptions<T>`, `IOptionsMonitor<T>`, or `IOptionsSnapshot<T>`:**
+
+| Lifetime needed | Inject |
+|---|---|
+| Singleton consumer; options never change after startup | `IOptions<T>` |
+| Singleton consumer; need to observe runtime changes | `IOptionsMonitor<T>` |
+| Scoped consumer (e.g., per HTTP request); pick up reloaded values | `IOptionsSnapshot<T>` |
+
+For the vast majority of CritterCab cases, `IOptions<T>` is correct — service configuration is read once at startup and doesn't change. Use `IOptionsMonitor<T>` only when a value genuinely needs to be hot-reloadable (a feature flag, a rate limit) and you've decided that runtime reconfiguration is a supported behavior of that service.
+
+**Connection strings stay with `GetConnectionString(...)`.** The `?? throw` pattern in the canonical Program.cs above is correct for connection strings, which are first-class in `IConfiguration` and read directly. The typed-options pattern is for richer configuration sections — anything that would otherwise be a clump of `builder.Configuration["Foo:Bar"]` reads.
+
+**Aspire AppHost emits the values; the service binds them.** Per the `aspire` skill, the AppHost translates resource outputs into explicit configuration via `.WithReference(...)` (for connection strings) or `.WithEnvironment("PaymentsGateway__ApiKey", ...)` (for typed-options sections). The double-underscore separator maps to the colon-separated configuration path, so `PaymentsGateway__BaseUrl` becomes `PaymentsGateway:BaseUrl`, which `BindConfiguration("PaymentsGateway")` picks up. The service stays Aspire-agnostic — it binds to configuration keys, not to Aspire abstractions.
+
+---
+
 ## Per-Service Configuration Variation
 
 Beyond the canonical shape, each service makes a small number of decisions specific to its contract surface. The composition root encodes those decisions in one place.
@@ -315,6 +381,8 @@ There is no separate "test bootstrap" — tests use the production composition r
 - **Missing `AddWolverineHttp()` for services that map Wolverine endpoints.** `MapWolverineEndpoints()` throws at startup if `AddWolverineHttp()` wasn't called. See § Per-Service Configuration Variation, "Service that exposes Wolverine.HTTP endpoints".
 - **Hardcoding connection strings.** Aspire injects them via configuration. Hardcoding works in dev for the wrong reasons (the Aspire-provisioned database happens to listen on the same port) and fails on every deploy. Always read from `builder.Configuration.GetConnectionString(...)`.
 - **Calling `IntegrateWithWolverine()` before `AddMarten`/`AddPolecat`.** Order matters; the `IntegrateWithWolverine` call extends the registration that came immediately before it. If the call chain is interrupted, the integration silently doesn't wire.
+
+- **Omitting `.ValidateOnStart()` on typed options.** Validation deferred to first-use means a missing or malformed config value surfaces as a confusing downstream failure (401 response, null reference, malformed URI) instead of as a clear startup error. Always call `.ValidateOnStart()` after `.ValidateDataAnnotations()`; the cost is one extra line and the benefit is failing fast at boot rather than three layers deep at runtime.
 
 ---
 

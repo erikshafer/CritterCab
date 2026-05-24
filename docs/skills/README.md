@@ -57,6 +57,7 @@ CritterCab's skill clusters split into product/library clusters and topic/concer
 | `testing` | `testing-fundamentals`, `testing-integration`, `testing-advanced` | — |
 | `observability` | `observability-tracing`, `observability-metrics` | — |
 | `security` | — | `security-headers` |
+| `api-documentation` | — | `dotnet-openapi` |
 
 ## Skill index by tag
 
