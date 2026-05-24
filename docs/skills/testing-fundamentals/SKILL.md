@@ -59,6 +59,57 @@ The test stack does **not** include NSubstitute, Moq, or any other mocking libra
 
 ---
 
+## CI safety: file-watcher exhaustion on Linux
+
+`.NET` host builders (`WebApplication.CreateBuilder`, `Host.CreateApplicationBuilder`) register inotify watchers on every configuration file they read, so config reload triggers automatically when `appsettings.json` is edited. This is a sensible production default. In a large integration test suite where every fixture spins up a fresh `IHost`, it's a quiet ticking time bomb.
+
+The symptom appears only on Linux CI runners — not locally on Windows or macOS, where the equivalent watch limits are dramatically higher:
+
+```
+System.IO.IOException: The configured user limit (128) on the number of inotify
+instances has been reached, or the per-process limit on the number of open file
+descriptors has been reached.
+```
+
+The error message points at file watchers; the cause is `IHost` creation count. Every `AlbaHost.For<Program>(...)` call across every test class in every Cab service's test project contributes. With four or five services and a few dozen test classes each, the suite quietly approaches the default Linux `fs.inotify.max_user_instances` limit, then flakes unpredictably as runs interleave.
+
+The fix is one file per test project — a module initializer that disables config-file watching globally for the test process before any `IHost` is created:
+
+```csharp
+// tests/CritterCab.Trips.Tests/TestEnvironmentInitializer.cs
+using System.Runtime.CompilerServices;
+
+namespace CritterCab.Trips.Tests;
+
+internal static class TestEnvironmentInitializer
+{
+    [ModuleInitializer]
+    internal static void Initialize()
+    {
+        // Disable configuration-file watching in test hosts.
+        // Prevents inotify-watch exhaustion on Linux CI when many IHost instances
+        // are created across the test suite (one per AlbaHost.For<Program> fixture).
+        // Tests don't reload config at runtime; this is a no-op semantically and
+        // a meaningful safety net operationally.
+        Environment.SetEnvironmentVariable(
+            "DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE", "false");
+    }
+}
+```
+
+`[ModuleInitializer]` runs once when the test assembly loads, before any `[Fact]` method executes. Setting the environment variable at this point catches every subsequent `IHost` creation in the process — including the host built inside `AlbaHost.For<Program>(...)`.
+
+Two reasons this matters even though Cab's fixture pattern shares one host per collection:
+
+1. **Multiple collections per test project.** A service test project can have more than one fixture (Trips' default Postgres fixture, plus a Kafka-enabled fixture for transport routing tests, for example). Each is its own collection; each creates its own `IHost`.
+2. **Cross-project test runs.** `dotnet test` at the solution level executes every service's test project sequentially in the same runner process for default configurations — fixture counts add up across projects. The exhaustion threshold is per-process, not per-collection.
+
+This file is part of the new-service test project template; `adding-a-service` includes it in the scaffolding. Adding it after the fact to an existing test project is a one-line drop-in — no other code needs to change.
+
+If a test genuinely needs to validate config-reload behavior (an `IOptionsMonitor<T>`-driven feature flag), opt that single test out by setting the variable back to `"true"` before the test and clearing it after. The default-disabled stance is the right one for the dominant case.
+
+---
+
 ## Test project organization
 
 Every Cab service ships with a paired test project, named `<Service>.Tests` and located alongside the service in `tests/`:
@@ -599,6 +650,8 @@ If an assertion feels awkward in Shouldly, the test is usually checking too much
 - **Calling `Should.ThrowAsync` on synchronous code.** Use `Should.Throw<T>(() => ...)` for sync. The async variant only matters when there's an actual `await` inside the lambda.
 - **Putting `IAsyncLifetime` on a class that doesn't need async setup.** Empty `Task.CompletedTask` returns are noise. Skip the interface unless you actually `await` something in `InitializeAsync`.
 - **Testing `Validate` and `Handle` together when they're separable.** If `Validate` rejects, `Handle` never runs — the integration is the pipeline's job. Unit tests should exercise each phase independently.
+
+- **Skipping the `TestEnvironmentInitializer` module initializer.** Tests pass locally on Windows or macOS, then fail unpredictably on Linux CI with "inotify instance limit reached" errors that don't point at the real cause. Every Cab test project needs the `[ModuleInitializer]` from § "CI safety: file-watcher exhaustion on Linux" — it's part of the project-setup baseline alongside the committed package list.
 
 ---
 

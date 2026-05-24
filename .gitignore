@@ -439,8 +439,27 @@ claude_desktop_config.json
 # Keep source .feature files, ignore generated codebehind
 *.feature.cs
 
-# Claude Code local settings (machine-specific, may contain sensitive config)
-.claude/
+# ==============================================================================
+# Claude Code
+# ==============================================================================
+# Ignore .claude/ contents by default, then opt-in the agents we want to share
+# as part of this OSS reference architecture.
+#
+# Tracked (opted in below):
+#   - .claude/agents/critter-skill-auditor.md
+#   - .claude/agents/critter-test-architect.md
+#
+# Ignored:
+#   - .claude/settings.local.json - machine-specific, may contain sensitive config
+#   - .claude/agents/ai-skills-consultant.md - references private JasperFx ai-skills repo
+#   - .claude/agents/jasperfx-source-verifier.md - pending path-portability refactor
+#   - .claude/skills/ - symlinks managed per-machine
+#   - .claude/agent-memory/ - per-machine runtime state
+.claude/*
+!.claude/agents/
+.claude/agents/*
+!.claude/agents/critter-skill-auditor.md
+!.claude/agents/critter-test-architect.md
 
 # ==============================================================================
 # Protobuf Generated Code (ADR-009)
