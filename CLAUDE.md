@@ -96,6 +96,16 @@ For Wolverine, Marten, Polecat, and Alba capabilities beyond what skill files al
 
 ---
 
+## Companion: JasperFx ai-skills
+
+CritterCab's [`docs/skills/`](./docs/skills/) library defers to JasperFx's [`ai-skills`](https://github.com/jasperfx/ai-skills) — a paid, proprietary collection of generic Critter Stack skills — for library mechanics. The bespoke skills under `docs/skills/` cover project-specific decisions and idioms layered on top; they do not duplicate ai-skills content.
+
+When a CritterCab skill's `See Also → External` section names an ai-skills counterpart, treat the ai-skill as authoritative for library mechanics and the CritterCab skill as authoritative for project conventions. Where they conflict on project ground, CritterCab wins.
+
+Contributors working with an ai-skills license install the skills globally; the install command and layering rationale are documented at [`docs/skills/README.md`](./docs/skills/README.md#companion-jasperfx-ai-skills).
+
+---
+
 ## External Skills
 
 CritterCab vendors a curated subset of [Matt Pocock's skills](https://github.com/mattpocock/skills) under `.agents/skills/`, tracked via [`skills-lock.json`](./skills-lock.json) which records the upstream source and content hash for each entry. These cover session-invoked behaviors not encoded in [`docs/skills/`](./docs/skills/). Do not hand-edit the vendored files — they will desync from the lockfile. Steer them via the precedence table below instead.

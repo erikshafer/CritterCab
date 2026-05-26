@@ -111,6 +111,10 @@ The rest of the documentation is organized as layered artifacts:
 
 The [Critter Stack](https://github.com/JasperFx) is a family of open-source .NET libraries maintained by JasperFx: Wolverine (messaging, handlers, and now gRPC), Marten (PostgreSQL document store and event sourcing), Polecat (SQL Server document store), Weasel (database schema management), and Alba (integration testing).
 
+## Companion Library: JasperFx ai-skills
+
+Alongside the open-source Critter Stack libraries, JasperFx publishes [`ai-skills`](https://github.com/jasperfx/ai-skills) — a paid, proprietary collection of generic Critter Stack skills (Wolverine, Marten, Polecat) authored by the maintainers. CritterCab's own [skill library](docs/skills/) is deliberately layered on top: it defers to ai-skills for library mechanics and documents project-specific decisions, idioms, and trade-offs that the generic skills can't predict. CritterCab does not duplicate or paraphrase ai-skills content. Contributors with a license install them globally so they sit alongside the project-local skills. See [`docs/skills/README.md`](docs/skills/README.md#companion-jasperfx-ai-skills) for the install command and the layering rationale.
+
 ## Contributing
 
 CritterCab is a reference architecture, so the way it grows matters as much as what it grows into. Before opening a PR:
