@@ -103,3 +103,26 @@ This observation spans the DS and EM artifact layers, it's a cross-session compa
 **Implication.** Domain Storytelling earns a place as a **default pre-Event-Modeling step for vocabulary-rich BCs** — those with multiple actor types (especially human actors), vendor boundaries carrying foreign vocabulary, failure paths with distinct terminal shapes, and a vocabulary lifecycle with transition moments worth naming (Onboarding had all four; W003 retro Q5 predicted Operations and Trust & Safety share the profile). DS would likely add little for narrow, mechanical BCs (a projection-fed Telemetry BC where actors are systems and work objects are GPS pings).
 
 A future entry would **confirm** this if a second DS→EM pair (e.g., an Operations DS followed by an Operations EM workshop) shows the same vocabulary-front-loading benefit with *less* prompt-grilling intensity than W004 had — isolating the DS contribution from the grilling confound. A future entry would **disconfirm** if a future DS→EM pair surfaces substantial mid-walk vocabulary churn despite DS-as-upstream, suggesting W004's smoothness was mostly grilling and the DS-as-default-pre-EM placement isn't warranted on DS's own merits.
+
+### Entry 006 — Vocabulary richness and boundary nuance are two separate axes; DS handles the first, grill-with-docs the second (2026-05-28)
+
+**Trigger.** Workshop 005 ([`docs/workshops/005-identity-event-model.md`](../workshops/005-identity-event-model.md)) — the Identity BC, run EM-direct (no DS pre-step) with a grill-with-docs pass preceding the workshop. The W005 prompt explicitly framed the session as the **contrast data point** for entry 005's DS-scoping claim: would EM-direct on a thin/mechanical BC surface mid-walk vocabulary friction that a DS pre-step would have caught? The grill itself (grill #5 in the prompt's resolution history) surfaced the answer.
+
+**Observation.** Entry 005 framed the methodology question as a single axis: *vocabulary-rich → DS pays off; thin/mechanical → DS doesn't.* W005 shows that's incomplete. The W005 grill-with-docs pass surfaced **three genuinely consequential nuances** — but every one was an **ownership-boundary** question (which BC owns the mutable rider profile; whether one human is one Identity account or two; which BC's event triggers Onboarding's intake), and **zero** were **vocabulary-divergence** findings (no term meaning different things to different actors, the kind W003 surfaced for Onboarding: "review/under-review/REVIEWS," per-document vs. application "rejected").
+
+These are two different *kinds* of finding handled by two different tools:
+
+- **Domain Storytelling** surfaces *vocabulary divergence* — it captures actor/work-object/activity stories and exposes where the same word means different things to different actors.
+- **Grill-with-docs** surfaces *strategic-design boundary calls* — cross-referencing a plan against ADRs and the existing domain model exposes which bounded context is responsible for which fact.
+
+Identity was **boundary-nuanced but not vocabulary-rich.** A DS walk would not reliably have caught "does Identity or Rider Profile own profile edits" (a strategic-design call, not a vocabulary ambiguity), and Identity had little vocabulary to disambiguate (ADR-006's locked ACL stance left the language mostly settled). So EM-direct was correct *and* the boundary nuances were caught — by the grill, not by a hypothetical DS.
+
+This spans W004 (DS-fed, vocabulary-rich) and W005 (EM-direct, boundary-nuanced) — a cross-session observation no single per-session retro can make — wouldn't fit inside either retro's scope without the comparison, and predicts how to route future BCs through the methodology. Meets entry 001's three criteria.
+
+**Implication.** The DS-vs-EM-direct decision is about **vocabulary richness** (entry 005's axis); **boundary nuance** is a *separate* axis handled by grill-with-docs regardless of whether DS ran. The routing heuristic becomes two-dimensional:
+
+- *Vocabulary-rich* (multiple actor types with overloaded terms; foreign-vocabulary vendor boundaries) → run DS before EM (entry 005).
+- *Boundary-nuanced* (unclear BC ownership of facts; forward-constraints from prior workshops to reconcile) → grill the EM prompt against ADRs + the context map before the workshop, whether or not DS ran.
+- A BC can be high on one axis and low on the other (Identity: low vocabulary, high boundary), high on both (Onboarding: both), or low on both (a mechanical projection-fed BC needs neither).
+
+This refines entry 005 without contradicting it — entry 005's DS-scoping holds; entry 006 adds the orthogonal grill axis. A future entry would **confirm** if a BC that is vocabulary-rich *and* boundary-nuanced (a plausible Operations profile) benefits visibly from *both* a DS pass *and* a prompt grill, with each catching a distinct class of finding. It would **disconfirm** if a future workshop finds the two axes collapse in practice — i.e., DS reliably catches boundary calls too, or grilling reliably catches vocabulary divergence — making the two-tool distinction spurious.
