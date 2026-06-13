@@ -12,7 +12,7 @@ public class RequestTimeline
 
 public sealed record TimelineEntry(string EventType, DateTimeOffset OccurredAt, string Summary);
 
-public class RequestTimelineProjection : SingleStreamProjection<RequestTimeline, Guid>
+public partial class RequestTimelineProjection : SingleStreamProjection<RequestTimeline, Guid>
 {
     public RequestTimeline Create(IEvent<RideRequested> @event) =>
         new()

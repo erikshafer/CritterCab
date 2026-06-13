@@ -9,7 +9,7 @@ public class ActiveRideRequest
     public DateTimeOffset RequestedAt { get; set; }
 }
 
-public class ActiveRequestsByRiderProjection : MultiStreamProjection<ActiveRideRequest, Guid>
+public partial class ActiveRequestsByRiderProjection : MultiStreamProjection<ActiveRideRequest, Guid>
 {
     public ActiveRequestsByRiderProjection()
     {

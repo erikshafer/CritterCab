@@ -20,7 +20,7 @@ public class FareQuoteAttempts
 
 public enum FareQuoteOutcome { Pending, Quoted, Failed }
 
-public class FareQuoteAttemptsProjection : SingleStreamProjection<FareQuoteAttempts, Guid>
+public partial class FareQuoteAttemptsProjection : SingleStreamProjection<FareQuoteAttempts, Guid>
 {
     public FareQuoteAttempts Create(IEvent<RideRequested> e) => new()
     {
