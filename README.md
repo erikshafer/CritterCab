@@ -24,7 +24,7 @@ CritterCab is an open-source reference architecture for a ride-sharing platform,
 | Messaging, HTTP, gRPC, handlers | Wolverine | 5.32+ floor; currently on 5.39+ |
 | Event sourcing (PostgreSQL) | Marten | 8.35+ |
 | Document store (SQL Server) | Polecat | 3.1+ |
-| Local-dev orchestration | Aspire | 13.3 |
+| Local-dev orchestration | Aspire | 13.4.3 |
 | Database | PostgreSQL | 18 |
 | Integration test host | Alba | 8.5+ |
 
@@ -56,7 +56,7 @@ No global tool installs are required; the AppHost is a [file-based .NET 10 progr
 
 ## Running Locally
 
-Clone the repository and start the Aspire AppHost. This boots the PostgreSQL container and the Dispatch service together, and opens the Aspire dashboard at `https://localhost:17068` (default).
+Clone the repository and start the Aspire AppHost. This boots the PostgreSQL container and the Dispatch service together, and opens the Aspire dashboard at `https://localhost:5300` (pinned — see the [`aspire` skill](docs/skills/aspire/SKILL.md) § Port allocation for CritterCab's `53xx` local-dev port band).
 
 ```bash
 git clone https://github.com/erikshafer/CritterCab.git
@@ -79,6 +79,7 @@ The Dispatch service exposes `POST /ride-requests` for slice 5.1 and a health en
 ```
 .
 ├── apphost.cs               # File-based Aspire AppHost (.NET 10 file-based program)
+├── Properties/              # AppHost launchSettings.json — dashboard/OTLP/MCP port pins (5300-5307)
 ├── CritterCab.slnx          # Solution
 ├── Directory.Build.props    # Shared MSBuild props (TFM, lang version, nullable)
 ├── Directory.Packages.props # Central package versions

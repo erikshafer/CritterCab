@@ -2,7 +2,15 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
-    <!-- Aspire hosting packages -->
+    <!-- Aspire hosting packages.
+       NOTE: these versions are NOT consumed by the current file-based apphost.cs.
+       That AppHost pins its Aspire versions inline via #:package directives and
+       opts out of this Central Package Management file (#:property
+       ManagePackageVersionsCentrally=false) — otherwise the inline versions
+       collide with CPM (NU1008) and the SDK's implicit Aspire.Hosting.AppHost
+       reference collides with its PackageVersion entry (NU1009). These entries are
+       the reference version line for a future .csproj-based AppHost; keep them in
+       lockstep with apphost.cs's #:package/#:sdk versions (currently 13.4.3). -->
   <ItemGroup>
     <PackageVersion Include="Aspire.Hosting.AppHost" Version="13.4.3" />
     <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.4.3" />

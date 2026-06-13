@@ -1,6 +1,6 @@
 ---
 name: aspire
-description: "Aspire 13.2 local-dev orchestration for CritterCab — the single-file apphost.cs (.NET 10 file-based application), what gets provisioned (Postgres, SQL Server, Kafka, eventually Azure Service Bus emulator), how Cab services compose against it (WithReference, WaitFor), service discovery and connection-string injection into Program.cs, the dashboard, integration with the Aspire MCP server for AI coding agents (`aspire agent init`), and the future TypeScript polyglot path for the frontend. Use when authoring or modifying the Cab AppHost, adding a new service or infrastructure resource, debugging dev-time orchestration, or wiring a service's connection-string consumption."
+description: "Aspire 13.4 local-dev orchestration for CritterCab — the single-file apphost.cs (.NET 10 file-based application), what gets provisioned (Postgres, SQL Server, Kafka, eventually Azure Service Bus emulator), how Cab services compose against it (WithReference, WaitFor), service discovery and connection-string injection into Program.cs, the dashboard, integration with the Aspire MCP server for AI coding agents (`aspire agent init`), and the future TypeScript polyglot path for the frontend. Use when authoring or modifying the Cab AppHost, adding a new service or infrastructure resource, debugging dev-time orchestration, or wiring a service's connection-string consumption."
 cluster: infrastructure
 tags: [aspire, apphost, local-dev, service-discovery, postgres, sqlserver, kafka, azure-service-bus, mcp, dotnet-10, file-based-application, polyglot, typescript]
 ---
@@ -11,7 +11,7 @@ Aspire is Cab's local development orchestration layer. One file, `apphost.cs`, d
 
 Aspire is **local-dev only**. Production deployment is Azure-native per `ADR-007`; integration tests use Testcontainers per `testing-integration` and never bootstrap the AppHost. The AppHost's job is to make `F5` produce a fully-wired distributed system on a developer laptop and nothing more.
 
-The Cab AppHost is built on Aspire 13.2.2 — a substantially different shape from earlier Aspire versions. The biggest changes worth flagging up front:
+The Cab AppHost is built on Aspire 13.4.3 — a substantially different shape from earlier Aspire versions. The biggest changes worth flagging up front (most landed across the 13.x line and still hold):
 
 - **Single-file `apphost.cs`** using .NET 10 file-based application directives (`#:sdk`, `#:package`, `#:project`) — no `.csproj`, no separate AppHost folder.
 - **Unified `aspire.config.json`** replaces the old `apphost.run.json` + `.aspire/settings.json` split.
@@ -57,36 +57,41 @@ The dashboard and the MCP server are both manifestations of the same thing: Aspi
 
 ---
 
-## The committed Aspire 13.2 packages
+## The committed Aspire 13.4 packages
 
-Cab's `Directory.Packages.props` pins:
+The file-based `apphost.cs` pins its Aspire versions **inline** via `#:sdk` / `#:package` directives and opts out of the repo's Central Package Management with `#:property ManagePackageVersionsCentrally=false`. `Directory.Packages.props` *also* carries the Aspire hosting versions, but those entries are **not** consumed by the file-based AppHost — they are the reference version line for a future `.csproj`-based AppHost, kept in lockstep with the directives by hand.
 
-| Package | Version | Used for |
-|---|---|---|
-| `Aspire.Hosting.AppHost` | 13.2.2 | The AppHost SDK itself; required. |
-| `Aspire.Hosting.PostgreSQL` | 13.2.2 | Postgres containers for Marten services. |
-| `Aspire.Hosting.SqlServer` | 13.2.2 | SQL Server containers for Polecat services. |
-| `Aspire.Hosting.Kafka` | 13.2.2 | Kafka containers for Telemetry-style services. |
+| Package | Pinned in | Version | Used for |
+|---|---|---|---|
+| `Aspire.AppHost.Sdk` | `#:sdk` directive | 13.4.3 | The AppHost SDK itself; required, first directive. |
+| `Aspire.Hosting.PostgreSQL` | `#:package` directive | 13.4.3 | Postgres containers for Marten services. |
+| `Aspire.Hosting.SqlServer` | `Directory.Packages.props` (mirror) | 13.4.3 | SQL Server containers for Polecat services (add `#:package` when a Polecat service lands). |
+| `Aspire.Hosting.Kafka` | `Directory.Packages.props` (mirror) | 13.4.3 | Kafka containers for Telemetry-style services (add `#:package` when Telemetry lands). |
+
+> **Why the CPM opt-out?** `dotnet run apphost.cs` generates a synthetic `apphost.csproj` at the repo root, which inherits `Directory.Packages.props` and therefore enables CPM for the AppHost. Without the opt-out, the inline `#:package ...@version` versions collide with CPM (NU1008) and the SDK's implicit `Aspire.Hosting.AppHost` reference collides with its `PackageVersion` entry (NU1009) — the AppHost fails to restore. `#:property ManagePackageVersionsCentrally=false` keeps the file-based AppHost self-contained. This applies to *any* file-based program living under a CPM-enabled `Directory.Packages.props`.
 
 **Not yet committed but expected to land:**
 
 - `Aspire.Hosting.AzureServiceBus` — for the ASB emulator container. Cab uses ASB as the business-event backbone; this package wires it into the AppHost. Add when the first service needs ASB-routed messaging in dev. The committed `Testcontainers.ServiceBus` covers integration tests independently per `testing-integration`.
 - `Aspire.Hosting.NodeJs` (or Bun-equivalent) — for hosting the TypeScript frontend when that lands. Not needed for any current Cab service.
 
-The version line is uniform — every Aspire package on `13.2.2`. When upgrading, prefer `aspire update` from the CLI (covered in `cli-aspire`), which keeps the SDK directive in `apphost.cs` and the package versions in `Directory.Packages.props` aligned.
+Keep the version line uniform — every Aspire directive in `apphost.cs` (and the mirror entries in `Directory.Packages.props`) on the same version. `aspire update` from the CLI (covered in `cli-aspire`) bumps the `#:sdk` / `#:package` directives; update the `Directory.Packages.props` mirror entries in the same change so a future `.csproj` AppHost doesn't drift.
 
 ---
 
 ## The single-file `apphost.cs` shape
 
-Cab's AppHost lives at the repository root as `apphost.cs` — a single file, no `.csproj`. The .NET 10 SDK's file-based application support handles compilation; Aspire 13.2's `#:sdk` directive points the runtime at the AppHost SDK.
+Cab's AppHost lives at the repository root as `apphost.cs` — a single file, no `.csproj`. The .NET 10 SDK's file-based application support handles compilation; Aspire's `#:sdk` directive points the runtime at the AppHost SDK.
 
 ```csharp
-#:sdk Aspire.AppHost.Sdk@13.2.2
+#:sdk Aspire.AppHost.Sdk@13.4.3
 
-#:package Aspire.Hosting.PostgreSQL@13.2.2
-#:package Aspire.Hosting.SqlServer@13.2.2
-#:package Aspire.Hosting.Kafka@13.2.2
+// Opt out of the repo's Central Package Management for the synthetic apphost.csproj.
+#:property ManagePackageVersionsCentrally=false
+
+#:package Aspire.Hosting.PostgreSQL@13.4.3
+#:package Aspire.Hosting.SqlServer@13.4.3
+#:package Aspire.Hosting.Kafka@13.4.3
 
 #:project ./src/CritterCab.Trips/CritterCab.Trips.csproj
 #:project ./src/CritterCab.Pricing/CritterCab.Pricing.csproj
@@ -95,9 +100,12 @@ Cab's AppHost lives at the repository root as `apphost.cs` — a single file, no
 var builder = DistributedApplication.CreateBuilder(args);
 
 // === Infrastructure ===
+// Host ports pinned per § Port allocation so connection strings are stable
+// across runs and don't collide with sibling Critter projects.
 
 var postgres = builder.AddPostgres("postgres")
     .WithImageTag("18-alpine")
+    .WithHostPort(5390)
     .WithLifetime(ContainerLifetime.Persistent);
 
 var tripsDb     = postgres.AddDatabase("trips-db");
@@ -105,24 +113,35 @@ var pricingDb   = postgres.AddDatabase("pricing-db");
 var identityDb  = postgres.AddDatabase("identity-db");
 
 var sqlServer   = builder.AddSqlServer("sqlserver")
+    .WithHostPort(5391)
     .WithLifetime(ContainerLifetime.Persistent);
 
 var paymentsDb  = sqlServer.AddDatabase("payments-db");
 
 var kafka = builder.AddKafka("kafka")
+    .WithHostPort(5392)
     .WithLifetime(ContainerLifetime.Persistent);
 
 // === Services ===
+// Each service claims a +5 slot per § Port allocation: slot (https), slot+1 (http).
+// Dispatch holds 5310/5311 (in the real AppHost); the next services follow.
+// launchProfileName: null — the AppHost-declared endpoints are authoritative.
 
-var identity = builder.AddProject<Projects.CritterCab_Identity>("identity")
+var identity = builder.AddProject<Projects.CritterCab_Identity>("identity", launchProfileName: null)
+    .WithHttpsEndpoint(port: 5315, name: "https")
+    .WithHttpEndpoint(port: 5316, name: "http")
     .WithReference(identityDb)
     .WaitFor(identityDb);
 
-var pricing = builder.AddProject<Projects.CritterCab_Pricing>("pricing")
+var pricing = builder.AddProject<Projects.CritterCab_Pricing>("pricing", launchProfileName: null)
+    .WithHttpsEndpoint(port: 5320, name: "https")
+    .WithHttpEndpoint(port: 5321, name: "http")
     .WithReference(pricingDb)
     .WaitFor(pricingDb);
 
-var trips = builder.AddProject<Projects.CritterCab_Trips>("trips")
+var trips = builder.AddProject<Projects.CritterCab_Trips>("trips", launchProfileName: null)
+    .WithHttpsEndpoint(port: 5325, name: "https")
+    .WithHttpEndpoint(port: 5326, name: "http")
     .WithReference(tripsDb)
     .WithReference(kafka)
     .WithReference(identity)
@@ -135,9 +154,12 @@ var trips = builder.AddProject<Projects.CritterCab_Trips>("trips")
 builder.Build().Run();
 ```
 
+The dashboard, OTLP, resource-service, and MCP endpoints (`5300–5307`) are pinned separately in `Properties/launchSettings.json` adjacent to `apphost.cs` — see § Port allocation.
+
 ### What every directive does
 
-- **`#:sdk Aspire.AppHost.Sdk@13.2.2`** — points the .NET 10 runtime at Aspire's AppHost SDK. Required as the first directive; equivalent to `<Project Sdk="Aspire.AppHost.Sdk/13.2.2">` in a traditional `.csproj`.
+- **`#:sdk Aspire.AppHost.Sdk@13.4.3`** — points the .NET 10 runtime at Aspire's AppHost SDK. Required as the first directive; equivalent to `<Project Sdk="Aspire.AppHost.Sdk/13.4.3">` in a traditional `.csproj`.
+- **`#:property ManagePackageVersionsCentrally=false`** — sets an MSBuild property on the synthetic `apphost.csproj`. Required for Cab: the AppHost pins its Aspire versions inline (below), but `dotnet run apphost.cs` generates a project at the repo root that inherits `Directory.Packages.props` (which enables CPM). Without this opt-out the inline versions collide with CPM (NU1008/NU1009) and the AppHost fails to restore. See § The committed Aspire 13.4 packages.
 - **`#:package <Name>@<Version>`** — adds a NuGet package reference. Equivalent to `<PackageReference>`. One per Aspire integration package needed (Postgres, SqlServer, Kafka, etc.).
 - **`#:project <relative-path-to-csproj>`** — adds a project reference. Equivalent to `<ProjectReference>`. One per Cab service the AppHost orchestrates.
 
@@ -155,6 +177,55 @@ The directives must appear before the first non-directive C# code. Top-level sta
 - **`.WithLifetime(ContainerLifetime.Persistent)`** — keeps the container running across `aspire run` restarts. Recommended for databases (avoids slow re-provisioning); skip for ephemeral resources you want fresh each run.
 
 The `#:project` directive generates the strongly-typed `Projects.CritterCab_Trips` accessor at build time. Underscores in the type name correspond to dots in the project name; the path in the directive is the source.
+
+---
+
+## Port allocation
+
+CritterCab pins **deterministic local-dev ports** instead of taking Aspire's random high-port assignment. The reason is collision avoidance: several Critter-family projects (`CritterBids`, `crittermart`, `mmo-reconnect`) run in parallel on the same developer machine, and Aspire's default random ports collide unpredictably when AppHosts spin up and down. Pinning a compact, project-specific band makes "is CritterCab already running?" answerable by looking at a port, and lets two projects' AppHosts run side by side without contention.
+
+### Cross-project band registry
+
+Each Critter project owns a distinct `5Nxx` band. CritterCab is `53xx`. (Verified clear by survey 2026-06-13; `CritterBids` and the retired `CritterSupply` still use Aspire's scatter — regularizing them is out of CritterCab's scope.)
+
+| Project | Band |
+|---|---|
+| `crittermart` | `51xx` (services) + `*090` dashboard family |
+| `mmo-reconnect` | `52xx` |
+| **CritterCab** | **`53xx`** |
+| (future) | `54xx`, `55xx`, … |
+
+### CritterCab's `53xx` map
+
+```
+AppHost / dashboard  (pinned in Properties/launchSettings.json)
+  5300 / 5301   dashboard          https / http
+  5302 / 5303   OTLP               https / http   (ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL / _HTTP_…)
+  5304 / 5305   resource service   https / http   (ASPIRE_RESOURCE_SERVICE_ENDPOINT_URL)
+  5306 / 5307   MCP endpoint       https / http   (ASPIRE_DASHBOARD_MCP_ENDPOINT_URL)
+
+Services  (pinned in apphost.cs via WithHttpsEndpoint / WithHttpEndpoint)
+  5310 5311 5312   Dispatch        https / http / grpc-reserved
+  5315 5316 5317   (next service)
+  ...              (5-apart → 16 slots; ample for the 6-8 target services)
+
+Infra host ports  (pinned in apphost.cs via WithHostPort)
+  5390 Postgres   5391 SqlServer   5392 Kafka   5393 ASB emulator
+```
+
+### The two pinning mechanisms
+
+Ports are pinned in two places, because a file-based AppHost splits them:
+
+1. **Service endpoints and infra host ports → `apphost.cs` (code).** Each service is added with `launchProfileName: null` (the service has no launch profile, so the AppHost-declared endpoints are authoritative) and pinned with `.WithHttpsEndpoint(port: slot, name: "https")` / `.WithHttpEndpoint(port: slot + 1, name: "http")`. Container resources use `.WithHostPort(int)`.
+
+2. **Dashboard / OTLP / resource / MCP → `Properties/launchSettings.json` (adjacent to `apphost.cs`).** A file-based program honors a `Properties/launchSettings.json` next to the entry file and applies the first profile by default (verified empirically — `dotnet run apphost.cs` picks it up with no `--launch-profile`). The dashboard URL comes from `applicationUrl` (→ `ASPNETCORE_URLS`); the OTLP/resource/MCP endpoints come from the `ASPIRE_DASHBOARD_*` / `ASPIRE_RESOURCE_SERVICE_ENDPOINT_URL` environment variables. This mirrors how the project-based sibling AppHosts pin theirs.
+
+### The slot convention (for `adding-a-service`)
+
+> Each new service claims the **next free `+5` slot** starting at `5310`. Ports are `slot` (https), `slot + 1` (http), `slot + 2` (reserved gRPC). gRPC normally rides the HTTPS endpoint via Kestrel HTTP/2 multiplexing, so `slot + 2` is reserved and used only if a service needs a dedicated gRPC listener.
+
+Dispatch holds `5310`. The next service to land takes `5315`, the one after `5320`, and so on. The `adding-a-service` skill references this convention; pin the new service's endpoints in `apphost.cs` as part of registering it with the AppHost.
 
 ---
 
@@ -231,7 +302,7 @@ When `aspire run` starts, the terminal prints a dashboard URL with a one-time lo
 🔍 Finding apphosts... apphost.cs
 🗄 Created settings file at 'aspire.config.json'.
 AppHost: apphost.cs
-Dashboard: https://localhost:17213/login?t=2b4a2ebc362b7fef9b5ccf73e702647b
+Dashboard: https://localhost:5300/login?t=2b4a2ebc362b7fef9b5ccf73e702647b
 Press CTRL+C to stop the apphost and exit.
 ```
 
@@ -245,7 +316,7 @@ The dashboard surfaces:
 - **Resource graph** — visual topology of dependencies (which projects reference which resources).
 - **Parameters** — set parameter values directly from the dashboard, optionally persisted to user secrets (Aspire 13.2 addition).
 
-The dashboard URL changes per run; bookmark the host (`localhost:17213`) only — the token rotates.
+The dashboard host is pinned to `localhost:5300` (see § Port allocation), so it no longer changes per run; only the login token rotates. Bookmark `localhost:5300`.
 
 For local-only dev runs without HTTPS hassles: Aspire generates a developer cert; trust it once with `dotnet dev-certs https --trust`. After that, every `aspire run` in this repo trusts cleanly.
 
@@ -342,7 +413,8 @@ var frontend = builder.AddViteApp("frontend", "../frontend")
 - **Renaming a resource without updating consumers.** `AddDatabase("trips-db")` → `GetConnectionString("trips-db")` is a tight coupling. Renaming requires a global search-replace across every service that references it.
 - **Assuming `services__name__myendpoint__0` env-var format from 13.1 still works.** Aspire 13.2 changed to scheme-based naming (`services__name__https__0`). Code that reads `IConfiguration` directly with the old key pattern silently returns null. Use `HttpClient` with `https+http://serviceName` URLs — that path is format-agnostic.
 - **Missing `#:sdk` directive.** Without it, the file-based app doesn't know it's an Aspire AppHost; runtime errors at startup. Always the first directive in `apphost.cs`.
-- **Mixing `#:sdk` and `#:package` for the AppHost SDK.** `Aspire.AppHost.Sdk` is an SDK, not a NuGet package — use `#:sdk Aspire.AppHost.Sdk@13.2.2`, not `#:package Aspire.AppHost.Sdk@13.2.2`. The 13.2 release notes have a snippet that shows `#:package` for this; treat that as a doc typo and follow the workshop and 9.5 announcement which consistently use `#:sdk`.
+- **Mixing `#:sdk` and `#:package` for the AppHost SDK.** `Aspire.AppHost.Sdk` is an SDK, not a NuGet package — use `#:sdk Aspire.AppHost.Sdk@13.4.3`, not `#:package Aspire.AppHost.Sdk@13.4.3`. The 13.2 release notes have a snippet that shows `#:package` for this; treat that as a doc typo and follow the workshop and 9.5 announcement which consistently use `#:sdk`.
+- **Forgetting the CPM opt-out on the file-based AppHost.** `dotnet run apphost.cs` builds a synthetic `apphost.csproj` at the repo root that inherits `Directory.Packages.props`. With CPM enabled, the inline `#:package ...@version` directives throw NU1008 (PackageReference cannot define Version under CPM) and the SDK's implicit `Aspire.Hosting.AppHost` reference throws NU1009. The `#:property ManagePackageVersionsCentrally=false` directive is mandatory for any file-based program living under a CPM-enabled `Directory.Packages.props`.
 - **Running `aspire agent init` without an existing `apphost.cs`.** The CLI needs an AppHost to anchor MCP configuration against. Create the AppHost first, run a sanity-check `aspire run`, then `aspire agent init`.
 - **Trusting `aspire agent init` to install Cab-specific skills.** It installs Aspire-specific skill files; Cab's `docs/skills/` library is separate and managed under `agentskills.io` conventions. Don't expect overlap; both are useful and complementary.
 - **Treating the AppHost as production infrastructure.** It isn't. Aspire is local-dev orchestration; production Cab runs on Azure per `ADR-007` (or the eventual deployment ADR). Don't put production-only secrets, real Azure connection strings, or anything you wouldn't share in a screenshot into `apphost.cs`.

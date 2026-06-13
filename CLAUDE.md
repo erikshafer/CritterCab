@@ -78,7 +78,7 @@ The Critter Stack is CritterCab's committed foundational technology (ADR-010). K
 | Document store (SQL Server) | Polecat 3.1+ |
 | Database schema management | Weasel (implicit via Marten/Polecat) |
 | Integration test host | Alba |
-| Local-dev orchestration | Aspire 13.3 |
+| Local-dev orchestration | Aspire 13.4.3 |
 | High-volume telemetry transport | Kafka (via Wolverine's Kafka transport) |
 | Business-event transport | Azure Service Bus |
 | Polyglot service | Go (first non-.NET service, participates over gRPC) |

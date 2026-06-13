@@ -51,7 +51,7 @@ Work in this order. Each step has a natural exit condition; don't move on until 
 3. **Create the service project directory and `.csproj`.** Conventions in [Solution and Folder Layout](#solution-and-folder-layout) below.
 4. **Add the project to `CritterCab.slnx`.** Either via `dotnet sln add` or by editing the `.slnx` XML directly.
 5. **Provision the service's database in the Aspire AppHost.** Postgres for Marten services, SQL Server for Polecat services. Naming convention in [Database Isolation and Naming](#database-isolation-and-naming).
-6. **Register the service project in the Aspire AppHost.** Wire the database reference and any transport dependencies (Kafka, ASB) the service consumes.
+6. **Register the service project in the Aspire AppHost.** Wire the database reference and any transport dependencies (Kafka, ASB) the service consumes, and pin the service's http/https endpoints to the next free `+5` port slot (see `aspire` skill § Port allocation).
 7. **Author `Program.cs`** as a stub composition root with health checks and the minimum Wolverine/store wiring. The full pattern is in `service-bootstrap` (Phase 2).
 8. **Create the paired test project.** Conventions in [Test Project Pairing](#test-project-pairing).
 9. **Write a per-service `README.md`** — what the service owns, what its proto contract is (if any), and what its dependencies are.
@@ -67,6 +67,9 @@ CritterCab uses the `.slnx` solution format with two top-level source folders.
 
 ```
 CritterCab/
+├── apphost.cs                            # Aspire AppHost (single-file, repo root)
+├── Properties/
+│   └── launchSettings.json               # AppHost dashboard/OTLP/MCP port pins (5300-5307)
 ├── CritterCab.slnx                       # solution file (XML format)
 ├── Directory.Build.props                 # shared compiler settings
 ├── Directory.Packages.props              # central package versions
@@ -74,8 +77,6 @@ CritterCab/
 ├── docs/                                 # design artifacts
 ├── protos/                               # cross-service contracts (per ADR-009)
 ├── src/
-│   ├── AppHost/                          # Aspire AppHost (single-file apphost.cs)
-│   │   └── apphost.cs
 │   ├── CritterCab.Trips/
 │   │   ├── CritterCab.Trips.csproj
 │   │   ├── Program.cs
@@ -102,7 +103,7 @@ CritterCab/
 |---|---|---|
 | Service project | `CritterCab.<ServiceName>` | `CritterCab.Trips` |
 | Test project | `CritterCab.<ServiceName>.Tests` | `CritterCab.Trips.Tests` |
-| AppHost (single per repo) | `AppHost` (project name) | `src/AppHost/apphost.cs` |
+| AppHost (single per repo) | file-based, repo root | `apphost.cs` |
 
 Service names use the bounded-context name from `docs/vision/README.md` § Tentative Bounded Contexts, in PascalCase. Database names follow a different convention — see below.
 
@@ -208,9 +209,9 @@ The Aspire AppHost provisions each database independently; the service receives 
 
 ## Aspire AppHost Registration
 
-The AppHost lives at `src/AppHost/apphost.cs` as a single-file Aspire application (per the .NET 10 file-based application support and our Aspire 13 single-file apphost commitment). Each service registers with the AppHost, declares its database, and references any transport infrastructure it needs.
+The AppHost lives at the repository root as `apphost.cs`, a single-file Aspire application (per the .NET 10 file-based application support and our Aspire 13 single-file apphost commitment). Each service registers with the AppHost, declares its database, and references any transport infrastructure it needs.
 
-A new Marten-based service is added to `apphost.cs` roughly like this (conceptual — exact single-file syntax for Aspire 13.2 is documented in the `aspire` skill, Phase 2):
+A new Marten-based service is added to `apphost.cs` roughly like this (conceptual — exact single-file syntax for Aspire 13.4 is documented in the `aspire` skill, Phase 2):
 
 ```csharp
 // In apphost.cs
@@ -224,8 +225,12 @@ var sqlserver = builder.AddSqlServer("sqlserver");
 // Per-service database
 var tripsDb = postgres.AddDatabase("crittercab_trips");
 
-// The service itself
-builder.AddProject<Projects.CritterCab_Trips>("trips")
+// The service itself — endpoints pinned to the next free +5 port slot
+// (see aspire skill § Port allocation); launchProfileName: null because the
+// service has no launch profile, so AppHost-declared ports are authoritative.
+builder.AddProject<Projects.CritterCab_Trips>("trips", launchProfileName: null)
+    .WithHttpsEndpoint(port: 5315, name: "https")
+    .WithHttpEndpoint(port: 5316, name: "http")
     .WithReference(tripsDb)
     .WaitFor(tripsDb);
 
@@ -236,9 +241,10 @@ For services that consume Kafka or ASB, add the transport resource and `.WithRef
 
 The `aspire` skill (Phase 2) documents:
 
-- The exact single-file apphost syntax (file-based application directives).
+- The exact single-file apphost syntax (file-based application directives, including the `#:property ManagePackageVersionsCentrally=false` CPM opt-out).
 - Connection-string injection patterns.
 - Adding the EH Emulator and ASB Emulator as resources.
+- Port allocation: the `53xx` band and the `+5` per-service slot convention.
 - `aspire run` and the dashboard.
 
 For now, this skill's responsibility ends at "the service is registered and its database is provisioned."

@@ -1,6 +1,13 @@
-#:sdk Aspire.AppHost.Sdk@13.3.0
+#:sdk Aspire.AppHost.Sdk@13.4.3
 
-#:package Aspire.Hosting.PostgreSQL@13.3.0
+// The file-based AppHost is self-contained: it pins its Aspire versions inline
+// via #:package directives. Opt out of the repo-wide Central Package Management
+// (Directory.Packages.props) for the synthetic apphost.csproj — otherwise the
+// inline versions collide with CPM (NU1008) and the SDK's implicit
+// Aspire.Hosting.AppHost reference collides with its PackageVersion entry (NU1009).
+#:property ManagePackageVersionsCentrally=false
+
+#:package Aspire.Hosting.PostgreSQL@13.4.3
 
 #:project ./src/CritterCab.Dispatch/CritterCab.Dispatch.csproj
 
@@ -10,13 +17,21 @@ var builder = DistributedApplication.CreateBuilder(args);
 
 var postgres = builder.AddPostgres("postgres")
     .WithImageTag("18-alpine")
+    .WithHostPort(5390)
     .WithLifetime(ContainerLifetime.Persistent);
 
 var dispatchDb = postgres.AddDatabase("crittercab_dispatch");
 
 // === Services ===
 
-builder.AddProject<Projects.CritterCab_Dispatch>("dispatch")
+// Pinned to CritterCab's 5300-5307 dashboard band's service slot for Dispatch
+// (5310 https / 5311 http). launchProfileName: null because the service has no
+// launch profile — the AppHost-declared endpoints are authoritative. gRPC rides
+// the HTTPS endpoint via Kestrel HTTP/2; 5312 is reserved if a dedicated gRPC
+// listener is ever needed. See docs/skills/aspire/SKILL.md § Port allocation.
+builder.AddProject<Projects.CritterCab_Dispatch>("dispatch", launchProfileName: null)
+    .WithHttpsEndpoint(port: 5310, name: "https")
+    .WithHttpEndpoint(port: 5311, name: "http")
     .WithReference(dispatchDb)
     .WaitFor(dispatchDb);
 
