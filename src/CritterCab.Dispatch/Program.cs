@@ -56,6 +56,12 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddHealthChecks();
 builder.Services.AddWolverineHttp();
 
+// Enum names on the wire restore the documented contract for every HTTP endpoint.
+// Wolverine HTTP shares the Minimal-API JsonOptions this configures.
+builder.Services.ConfigureSystemTextJsonForWolverineOrMinimalApi(options =>
+    options.SerializerOptions.Converters.Add(
+        new System.Text.Json.Serialization.JsonStringEnumConverter()));
+
 // Wolverine
 builder.Host.UseWolverine(opts =>
 {
@@ -71,4 +77,13 @@ var app = builder.Build();
 app.MapHealthChecks("/health");
 app.MapWolverineEndpoints();
 
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+    app.UseSwaggerUI(c => c.SwaggerEndpoint("/openapi/v1.json", "CritterBids API"));
+    app.MapGet("/", () => Results.Redirect("/swagger"));
+}
+
 return await app.RunJasperFxCommands(args);
+
+public partial class Program { }

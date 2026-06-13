@@ -6,10 +6,20 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <Authors>Erik Shafer</Authors>
+        <RepositoryUrl>https://github.com/erikshafer/crittercab</RepositoryUrl>
+        <PackageProjectUrl>https://event-sourcing.dev/</PackageProjectUrl>
     </PropertyGroup>
     <PropertyGroup>
         <RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>
         <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
         <CodeAnalysisTreatWarningsAsErrors>false</CodeAnalysisTreatWarningsAsErrors>
+        <AnalysisLevel>latest-Recommended</AnalysisLevel>
+        <AnalysisMode>Recommended</AnalysisMode>
+    </PropertyGroup>
+    <ItemGroup>
+        <InternalsVisibleTo Include="$(AssemblyName).Tests" />
+    </ItemGroup>
+    <PropertyGroup>
+        <NoWarn>$(NoWarn);NU1507</NoWarn>
     </PropertyGroup>
 </Project>
