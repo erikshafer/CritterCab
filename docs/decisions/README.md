@@ -21,3 +21,4 @@ For the template and guidelines on when to write an ADR, see [ADR-001](./001-rec
 | [013](./013-shared-cross-bc-identifier.md) | Shared Cross-BC Identifier | Accepted |
 | [014](./014-asb-topic-naming-convention.md) | Azure Service Bus Topic Naming Convention | Accepted |
 | [015](./015-driver-app-projection-timing-budget.md) | Driver-App Projection Timing Budget | Accepted |
+| [016](./016-frontend-live-update-transport.md) | Frontend Live-Update Transport | Accepted |
