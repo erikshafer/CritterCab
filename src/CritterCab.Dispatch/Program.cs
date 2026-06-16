@@ -1,3 +1,4 @@
+using CritterCab.Dispatch.CandidateSelection;
 using CritterCab.Dispatch.FareQuoting;
 using CritterCab.Dispatch.RideRequesting;
 using JasperFx;
@@ -28,12 +29,15 @@ if (!string.IsNullOrEmpty(connectionString))
         opts.Events.AddEventType<RideRequested>();
         opts.Events.AddEventType<FareQuoted>();
         opts.Events.AddEventType<FareQuoteFailed>();
+        opts.Events.AddEventType<CandidatesSelected>();
+        opts.Events.AddEventType<NoCandidatesAvailable>();
 
         // Projections
         opts.Projections.LiveStreamAggregation<RideRequest>();
         opts.Projections.Add(new ActiveRequestsByRiderProjection(), ProjectionLifecycle.Inline);
         opts.Projections.Add(new RequestTimelineProjection(), ProjectionLifecycle.Inline);
         opts.Projections.Add(new FareQuoteAttemptsProjection(), ProjectionLifecycle.Inline);
+        opts.Projections.Add(new RequestRoundsProjection(), ProjectionLifecycle.Inline);
     })
     .IntegrateWithWolverine(integration =>
     {
@@ -51,6 +55,13 @@ builder.Services.AddSingleton<IPricingClient, PricingClientStub>();
 // 2-second cooldown); Slice 11's DispatchPolicyConfigured will source these
 // from the DispatchPolicy projection instead.
 builder.Services.AddSingleton(FareQuoteRetryPolicy.Default);
+
+// Nearby drivers source — stub until transport is decided (parking-lot #4).
+builder.Services.AddSingleton<INearbyAvailableDriversSource, NearbyAvailableDriversStub>();
+
+// Dispatch policy — hardcoded defaults per W001 §5.3; Slice 11 swaps for the
+// DispatchPolicyConfigured-fed projection.
+builder.Services.AddSingleton(DispatchPolicySnapshot.Default);
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddHealthChecks();
