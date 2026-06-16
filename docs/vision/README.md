@@ -6,7 +6,7 @@ CritterCab is a reference architecture for a ride-sharing platform, built on the
 
 Where CritterSupply explores a modular monolith for e-commerce and CritterBids explores saga-driven auction orchestration, CritterCab focuses on distributed, event-driven services communicating over gRPC. The project exists in large part to showcase Wolverine's gRPC feature set, which shipped in Wolverine 5.32. The ride-sharing domain was chosen because its natural shape (driver location streaming, rider-driver matching, trip lifecycle) exercises every mode of gRPC communication while providing room for event sourcing, high-volume telemetry, and multi-transport messaging.
 
-This document captures the current state of our thinking as **version 0.4**. Bounded contexts, technology choices, and design principles will shift as Event Modeling and real implementation pressure the design. When they do, this document gets updated, and significant decisions get recorded as ADRs in [docs/decisions](../decisions).
+This document captures the current state of our thinking as **version 0.6**. Bounded contexts, technology choices, and design principles will shift as Event Modeling and real implementation pressure the design. When they do, this document gets updated, and significant decisions get recorded as ADRs in [docs/decisions](../decisions).
 
 ## Goals
 
@@ -146,6 +146,34 @@ The resulting document layers, each with a clear job:
 
 Azure (ADR-007). The specific hosting model — Container Apps, App Service, or AKS — is deferred until the first cross-service integration is demonstrable end-to-end. Actually-deployed is a stated goal. Conference demos include a reachable URL.
 
+### Frontend
+
+The following working direction was adopted in v0.6 based on the [sibling-repo frontend survey](../research/frontend-survey-sibling-repos.md) and ADR-016. It is working direction, not a final commitment — revisions are expected as frontend implementation begins.
+
+**Stack (convergent with CritterBids and mmo-reconnect):**
+
+- React 19 / Vite 8 / TypeScript 6
+- Tailwind v4 (`@tailwindcss/vite`, CSS-variable theme, no `tailwind.config.js`)
+- TanStack Query v5 (server-state cache)
+- TanStack Router (client routing)
+- shadcn/ui + `class-variance-authority` + `clsx` + `tailwind-merge` (component layer)
+- Zod schemas in the shared package (wire-contract types — the frontend analogue of the backend Contracts assembly)
+- react-hook-form + `@hookform/resolvers/zod` (forms with validation)
+- Vitest 4 + Testing Library + jsdom (unit/component tests)
+- Playwright (end-to-end, in the `e2e` workspace)
+- ESLint flat config (`typescript-eslint`)
+- Node `>=22` (engine floor)
+
+**Live-update transport:** SignalR (`@microsoft/signalr` v10) via the transport-agnostic push→Query-cache-bridge pattern from CritterBids. Components call `useListen`/`useConnectionState` and read from the TanStack Query cache; the SignalR transport is plugged in at the `createConnection` seam and is not visible to component code. See ADR-016.
+
+**App structure:** audience-SPA monorepo with three independently-buildable SPAs sharing a contracts/theme/transport core:
+
+- `rider/` — rider-facing app (trip booking, live trip tracking)
+- `driver/` — driver-facing app (offer receipt, trip mode, GPS context)
+- `operations/` — internal ops dashboard (live map, manual admin commands)
+- `shared/` — shared contracts package, SignalR provider factory, Tailwind v4 theme (see §Open Questions for package-shape decision)
+- `e2e/` — Playwright harness
+
 ### Deliberately Not Using
 
 - **RabbitMQ.** Not because it is inappropriate for the domain, but because the showcase goals favor breadth of transport experience; Kafka and ASB earn the slots.
@@ -176,13 +204,9 @@ The following principles guide decisions when they come up. They are descriptive
 
 The following decisions are intentionally deferred. Revisiting them too early risks premature commitment; revisiting them too late risks drift. Each has a trigger that indicates the right time to pick it up.
 
-**Frontend architecture.** Live-update transport (SignalR, gRPC-web streaming, or WebSockets), component library, and app structure are deferred pending lessons from the CritterBids frontend work. The trigger is: CritterBids lands on a stable live-update pattern, or CritterCab reaches the point where a driver or rider UI is needed to make further backend progress meaningful.
-
 **Microsoft Graph integration depth.** Current plan covers sign-up events only. Full user-lifecycle integration (password resets, MFA enrollment, account blocks) is deferred until the Identity BC is actively being worked.
 
 **Operations tenant.** Real workforce Entra tenant setup is deferred. For now, the Operations side is stubbed. The trigger is: Operations BC is actively being built, and the auth story for ops users becomes load-bearing.
-
-**Map library for frontend.** Parked alongside the rest of the frontend.
 
 **Rust as a second polyglot language.** Go is the first polyglot service. Rust remains a candidate for a second service if and when one is motivated by actual need.
 
@@ -197,6 +221,9 @@ Questions that are currently unresolved and that will resolve through Event Mode
 - Final form of the conference-demo scenario: pre-seeded simulated drivers only, audience-member drivers in addition, or both?
 - Final narrative format: freeform markdown with structured headers, a Gherkin-flavored template, or a stricter schema-backed format? The NDD-informed direction is committed; the specific template evolves as we write the first narratives.
 - **Suspension / reinstatement / deactivation BC placement.** Vision-doc v0.1 places these under Onboarding's lifecycle scope; [Workshop 003](../workshops/003-onboarding-domain-story.md) §5.2 finding B6 surfaced the alternative that the post-approval suspension lifecycle may belong to a Trust & Safety or Operations BC rather than Onboarding (the vetting lifecycle and the disqualification lifecycle share an actor but differ in trigger and reviewer). **Trigger to resolve:** when the suspension lifecycle is first modeled (likely a future workshop after Onboarding's W004).
+- **Map library for the frontend.** Ride-sharing is map-centric: live driver positions, pickup/dropoff pins, route overlays, ops live map. Candidates include MapLibre GL, Leaflet, and deck.gl. The choice couples to the backend geospatial representation (H3 cells vs. GeoJSON — see `docs/research/ride-sharing-lessons-learned.md` Lesson 4) and deserves its own evaluation once that representation is settled. Neither sibling repository (mmo-reconnect, CritterBids) has a geospatial UI, so no tested choice can be inherited. **Trigger to resolve:** a dedicated map-library spike session, after the Telemetry BC's geospatial representation is decided.
+- **Shared contracts package shape: one `@crittercab/shared` or per-BC packages?** CritterBids uses a single shared package. CritterCab's separately-deployed-services stance and BC-owned-language convention may argue for per-published-language packages instead, embodying in TypeScript what the context map says in DDD vocabulary. This question only becomes load-bearing when the first frontend package is bootstrapped. **Trigger to resolve:** the first frontend implementation session.
+- **Frontend monorepo or separate frontend repos?** The `rider/driver/operations` SPA structure adopted in v0.6 co-locates three SPAs in one npm-workspaces monorepo (mirroring CritterBids). CritterCab's "separately deployable per BC" ethos raises the question of whether the frontends should likewise be separable — and whether a shared package across repo boundaries is worth the tooling cost. **Trigger to resolve:** the first frontend implementation session, once the deployment model for the frontend surfaces is clearer.
 
 ## Related Documents
 
@@ -220,3 +247,4 @@ Cross-cutting:
 - **v0.3** (2026-04-23): Cross-referenced ADRs 001–009 throughout. Committed Azure as the deployment platform (ADR-007) and Azure Service Bus as a planned transport (ADR-005). Removed resolved items from Open Questions and Explicitly Parked. Added ADR references to Design Principles.
 - **v0.4** (2026-05-19): Added cross-reference to the new [`docs/context-map/README.md`](../context-map/README.md) foundation artifact from §Methodology's DDD strategic-design bullet. Closes the "first-class context map" methodology commitment that has been open since v0.1; the artifact rolls up cross-BC relationships from ADRs 006, 013, 014 and Workshops 001 and 002 into a single named place using DDD strategic-design vocabulary.
 - **v0.5** (2026-05-26): Marked Domain Storytelling as **Exercised** per [Workshop 003 — Onboarding Domain Story](../workshops/003-onboarding-domain-story.md), closing the "Pilot Domain Storytelling" methodology commitment that has been open since v0.1. DS committed as a permanent design-phase technique alongside Event Modeling. Adds one new open question (suspension / reinstatement / deactivation BC placement) surfaced by W003 §5.2 finding B6.
+- **v0.6** (2026-06-16): Unparked the frontend architecture. The vision's explicit unpark trigger — "CritterBids lands on a stable live-update pattern" — was discharged by the [sibling-repo frontend survey](../research/frontend-survey-sibling-repos.md) (2026-06-16), which confirmed that `CritterBids/client/shared/src/signalr/provider.tsx` is a generic, packaged `createSignalRProvider<TMessage>` shared across three SPAs. Adopted the convergent house stack (React 19 / Vite 8 / TS 6 / Tailwind v4 / TanStack Query) and the audience-SPA monorepo shape (`rider/driver/operations`) as working direction in §Tentative Technology Stack. Added ADR-016 (Frontend Live-Update Transport) — SignalR as the browser-client push transport, transport-agnostic push→Query-cache-bridge architecture. Removed "Frontend architecture" and "Map library for frontend" from §Explicitly Parked; added three new §Open Questions entries (map library, contracts-package shape, monorepo vs. separate repos). Drove by [`docs/prompts/frontend-architecture-unpark.md`](../prompts/frontend-architecture-unpark.md).
