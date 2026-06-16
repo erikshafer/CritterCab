@@ -1,5 +1,6 @@
 using System.Net;
 using Alba;
+using CritterCab.Dispatch.CandidateSelection;
 using CritterCab.Dispatch.FareQuoting;
 using CritterCab.Dispatch.RideRequesting;
 using Marten;
@@ -44,13 +45,15 @@ public class Slice52FareQuotedFailurePathTests : IDisposable
         await using var session = _host.Services.GetRequiredService<IDocumentStore>().LightweightSession();
         var events = await session.Events.FetchStreamAsync(response.RideRequestId);
 
-        events.Count.ShouldBe(2);
+        // CandidateSelectionAutomation fires on FareQuoted; default empty stub → NoCandidatesAvailable.
+        events.Count.ShouldBe(3);
         events[0].Data.ShouldBeOfType<RideRequested>();
         events[1].Data.ShouldBeOfType<FareQuoted>();
+        events[2].Data.ShouldBeOfType<NoCandidatesAvailable>();
 
         var timeline = await session.LoadAsync<RequestTimeline>(response.RideRequestId);
         timeline.ShouldNotBeNull();
-        timeline.Entries.Count.ShouldBe(2);
+        timeline.Entries.Count.ShouldBe(3);
         timeline.Entries[1].EventType.ShouldBe(nameof(FareQuoted));
 
         // FareQuoteAttempts records the terminal outcome; the in-flight attempt

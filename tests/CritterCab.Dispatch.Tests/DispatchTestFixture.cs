@@ -1,4 +1,5 @@
 using Alba;
+using CritterCab.Dispatch.CandidateSelection;
 using CritterCab.Dispatch.FareQuoting;
 using Microsoft.Extensions.DependencyInjection;
 using Testcontainers.PostgreSql;
@@ -21,6 +22,7 @@ public class DispatchTestFixture : IAsyncLifetime
     public IPricingClient PricingClient { get; set; } = new PricingClientStub();
     public FareQuoteRetryPolicy RetryPolicy { get; set; } =
         new FareQuoteRetryPolicy(MaxAttempts: 3, Cooldown: TimeSpan.FromMilliseconds(10));
+    public INearbyAvailableDriversSource NearbyDriversSource { get; set; } = new NearbyAvailableDriversStub();
 
     public async Task InitializeAsync()
     {
@@ -34,6 +36,9 @@ public class DispatchTestFixture : IAsyncLifetime
             {
                 services.AddSingleton<IPricingClient>(_ => new ForwardingPricingClient(() => PricingClient));
                 services.AddSingleton(_ => RetryPolicy);
+                services.AddSingleton<INearbyAvailableDriversSource>(
+                    _ => new ForwardingNearbyDriversSource(() => NearbyDriversSource));
+                services.AddSingleton(DispatchPolicySnapshot.Default);
             });
         });
     }
@@ -53,6 +58,19 @@ public class DispatchTestFixture : IAsyncLifetime
             GetFareQuoteRequest request,
             CancellationToken cancellationToken = default) =>
             inner().GetFareQuoteAsync(request, cancellationToken);
+    }
+
+    // Stable singleton that defers every call to the fixture's current
+    // NearbyDriversSource — same forwarding pattern as ForwardingPricingClient.
+    private sealed class ForwardingNearbyDriversSource(Func<INearbyAvailableDriversSource> inner)
+        : INearbyAvailableDriversSource
+    {
+        public Task<IReadOnlyList<NearbyDriver>> GetDriversAsync(
+            Location pickup,
+            int searchRadiusMeters,
+            VehicleClass vehicleClassRequired,
+            CancellationToken ct = default) =>
+            inner().GetDriversAsync(pickup, searchRadiusMeters, vehicleClassRequired, ct);
     }
 }
 

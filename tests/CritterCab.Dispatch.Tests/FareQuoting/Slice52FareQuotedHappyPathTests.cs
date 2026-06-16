@@ -1,5 +1,6 @@
 using System.Net;
 using Alba;
+using CritterCab.Dispatch.CandidateSelection;
 using CritterCab.Dispatch.FareQuoting;
 using CritterCab.Dispatch.RideRequesting;
 using Marten;
@@ -25,9 +26,9 @@ public class Slice52FareQuotedHappyPathTests
     [Fact]
     public async Task fare_quote_automation_records_fare_quoted_on_stream()
     {
-        // Reset to the canned $21.50 stub — fixture state is shared across
-        // test classes; failure-path tests may have left a failing stub.
+        // Reset stubs — fixture state is shared across test classes.
         _fixture.PricingClient = new PricingClientStub();
+        _fixture.NearbyDriversSource = new NearbyAvailableDriversStub(); // empty → NoCandidatesAvailable
 
         var riderId = Guid.CreateVersion7();
         var command = new SubmitRideRequest(
@@ -53,7 +54,9 @@ public class Slice52FareQuotedHappyPathTests
         await using var session = _host.Services.GetRequiredService<IDocumentStore>().LightweightSession();
         var events = await session.Events.FetchStreamAsync(response.RideRequestId);
 
-        events.Count.ShouldBe(2);
+        // CandidateSelectionAutomation reacts to FareQuoted and appends a 3rd event.
+        // Default stub (empty Drivers) → NoCandidatesAvailable.
+        events.Count.ShouldBe(3);
         events[0].Data.ShouldBeOfType<RideRequested>();
 
         var fareQuoted = events[1].Data.ShouldBeOfType<FareQuoted>();
@@ -67,12 +70,15 @@ public class Slice52FareQuotedHappyPathTests
         fareQuoted.FareBreakdown.FeesMinorUnits.ShouldBeNull();
         fareQuoted.PricingPolicyVersion.ShouldNotBeNullOrWhiteSpace();
 
+        events[2].Data.ShouldBeOfType<NoCandidatesAvailable>();
+
         var timeline = await session.LoadAsync<RequestTimeline>(response.RideRequestId);
         timeline.ShouldNotBeNull();
-        timeline.Entries.Count.ShouldBe(2);
+        timeline.Entries.Count.ShouldBe(3);
         timeline.Entries[0].EventType.ShouldBe(nameof(RideRequested));
         timeline.Entries[1].EventType.ShouldBe(nameof(FareQuoted));
         timeline.Entries[1].Summary.ShouldContain("$21.50");
+        timeline.Entries[2].EventType.ShouldBe(nameof(NoCandidatesAvailable));
 
         var attempts = await session.LoadAsync<FareQuoteAttempts>(response.RideRequestId);
         attempts.ShouldNotBeNull();
