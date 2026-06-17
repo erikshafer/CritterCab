@@ -197,3 +197,4 @@ Driver-decline is the recommended next narrative.
 ## Document History
 
 - **v0.1** (2026-05-04): Initial authoring. Two-Moment driver-side spine through happy-path slices 5.4, 5.5, and 5.10, paired structurally with narrative 001 (rider POV of the same incident). Format conventions inherited from narrative 001 with one small README extension added (two-layer fidelity convention). Two methodology log entries authored alongside (entries 002 and 003).
+- **v0.2** (2026-06-16): Authorial-call amendment. The upstream precondition slice this narrative's Moment 1 references ("upstream of his vantage" — `CandidatesSelected`) now has runnable Alba coverage via PR implementing W001 §5.3. Slice 5.3 is not in this narrative's `slices_implemented` list (narrative 002 implements 5.4, 5.5, 5.10); this note records that the precondition has implemented GWT coverage and that no narrative-prose change is needed. Amendment lands in the authorial-call layer.
