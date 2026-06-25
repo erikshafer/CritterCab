@@ -20,7 +20,12 @@ This file is the working ledger between retros that surface gaps and the tidy se
 
 ## Open debt
 
-*(none — the initial 7-row backlog from PR #4 was drained on 2026-05-08; see [Recently drained](#recently-drained).)*
+### `wolverine-handlers` (or a new `wolverine-marten-automation` skill)
+
+Both rows encode the same automation idiom and should be drained together; the tidy session decides whether they extend [`wolverine-handlers`](./wolverine-handlers/SKILL.md) or warrant a new `wolverine-marten-automation` skill.
+
+- **Marker-interface union return type.** No skill encodes the pattern where an automation returns a marker interface (`ICandidateSelectionOutcome`, `IFareQuoteOutcome`) implemented by 2+ concrete events. Wolverine's `DetermineEventCaptureHandling` treats any non-`IEnumerable<object>` return as a single-event append of the runtime type, so the interface is purely compile-time documentation of a decision's possible outcomes. Pattern has appeared **3×** (the encoding threshold). Retro source: [implementations/005](../retrospectives/implementations/005-dispatch-slice-5-3-candidates-selected.md) (first flagged in 004).
+- **Event-triggered automation handler shape.** No skill encodes the shape `Handle(DomainEvent @event, [WriteAggregate(nameof(...))] Aggregate, ...)` — a static automation reacting to a domain event (via `UseFastEventForwarding`) that loads the aggregate by the named stream-id property, which works even when the trigger is a non-first stream event. Used by `FareQuoteAutomation` and `CandidateSelectionAutomation`. Retro source: [implementations/005](../retrospectives/implementations/005-dispatch-slice-5-3-candidates-selected.md).
 
 ---
 
@@ -51,3 +56,4 @@ Older entries drop off; the retros and commits remain authoritative.
 
 - **2026-05-08.** Initial authoring. Seven rows from the post-D→B→C session — five `marten-*` Marten 8.x / JasperFx namespace extractions plus two `service-bootstrap` registration prerequisites. Three other gaps from the same session (`RunOaktonCommandsAsync` → `RunJasperFxCommands`, `protobuf-contracts` directory layout, `service-bootstrap`/`aspire` connection-string contradiction) were fixed in-flight under the session-runner-blocking exception and do not appear here.
 - **2026-05-08 (later same day).** Initial 7-row backlog drained via the first skill-tidy session. `Open debt` reset to empty. Retro at [`docs/retrospectives/skills-tidy-marten-and-bootstrap.md`](../retrospectives/skills-tidy-marten-and-bootstrap.md).
+- **2026-06-25.** Registered two at-threshold rows surfaced by retro 005 (slice 5.3) and carried in the 2026-06-16 post-slice-5.3 handoff: the marker-interface union return type and the event-triggered automation handler shape, both grouped under `wolverine-handlers` (or a possible new `wolverine-marten-automation` skill). Registering, not fixing — the fix is a future `tidy: skills` session. The **bundling-rule encoding** gap (also flagged past-threshold in retro 005 and the handoff) was deliberately *not* registered: neither source names a target skill, and this file's convention requires a row to name the skill. It stays for a session that can ground the target.

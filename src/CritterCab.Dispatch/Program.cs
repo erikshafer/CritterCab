@@ -91,7 +91,7 @@ app.MapWolverineEndpoints();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
-    app.UseSwaggerUI(c => c.SwaggerEndpoint("/openapi/v1.json", "CritterBids API"));
+    app.UseSwaggerUI(c => c.SwaggerEndpoint("/openapi/v1.json", "CritterCab Dispatch API"));
     app.MapGet("/", () => Results.Redirect("/swagger"));
 }
 
