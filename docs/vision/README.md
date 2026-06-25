@@ -6,7 +6,7 @@ CritterCab is a reference architecture for a ride-sharing platform, built on the
 
 Where CritterSupply explores a modular monolith for e-commerce and CritterBids explores saga-driven auction orchestration, CritterCab focuses on distributed, event-driven services communicating over gRPC. The project exists in large part to showcase Wolverine's gRPC feature set, which shipped in Wolverine 5.32. The ride-sharing domain was chosen because its natural shape (driver location streaming, rider-driver matching, trip lifecycle) exercises every mode of gRPC communication while providing room for event sourcing, high-volume telemetry, and multi-transport messaging.
 
-This document captures the current state of our thinking as **version 0.6**. Bounded contexts, technology choices, and design principles will shift as Event Modeling and real implementation pressure the design. When they do, this document gets updated, and significant decisions get recorded as ADRs in [docs/decisions](../decisions).
+This document captures the current state of our thinking as **version 0.7**. Bounded contexts, technology choices, and design principles will shift as Event Modeling and real implementation pressure the design. When they do, this document gets updated, and significant decisions get recorded as ADRs in [docs/decisions](../decisions).
 
 ## Goals
 
@@ -141,6 +141,7 @@ The resulting document layers, each with a clear job:
 
 - **OpenTelemetry** distributed tracing across gRPC, Wolverine, Kafka, and ASB
 - **.NET Aspire dashboard** or Jaeger for trace visualization (TBD)
+- **CritterWatch** (JasperFx's Wolverine/Marten/Polecat monitoring console) for live node/agent/endpoint health and messaging topology — complementary to OpenTelemetry's request traces, not redundant with them. CritterWatch depends on RabbitMQ for its telemetry/control plane, which CritterCab provisions as tooling-only infrastructure ([ADR-017](../decisions/017-rabbitmq-for-critterwatch.md))
 
 ### Deployment
 
@@ -176,7 +177,7 @@ The following working direction was adopted in v0.6 based on the [sibling-repo f
 
 ### Deliberately Not Using
 
-- **RabbitMQ.** Not because it is inappropriate for the domain, but because the showcase goals favor breadth of transport experience; Kafka and ASB earn the slots.
+- **RabbitMQ — for domain flows.** No domain event, command, query, or stream rides RabbitMQ; the showcase goals favor breadth of transport experience, and Kafka and ASB earn the domain slots. **One scoped exception:** RabbitMQ *is* provisioned as the telemetry/control backplane for the **CritterWatch** monitoring console, which depends on it ([ADR-017](../decisions/017-rabbitmq-for-critterwatch.md)). That is tooling infrastructure, not a domain transport — the same out-of-scope-category move ADR-016 made for browser-client push (SignalR).
 - **Rust (for now).** Go is the first polyglot choice. Rust remains a candidate for a second polyglot service if and when one is justified.
 - **Clean Architecture and Onion Architecture.** The project uses Critter Stack idioms and vertical slices rather than imported abstractions.
 
@@ -248,3 +249,4 @@ Cross-cutting:
 - **v0.4** (2026-05-19): Added cross-reference to the new [`docs/context-map/README.md`](../context-map/README.md) foundation artifact from §Methodology's DDD strategic-design bullet. Closes the "first-class context map" methodology commitment that has been open since v0.1; the artifact rolls up cross-BC relationships from ADRs 006, 013, 014 and Workshops 001 and 002 into a single named place using DDD strategic-design vocabulary.
 - **v0.5** (2026-05-26): Marked Domain Storytelling as **Exercised** per [Workshop 003 — Onboarding Domain Story](../workshops/003-onboarding-domain-story.md), closing the "Pilot Domain Storytelling" methodology commitment that has been open since v0.1. DS committed as a permanent design-phase technique alongside Event Modeling. Adds one new open question (suspension / reinstatement / deactivation BC placement) surfaced by W003 §5.2 finding B6.
 - **v0.6** (2026-06-16): Unparked the frontend architecture. The vision's explicit unpark trigger — "CritterBids lands on a stable live-update pattern" — was discharged by the [sibling-repo frontend survey](../research/frontend-survey-sibling-repos.md) (2026-06-16), which confirmed that `CritterBids/client/shared/src/signalr/provider.tsx` is a generic, packaged `createSignalRProvider<TMessage>` shared across three SPAs. Adopted the convergent house stack (React 19 / Vite 8 / TS 6 / Tailwind v4 / TanStack Query) and the audience-SPA monorepo shape (`rider/driver/operations`) as working direction in §Tentative Technology Stack. Added ADR-016 (Frontend Live-Update Transport) — SignalR as the browser-client push transport, transport-agnostic push→Query-cache-bridge architecture. Removed "Frontend architecture" and "Map library for frontend" from §Explicitly Parked; added three new §Open Questions entries (map library, contracts-package shape, monorepo vs. separate repos). Drove by [`docs/prompts/frontend-architecture-unpark.md`](../prompts/frontend-architecture-unpark.md).
+- **v0.7** (2026-06-25): Recorded the **CritterWatch / RabbitMQ** decision ([ADR-017](../decisions/017-rabbitmq-for-critterwatch.md)). Amended the §"Deliberately Not Using → RabbitMQ" bullet to narrow it to *domain flows* and name the one scoped exception — RabbitMQ is provisioned as CritterWatch's telemetry/control backplane (CritterWatch depends on it; an ASB backplane for the console does not exist yet). Added CritterWatch to §Observability. The carve-out mirrors ADR-016's "fifth category" framing (tooling infrastructure, not a domain transport); ADR-005's domain-transport decision is unchanged and was amended with a back-reference only.

@@ -77,4 +77,6 @@ Wolverine's multi-transport support means transport selection is expressed in ro
 
 The three-transport commitment narrows the scope of flow-type decisions for future bounded contexts: when a new flow is identified, the question is which of the three existing transports fits it, not whether a fourth transport is needed.
 
-RabbitMQ is not used. It is not that it is inappropriate for the domain; the existing three transports cover the required shapes, and adding a fourth would bring cost without new capability.
+RabbitMQ is not used **for domain flows**. It is not that it is inappropriate for the domain; the existing three transports cover the required shapes, and adding a fourth would bring cost without new capability.
+
+*(Amended 2026-06-25 — [ADR-017](./017-rabbitmq-for-critterwatch.md).)* This domain-transport conclusion is unchanged, but it is not a blanket ban on the broker: CritterCab provisions RabbitMQ as the telemetry/control backplane for the **CritterWatch** monitoring console, which depends on it. That is tooling infrastructure, not a domain flow — the same kind of out-of-scope category that [ADR-016](./016-frontend-live-update-transport.md) admitted for browser-client push (SignalR). No domain event, command, query, or stream is routed over RabbitMQ.
