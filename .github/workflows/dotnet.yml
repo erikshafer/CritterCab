@@ -29,6 +29,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # CI restores/builds/tests CritterCab.slnx explicitly (no glob), so the
+      # slnx is the single source of truth for what CI sees. A *.Tests.csproj
+      # added to disk but not hand-added to the slnx would silently never run
+      # and the check would still go green. This guard fails the build on that
+      # drift, keeping test discovery omission-proof as new services land.
+      - name: Verify solution completeness
+        shell: bash
+        run: |
+          missing=0
+          while IFS= read -r proj; do
+            rel="${proj#./}"
+            if ! grep -qF "$rel" CritterCab.slnx; then
+              echo "::error::Project '$rel' exists on disk but is not referenced in CritterCab.slnx"
+              missing=1
+            fi
+          done < <(find . -name '*.csproj')
+          if [ "$missing" -eq 0 ]; then
+            echo "All projects on disk are referenced in CritterCab.slnx."
+          fi
+          exit $missing
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
