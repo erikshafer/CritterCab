@@ -23,3 +23,4 @@ For the template and guidelines on when to write an ADR, see [ADR-001](./001-rec
 | [015](./015-driver-app-projection-timing-budget.md) | Driver-App Projection Timing Budget | Accepted |
 | [016](./016-frontend-live-update-transport.md) | Frontend Live-Update Transport | Accepted |
 | [017](./017-rabbitmq-for-critterwatch.md) | RabbitMQ for CritterWatch | Accepted |
+| [018](./018-candidate-projection-ownership-and-telemetry-geospatial-supply.md) | Candidate-Projection Ownership and Telemetry Geospatial Supply | Accepted |

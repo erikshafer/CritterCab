@@ -353,7 +353,7 @@ Then: FareQuoteFailed { rideRequestId: X, reason: NO_COVERAGE, attemptCount: 1, 
 ### 5.3 Slice 3 — CandidatesSelected (Translation-in with decision)
 
 **Pattern:** Translation (in from Telemetry + Driver Profile) + Klefter decision-event. The selection is a decision; its search parameters and policy version are captured for auditability.
-**Lane:** Dispatch for the automation and local events. The consumed view straddles the boundary; its population mechanism is deferred (parking-lot #4).
+**Lane:** Dispatch for the automation and local events. The consumed view straddles the boundary; its population mechanism is **resolved** by [ADR-018](../decisions/018-candidate-projection-ownership-and-telemetry-geospatial-supply.md) / [W006 §6.5](006-telemetry-event-model.md) — a Kafka (location) ⋈ ASB (availability) Dispatch-local document view (see the W006 amendment at the end of this slice). *(Originally deferred as parking-lot #4.)*
 **Trigger:** `FareQuoted` on the Dispatch stream (Slice 2 output).
 
 #### Flow on the board
@@ -391,7 +391,7 @@ Then: FareQuoteFailed { rideRequestId: X, reason: NO_COVERAGE, attemptCount: 1, 
 | Telemetry | `NearbyAvailableDrivers` (location side) | `DriverLocationUpdated` — grain = throttled / cell-changed, not per-ping. |
 | Driver Profile | `NearbyAvailableDrivers` (availability side) + `DriverCapabilities` | `DriverCameOnline`, `DriverWentOnBreak`, `DriverWentOffline`, `DriverVehicleChanged` — each carries `vehicleClass` capability at the transition. |
 
-Transport for these inbound flows is deferred to parking-lot #4 (local projection vs. remote query).
+Transport for these inbound flows is **resolved** by [ADR-018](../decisions/018-candidate-projection-ownership-and-telemetry-geospatial-supply.md): location over **Kafka** (`telemetry.driver-location-updated`), availability over **ASB**, joined in a Dispatch-local document view (the local-projection option won over remote-query; *was* parking-lot #4).
 
 #### Automation — `CandidateSelectionAutomation`
 
@@ -405,7 +405,7 @@ Transport for these inbound flows is deferred to parking-lot #4 (local projectio
 - On ≥1 eligible candidate: `CandidatesSelected`.
 - On 0 eligible candidates: `NoCandidatesAvailable`.
 
-No external call. Operates entirely on already-available views.
+No external call. Operates entirely on already-available views. *(W006/ADR-018 confirms this: the view is a Dispatch-local document view maintained by Kafka/ASB handlers — the local-projection option preserves "no external call"; the rejected gRPC-query option would have broken it.)*
 
 #### Event — `CandidatesSelected`
 
@@ -432,7 +432,7 @@ Distinct event from `CandidatesSelected` for cleaner GWT branching and clearer d
 
 #### Views consumed
 
-- **`NearbyAvailableDrivers`** — driver location + availability + vehicle-class capability. Shape modeled here; population mechanism deferred.
+- **`NearbyAvailableDrivers`** — driver location + availability + vehicle-class capability. Shape modeled here; population mechanism **resolved** by [ADR-018](../decisions/018-candidate-projection-ownership-and-telemetry-geospatial-supply.md) / [W006 §6.5](006-telemetry-event-model.md) (Kafka location ⋈ ASB availability, Dispatch-local document view).
 - **`DispatchPolicy`** — latest policy projection.
 
 #### Views fed
@@ -481,7 +481,7 @@ Then: NoCandidatesAvailable { rideRequestId: X, roundNumber: 1, searchParameters
 | Search radius in this slice | Fixed from `DispatchPolicyConfigured.searchRadiusMeters`. Adaptive widening is Slice 9 territory, driven by `roundNumber`. |
 | Driver concurrency | Tolerated. A driver may appear as a candidate for two requests at once; the race is resolved cleanly in Slice 5 via `OfferRevoked`. |
 | Driver capability | One vehicle in service at a time for v1. `DriverCameOnline` carries the in-service `vehicleId` and its `vehicleClass`. Multi-vehicle switching is post-MVP (low priority). |
-| View population transport | Model agnostically at the "view is available" level. Transport/population decision deferred to ADR (parking-lot #4). |
+| View population transport | **Resolved (2026-06-30):** Kafka (location) ⋈ ASB (availability), Dispatch-local document view ([ADR-018](../decisions/018-candidate-projection-ownership-and-telemetry-geospatial-supply.md) / [W006](006-telemetry-event-model.md)). Was modeled agnostically pending parking-lot #4. |
 
 #### Cross-references
 
@@ -489,8 +489,19 @@ Then: NoCandidatesAvailable { rideRequestId: X, roundNumber: 1, searchParameters
 - **Forward (Slice 4):** `CandidatesSelected` triggers offer broadcast.
 - **Forward (Slice 9):** `NoCandidatesAvailable` and round-exhaustion feed re-dispatch/abandonment with adaptive radius widening.
 - **Forward (Slice 11):** Consumes `searchRadiusMeters` and `maxCandidatesPerRound` from `DispatchPolicyConfigured`.
-- **Parking-lot #4:** View population transport decision deferred.
+- **Parking-lot #4 (resolved):** View population transport — Kafka ⋈ ASB Dispatch-local document view ([ADR-018](../decisions/018-candidate-projection-ownership-and-telemetry-geospatial-supply.md) / [W006](006-telemetry-event-model.md)).
 - **Parking-lot (new):** Road-network ETA service is a candidate future gRPC counterparty — see §10.
+
+#### W006 amendment (2026-06-30, ADR-018)
+
+[Workshop 006 — Telemetry Event Model](006-telemetry-event-model.md) and [ADR-018](../decisions/018-candidate-projection-ownership-and-telemetry-geospatial-supply.md) resolve this slice's one open dependency — the `NearbyAvailableDrivers` population mechanism (parking-lot #4 / §11 ADR-candidate #3). The view is a **Dispatch-owned local document view**, not a Telemetry-owned queryable index Dispatch calls:
+
+- **Location** arrives over **Kafka** (`telemetry.driver-location-updated`, partitioned by `driverId`, dedup on `serverReceivedAt`, carrying the H3 cell id at the policy resolution) — W006 slices 6.3/6.5.
+- **Availability** arrives over **ASB** (Driver Profile's `DriverCameOnline` / `WentOnBreak` / `WentOffline` / `VehicleChanged`) — a *forward-constraint* to Driver Profile's workshop, not locked here.
+- Dispatch joins them into per-driver `AvailableDriver` documents via LWW upsert — **not** a Marten event projection (event-sourcing the inbound location stream would reimport per-ping volume). Radius queries use an H3 k-ring + exact-distance filter.
+- Guarantee: **eventual consistency, last-writer-wins per driver**, reconciled at the acceptance layer (the `OfferAccepted` guard + `OfferRevoked`, §5.5). The slice-5.3 `INearbyAvailableDriversSource` stub seam is the insertion point.
+
+This **vindicates** the slice's original "No external call" framing: Option B (local projection) keeps it true; the rejected Option A (gRPC query) would have falsified it. Parking-lot #4 is closed; §11 ADR-candidate #3 is authored as ADR-018.
 
 ### 5.4 Slice 4 — OfferSent (per-candidate broadcast)
 
@@ -1930,7 +1941,7 @@ Pre-seeded with items from scope-setting. Additional items accumulate during the
 1. **Pricing BC physical location.** Inside Trips at first, split out later, or separate from day one? Touches the `FareQuoted` Translation slice. Deferred.
 2. **Fan-out topology upgrade path.** Broadcast is MVP. Reconsider serial or tiered when matching quality becomes a concern; the per-candidate `OfferSent` shape preserves that option.
 3. **Surge pricing.** Post-MVP. Revisit during Pricing workshop.
-4. **Candidate-selection projection ownership.** Does the nearby-available-drivers view live inside Dispatch (projected from upstream events) or inside Telemetry/Driver Profile (queried by gRPC)? Has downstream consequences for consistency semantics and transport selection.
+4. **Candidate-selection projection ownership.** *Resolved 2026-06-30 — [ADR-018](../decisions/018-candidate-projection-ownership-and-telemetry-geospatial-supply.md) / [W006](006-telemetry-event-model.md).* Does the nearby-available-drivers view live inside Dispatch (projected from upstream events) or inside Telemetry/Driver Profile (queried by gRPC)? Has downstream consequences for consistency semantics and transport selection. **Resolution:** Dispatch-owned local document view; location over Kafka, availability over ASB (forward-constraint); eventual consistency LWW per driver, reconciled at acceptance. See the §5.3 W006 amendment.
 5. **Post-assignment rider cancellation race window.** Between `RideAssigned` (Dispatch emit) and `TripCreated` (Trips emit), where does a cancellation land? Paved by routing post-assignment cancels to Trips only, with Dispatch rejecting them at the command layer. Verify at Trips workshop.
 6. **Dispatch as a candidate for agentic automation.** Re-dispatch under supply-demand pressure is a plausible future agent host per `docs/research/agents-in-event-models.md`. Not modeled as such now; flagged for later.
 7. **Scheduled rides (post-MVP).** Pre-booking a ride for a future time adds `scheduledFor` to the request shape and changes when fare quoting, candidate selection, and offer fan-out happen. Distinct enough to warrant its own milestone or second workshop.
@@ -1950,7 +1961,7 @@ Pre-seeded from scope-setting and slice discussion. Each candidate is a one-line
 
 1. **Service-topology ADR.** Does Dispatch remain a single deployable, or does the candidate-offer-assignment layering (per DoorDash's DeepRed / `docs/research/ride-sharing-lessons-learned.md` §2) become a three-service split? Trigger: first implementation of the offer-fan-out slice.
 2. **Fan-out-topology ADR.** Broadcast for MVP, with the serial/tiered upgrade path committed as a future decision. Documenting this now prevents the MVP choice being misread as permanent.
-3. **Candidate-projection-ownership ADR.** Where the nearby-available-drivers view lives, and what consistency guarantee it offers to Dispatch.
+3. **Candidate-projection-ownership ADR.** *Authored as [ADR-018 — Candidate-Projection Ownership and Telemetry Geospatial Supply](../decisions/018-candidate-projection-ownership-and-telemetry-geospatial-supply.md) on 2026-06-30 (resolved at the [Workshop 006](006-telemetry-event-model.md) front-loading grill).* Where the nearby-available-drivers view lives, and what consistency guarantee it offers to Dispatch. Resolved: Dispatch-owned local document view (Kafka location ⋈ ASB availability); eventual consistency, last-writer-wins per driver, reconciled at acceptance. Overrides the vision doc's "index that Dispatch queries" phrasing.
 4. **Pricing-location ADR.** When Pricing is actively modeled, decide inside-Trips vs. separate-BC.
 5. **Configuration-as-events bootstrap strategy ADR.** *Authored as [ADR-011](../decisions/011-configuration-as-events-bootstrap.md) on 2026-05-10.* How does a configurable BC reach a valid policy state on first deployment? Candidate patterns: (a) seed event appended by migration/init script with documented defaults, (b) startup-time self-seed if the stream is empty, (c) refuse to serve traffic until at least one `*PolicyConfigured` event is present. This pattern will recur across every configurable BC in CritterCab; picking the canonical approach now and documenting it as an ADR prevents per-BC drift. Trigger: second BC that adopts configuration-as-events.
 6. **RideRequest as single aggregate; Offer lifecycle events on its stream.** *Authored as [ADR-012](../decisions/012-aggregate-per-invariant.md) on 2026-05-10.* Offer is a sub-entity of RideRequest, not an independent aggregate. All offer events (`OfferSent`, `OfferAccepted`, `OfferDeclined`, `OfferExpired`, `OfferRevoked`) are appended to the RideRequest stream. Marten optimistic concurrency on the stream enforces the "at most one `OfferAccepted` per request" invariant natively. This pattern (aggregate-per-invariant, not aggregate-per-noun) will recur across Critter Stack use in CritterCab and deserves a canonical ADR before the second aggregate design surfaces elsewhere. Trigger: first implementation session touching the Dispatch aggregate, or the Trips BC modeling session.
@@ -2052,3 +2063,4 @@ Calibration guidance captured in memory:
 - **v0.5** (2026-05-19): §5.2 happy-path GWT has runnable Alba coverage per [`docs/prompts/implementations/003-dispatch-slice-5-2-fare-quoted-happy-path.md`](../prompts/implementations/003-dispatch-slice-5-2-fare-quoted-happy-path.md). `FareQuoteAutomation` is implemented as a Wolverine event handler reacting to forwarded `RideRequested` events; `FareQuoted` is appended to the rider's stream with a stubbed `IPricingClient` returning a canned $21.50 STANDARD-class response. The three §5.2 failure-path GWTs (*Transient failure with retry recovery*, *Exhausted retries*, *Non-transient failure*) and the `FareQuoteAttempts` projection that feeds them remain awaiting implementation in a follow-up slice 5.2 session. The §5.2 *Automation naming* decision (FareQuoteAutomation, avoiding "Coordinator"/"Orchestrator") was exercised end-to-end — Wolverine's handler discovery was customized at the composition root with `Includes.WithNameSuffix("Automation")` so the workshop's term lands directly as the C# class name.
 - **v0.7** (2026-06-16): All three §5.3 GWTs (*Happy path*, *No drivers in range*, *Vehicle-class gap — ACCESSIBLE scarcity*) now have runnable Alba coverage per [`docs/prompts/implementations/005-dispatch-slice-5-3-candidates-selected.md`](../prompts/implementations/005-dispatch-slice-5-3-candidates-selected.md). `CandidateSelectionAutomation` reacts to `FareQuoted` via fast-event forwarding, queries `INearbyAvailableDriversSource` (stub seam; transport deferred to parking-lot #4), applies in-process vehicle-class filtering, and emits either `CandidatesSelected` (≥1 eligible candidate, capped to `maxCandidatesPerRound`, ordered by inverse-distance match score) or `NoCandidatesAvailable` (with `NoDriversInRange` or `NoCapableDriversInRange` reason). `DispatchPolicySnapshot` DI record introduced with hardcoded defaults (`searchRadiusMeters: 5000`, `maxCandidatesPerRound: 5`, `policyVersion: "default-v1"`); Slice 11 swaps to `DispatchPolicyConfigured`-fed projection. `RequestRoundsProjection` inline projection introduced (consumed by Slice 9 re-dispatch). `[WriteAggregate]` bound to `FareQuoted` (second event on stream) — first use of this pattern in the codebase; verified against Wolverine 5.37 source that the attribute is trigger-agnostic (stream-position-independent). `ICandidateSelectionOutcome` marker interface is the third occurrence of this pattern in Dispatch (after `IFareQuoteOutcome`); skill-file encoding still queued.
 - **v0.6** (2026-05-19): All three §5.2 failure-path GWTs now have runnable Alba coverage per [`docs/prompts/implementations/004-dispatch-slice-5-2-fare-quoted-failure-paths.md`](../prompts/implementations/004-dispatch-slice-5-2-fare-quoted-failure-paths.md). `FareQuoteAutomation` runs a manual 3-attempt retry loop (2-second cooldown; test override 10ms via DI-injected `FareQuoteRetryPolicy`) that emits `FareQuoted` on success, `FareQuoteFailed { reason, attemptCount }` on terminal failure (transient retries exhausted → `PricingUnavailable`; non-transient → carried reason on the first attempt with no further calls). Retry attempts themselves are not emitted as events per the §5.2 *Retry counter durability* decision; in-flight budgeting lives in the handler's loop variable, and `FareQuoteAttempts` is implemented as a **terminal-events-only** projection that records the final `attemptCount`/`outcome`/`failureReason` for operations observability. **Workshop inconsistency surfaced and resolved one-way for this implementation**: §5.2's `## Automation — FareQuoteAutomation` *Reads* list names `FareQuoteAttempts` as consumed pre-retry, but the *Decisions locked in this slice* row (`Retry counter durability` → event-projected) + the *Retry attempts themselves are NOT emitted as events* rule make pre-retry consultation impossible with terminal-only projection. This session committed to terminal-only and flagged the *Reads*-list inconsistency for a workshop-tidy session — either drop `FareQuoteAttempts` from §5.2's *Reads* or evolve the projection to per-attempt event-fed if the pre-retry consultation is genuinely needed. `DispatchPolicy` view + `DispatchPolicyConfigured` event remain deferred to Slice 11; retry config is hardcoded in this session via `FareQuoteRetryPolicy.Default` per the workshop's defaults. `IFareQuoteOutcome` marker interface introduced as the handler's return type so the compiler can type-check that the handler returns one of the two terminal events Wolverine appends to the stream.
+- **v0.8** (2026-06-30): §5.3 W006 amendment. [Workshop 006 — Telemetry Event Model](006-telemetry-event-model.md) and [ADR-018](../decisions/018-candidate-projection-ownership-and-telemetry-geospatial-supply.md) resolve the `NearbyAvailableDrivers` population mechanism — the slice's one open dependency since v0.2. Parking-lot #4 closed and §11 ADR-candidate #3 authored as ADR-018: a Dispatch-owned local **document view** (per-driver `AvailableDriver` docs via LWW upsert, *not* a Marten event projection — volume), fed by **Kafka** location (`telemetry.driver-location-updated`) ⋈ **ASB** availability (Driver Profile forward-constraint), eventual-consistency LWW per driver reconciled at acceptance, H3 k-ring radius queries. The `INearbyAvailableDriversSource` stub seam (v0.7) is the insertion point. Vindicates the slice's original "No external call" framing (Option B keeps it true; rejected Option A gRPC-query would have broken it). Landed in the W006 design PR per the context-map §Update-cadence convention.
