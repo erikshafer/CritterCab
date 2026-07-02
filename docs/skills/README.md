@@ -40,7 +40,7 @@ CritterCab's skill clusters split into product/library clusters and topic/concer
 | Cluster | Authored | Planned |
 |---|---|---|
 | `core` | `csharp-coding-standards`, `domain-event-conventions`, `event-modeling` | — |
-| `wolverine` | `wolverine-handlers`, `wolverine-http-handlers`, `wolverine-messaging-handlers`, `wolverine-grpc-handlers`, `wolverine-grpc-bidirectional-handlers`, `wolverine-kafka`, `wolverine-azure-service-bus`, `wolverine-sagas` | — |
+| `wolverine` | `wolverine-handlers`, `wolverine-http-handlers`, `wolverine-messaging-handlers`, `wolverine-grpc-handlers`, `wolverine-grpc-bidirectional-handlers`, `wolverine-kafka`, `wolverine-azure-service-bus`, `wolverine-sagas`, `wolverine-marten-automation` | — |
 | `marten` | `marten-aggregates`, `marten-wolverine-aggregates`, `marten-projections`, `marten-querying`, `marten-async-daemon`, `dynamic-consistency-boundary` | — |
 | `polecat` | `polecat-event-sourcing`, `polecat-document-store` | — |
 | `infrastructure` | `aspire`, `aspire-service-defaults`, `cli-aspire`, `cli-jasperfx`, `cli-grpc-tooling`, `cli-kafka-tooling`, `cli-azure-messaging` | — |
@@ -67,8 +67,8 @@ Tags are the complementary discovery surface to clusters. Where a cluster captur
 
 | Tag | Skills |
 |---|---|
-| `wolverine` | `wolverine-handlers`, `wolverine-http-handlers`, `wolverine-messaging-handlers`, `wolverine-grpc-handlers`, `wolverine-grpc-bidirectional-handlers`, `wolverine-kafka`, `wolverine-azure-service-bus`, `wolverine-sagas`, `marten-wolverine-aggregates`, `dynamic-consistency-boundary`, `service-bootstrap`, `transport-selection`, `observability-tracing`, `observability-metrics` |
-| `marten` | `marten-aggregates`, `marten-wolverine-aggregates`, `marten-projections`, `marten-querying`, `marten-async-daemon`, `dynamic-consistency-boundary`, `domain-event-conventions`, `service-bootstrap`, `wolverine-sagas`, `observability-tracing`, `observability-metrics` |
+| `wolverine` | `wolverine-handlers`, `wolverine-http-handlers`, `wolverine-messaging-handlers`, `wolverine-grpc-handlers`, `wolverine-grpc-bidirectional-handlers`, `wolverine-kafka`, `wolverine-azure-service-bus`, `wolverine-sagas`, `wolverine-marten-automation`, `marten-wolverine-aggregates`, `dynamic-consistency-boundary`, `service-bootstrap`, `transport-selection`, `observability-tracing`, `observability-metrics` |
+| `marten` | `marten-aggregates`, `marten-wolverine-aggregates`, `marten-projections`, `marten-querying`, `marten-async-daemon`, `dynamic-consistency-boundary`, `domain-event-conventions`, `service-bootstrap`, `wolverine-sagas`, `wolverine-marten-automation`, `observability-tracing`, `observability-metrics` |
 | `polecat` | `polecat-event-sourcing`, `polecat-document-store`, `service-bootstrap`, `wolverine-sagas`, `observability-metrics` |
 | `aspire` | `aspire`, `aspire-service-defaults`, `cli-aspire`, `adding-a-service`, `service-bootstrap`, `polyglot-go-service` |
 | `grpc` | `wolverine-grpc-handlers`, `wolverine-grpc-bidirectional-handlers`, `protobuf-contracts`, `grpc-vs-other-transports`, `polyglot-go-service`, `cli-grpc-tooling`, `transport-selection` |
@@ -84,10 +84,10 @@ Tags are the complementary discovery surface to clusters. Where a cluster captur
 | Tag | Skills |
 |---|---|
 | `event-sourcing` | `domain-event-conventions`, `marten-aggregates`, `polecat-event-sourcing`, `dynamic-consistency-boundary` |
-| `decider-pattern` | `marten-aggregates`, `marten-wolverine-aggregates`, `marten-projections`, `testing-fundamentals` |
+| `decider-pattern` | `marten-aggregates`, `marten-wolverine-aggregates`, `marten-projections`, `testing-fundamentals`, `wolverine-marten-automation` |
 | `dcb` (dynamic consistency boundary) | `dynamic-consistency-boundary`, `polecat-event-sourcing` |
 | `projections` | `marten-projections`, `marten-async-daemon`, `cli-jasperfx` |
-| `handlers` | `wolverine-handlers`, `wolverine-http-handlers`, `wolverine-messaging-handlers`, `marten-wolverine-aggregates` |
+| `handlers` | `wolverine-handlers`, `wolverine-http-handlers`, `wolverine-messaging-handlers`, `marten-wolverine-aggregates`, `wolverine-marten-automation` |
 | `saga` / `process-manager` | `wolverine-sagas`, `distributed-saga-considerations` |
 | `decision-framework` | `transport-selection`, `grpc-vs-other-transports` |
 | `conventions` | `csharp-coding-standards`, `domain-event-conventions`, `wolverine-handlers`, `vertical-slice-organization` |
@@ -144,6 +144,7 @@ When starting a task, the entry-point skill is the first to load. Upstream skill
 | Authoring a Wolverine handler (general) | `wolverine-handlers` | `service-bootstrap`, `vertical-slice-organization` | `wolverine-http-handlers`, `wolverine-messaging-handlers`, `marten-wolverine-aggregates`, `testing-fundamentals` |
 | Authoring an HTTP endpoint | `wolverine-http-handlers` | `wolverine-handlers` | `marten-wolverine-aggregates`, `testing-integration` |
 | Authoring a messaging handler | `wolverine-messaging-handlers` | `wolverine-handlers` | `marten-wolverine-aggregates`, `testing-integration` |
+| Authoring an event-triggered automation handler | `wolverine-marten-automation` | `wolverine-handlers`, `marten-wolverine-aggregates` | `testing-fundamentals` |
 
 ### Cross-service flows (gRPC, Kafka, ASB)
 
@@ -290,6 +291,12 @@ graph TB
     MP --> MAD
     WHH --> MQ
 
+    %% Event-triggered automation (fourth handler-trigger shape)
+    WMA[wolverine-marten-automation]
+
+    WH --> WMA
+    MWA --> WMA
+
     %% Testing
     TF[testing-fundamentals]
     TI[testing-integration]
@@ -318,7 +325,7 @@ graph TB
     classDef phase2 fill:#87ceeb,stroke:#333,stroke-width:2px
 
     class AS,DEC phase1
-    class SB,VSO,WH,WHH,WMH,MA,MWA,MP,MQ,MAD,DCB,TF,TI,ASP,ASD,CLA,CLJ phase2
+    class SB,VSO,WH,WHH,WMH,MA,MWA,MP,MQ,MAD,DCB,TF,TI,ASP,ASD,CLA,CLJ,WMA phase2
 ```
 
 ### Phase 3 — First cross-service flow
