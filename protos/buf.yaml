@@ -2,6 +2,17 @@ version: v2
 lint:
   use:
     - STANDARD
+  ignore_only:
+    # The Telemetry ingest RPC keeps its ubiquitous-language message names
+    # (LocationPing, LocationIngestAck) instead of the buf-STANDARD
+    # ReportLocationsRequest/ReportLocationsResponse. Both are first-class domain
+    # terms in Workshop 006 §4 — a single GPS reading and the window-close ack.
+    # Scoped to this one file so every other proto stays fully STANDARD-compliant.
+    # Rationale: docs/prompts/decisions/003-protobuf-telemetry-v1.md.
+    RPC_REQUEST_STANDARD_NAME:
+      - crittercab/telemetry/v1/report_locations.proto
+    RPC_RESPONSE_STANDARD_NAME:
+      - crittercab/telemetry/v1/report_locations.proto
 breaking:
   use:
     - FILE

@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package crittercab.telemetry.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option csharp_namespace = "CritterCab.Telemetry.V1";
+
+// Published to Kafka on a throttled / cell-changed grain (cell-change OR heartbeat) —
+// never per raw ping. Published, not stored: the topic IS the breadcrumb history
+// (W006 §3.2). Dispatch's NearbyAvailableDrivers local projection is the first
+// consumer (ADR-018); the supplier half is locked here. First Kafka topic in CritterCab.
+// Topic: telemetry.driver-location-updated
+//   | Partition key: driver_id — per-driver ordering becomes a transport property (R7)
+//   | Dedup / LWW key: server_received_at — server-stamped, monotonic; consumer dedups
+//     on (driver_id, server_received_at) against at-least-once redelivery (R7)
+// Slice reference: docs/workshops/006-telemetry-event-model.md §6.3.
+message DriverLocationUpdated {
+  string driver_id = 1;
+  double lat = 2;
+  double lon = 3;
+  // H3 cell id at h3_resolution — published-language: Telemetry and Dispatch agree on
+  // the cell system + resolution (contract vocabulary, like ADR-013's canonical id).
+  // Carried as an opaque string key. h3_resolution is carried explicitly for consumer
+  // clarity rather than bit-decoded from the index (H3 self-encodes it; clarity wins).
+  string h3_cell = 4;
+  int32 h3_resolution = 5;
+  google.protobuf.Timestamp server_received_at = 6;
+  int64 throttle_policy_version = 7;
+  optional double speed = 8;
+  optional double heading = 9;
+}
