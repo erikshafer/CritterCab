@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package crittercab.telemetry.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option csharp_namespace = "CritterCab.Telemetry.V1";
+
+// Telemetry's GPS ingest surface. gRPC client-streaming: a mobile client opens a
+// windowed ReportLocations stream, sends many LocationPings, then half-closes to
+// receive one LocationIngestAck. Pings are processed in flight and never
+// event-sourced (W006 §3.2 — stream-processing shape). First gRPC client-streaming
+// surface in CritterCab.
+// Slice reference: docs/workshops/006-telemetry-event-model.md §6.2 (R5).
+//
+// The RPC request/response keep their ubiquitous-language names (LocationPing,
+// LocationIngestAck) rather than the buf-STANDARD ReportLocationsRequest/Response;
+// the two RPC_*_STANDARD_NAME lint rules are excepted for this file only in
+// buf.yaml. See docs/prompts/decisions/003-protobuf-telemetry-v1.md.
+//
+// Implementation forward-constraint: WolverineFx.Grpc has no client-streaming
+// auto-codegen adapter on the verified 5.x line — a [WolverineGrpcService]-marked
+// stub declaring this RPC fails fast at startup. If 6.8 still lacks it, hand-wire
+// ReportLocations against IMessageBus (the documented workaround). Re-verify against
+// 6.8 source when implementation begins. The .proto itself is plain proto3 — Wolverine
+// imposes no proto-side shape.
+service TelemetryService {
+  rpc ReportLocations(stream LocationPing) returns (LocationIngestAck);
+}
+
+// A single GPS reading streamed from a driver's device. driver_id is deliberately
+// NOT in the payload — it comes from the authenticated principal server-side, never
+// the wire (R5); enforcement lives in the handler, not this contract. The server
+// stamps its own receipt time (the LWW/dedup key); device_timestamp is the client
+// clock, is informational only, skews, and is never trusted for ordering (W006 §4).
+message LocationPing {
+  double lat = 1;
+  double lon = 2;
+  google.protobuf.Timestamp device_timestamp = 3;
+  double accuracy_meters = 4;
+  optional double speed = 5;
+  optional double heading = 6;
+}
+
+// Returned once per window-close. accepted_count reflects only the pings that passed
+// validation — invalid pings are silently dropped, not errored, in v1 (W006 §6.2).
+// server_time lets the client correct for clock skew. throttle_policy_version is the
+// Marten singleton stream version of the active TelemetryPolicy (§6.1), so a client
+// can detect a policy change across windows; it is always present after the ADR-011
+// bootstrap seed, so it is non-optional here.
+message LocationIngestAck {
+  int32 accepted_count = 1;
+  google.protobuf.Timestamp server_time = 2;
+  int64 throttle_policy_version = 3;
+}
