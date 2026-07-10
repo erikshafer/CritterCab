@@ -13,7 +13,7 @@
   - `src/CritterCab.Telemetry/TelemetryPolicy/ConfigureTelemetryPolicy.cs` — command + nested `AbstractValidator` + `[WolverinePost]` endpoint + `TelemetryPolicyResponse`
   - `src/CritterCab.Telemetry/TelemetryPolicy/TelemetryPolicy.cs` — self-aggregating view; static `Create`/`Apply`; `long Version`
   - `src/CritterCab.Telemetry/TelemetryPolicy/TelemetryPolicyStream.cs` — well-known singleton stream id
-  - `src/CritterCab.Telemetry/TelemetryPolicy/TelemetryPolicyBootstrap.cs` — `IInitialData` idempotent seed (ADR-011 Option A)
+  - `src/CritterCab.Telemetry/TelemetryPolicy/TelemetryPolicyBootstrap.cs` — `IInitialData` idempotent seed (ADR-011; Option-A/B-in-Marten reconciliation flagged — see "design meets code")
   - `tests/CritterCab.Telemetry.Tests/` — test project, `TelemetryServiceSmokeTest`, `TelemetryTestFixture` (Postgres + `ResetToSeedAsync`), `TelemetryPolicy/Slice1TelemetryPolicyTests.cs` (3 GWTs)
   - `apphost.cs` — Telemetry service + `crittercab_telemetry` DB (ports 5315/5316); **no Kafka** (deferred)
   - `CritterCab.slnx`, `Directory.Packages.props` (`WolverineFx.Http.FluentValidation` 6.17.0)
@@ -51,6 +51,12 @@ First implementation session of the W006 Telemetry chain and CritterCab's first 
 - **Local Docker was wedged the entire session** (container-`start` hung; `docker ps` fine) — the exact condition the handoff flagged. Restarting Docker Desktop would have disrupted the user's local WSL/containers without consent, so the session leaned on **CI as the test gate** (its Testcontainers works; it ran the full suite green for PR #41). Consequence: the 3 slice-1 integration tests could not be run locally; the build + DB-less smoke test were the local signals, CI the integration signal.
 - **"Verify against 6.17" was not literally satisfiable** because the JasperFx source checkout trails the consumed package line by a major version. Named as a residual: a full-weight 6.17 gRPC verdict (and full-weight confirmation of gates 1–3 against 9.14, which were verified against slightly-older-but-stable Marten source) requires refreshing `C:\Code\JasperFx\*` to the consumed tags — a separate, user-owned action, not a CritterCab task.
 
+### Design meets code — the Phase-2 audit's real finding (needs an ADR decision)
+
+The critter-skill-auditor Phase 2 pass caught a genuine design-vs-implementation gap the build and smoke test could not: **W006 §6.1/§9 lock the seed as "ADR-011 Option A (migration-time seed)", but the idiomatic Marten realization (`IInitialData` via `.InitializeWith<T>()`) runs at *host startup* — structurally ADR-011's Option B, the option the ADR rejected over a multi-instance seed race.** The reconciliation: `IInitialData` *is* Marten's seam for Option A when driven by the JasperFx `resources setup` deploy step, but it also self-seeds at every host start, so absent that deploy step it carries Option B's race. The race is benign here (idempotent guard + full-replacement make a double-seed converge) and irrelevant at single-instance MVP scale. ADR-011 was authored design-only, before any Marten implementation, and its A/B framing assumed a separate SQL-migration phase Marten does not have. **This wants an ADR-011 amendment describing the Marten realization — a durable decision deferred to the user, not resolved in this PR.** Artifacts were corrected to stop bare-claiming "Option A"; both this and the write-path concurrency question below are registered in `DEBT.md` as questions the future canonical-pattern skill must *resolve*, not just describe.
+
+A second, softer Phase-2 finding: **`ConfigureTelemetryPolicyEndpoint` appends with no optimistic-concurrency check** (`session.Events.Append(id, event)`, no expected version), because `[WriteAggregate]` has no documented binding to a well-known *constant* `Guid` when the command carries no id field. Deliberate last-writer-wins is defensible for full-replacement config (the workshop itself says the singleton has "no state-transition invariant to defend beyond full-replacement"), but it deviates from ADR-011's generic "optimistic concurrency on the singleton stream." Left as-is (LWW is the right config semantic); flagged for the same ADR/skill decision.
+
 ---
 
 ## Methodology refinements
@@ -62,7 +68,8 @@ First implementation session of the W006 Telemetry chain and CritterCab's first 
 
 ## Outstanding items / next-session inputs
 
-- **DEBT registered:** config-as-events bootstrap-seed pattern (Marten `IInitialData` idempotent guard + seed payload) — ADR-011's explicitly-deferred skill, now groundable from this reference impl. New skill or `marten-wolverine-aggregates` extension is the tidy session's call.
+- **ADR-011 amendment decision (user-owned, likely a small follow-up):** reconcile ADR-011's Option A/B framing with the Marten `IInitialData` realization (runs at host start + `resources setup`), and settle whether config-as-events singletons want optimistic concurrency on the write path. Both block the DEBT skill below from enshrining a canonical pattern.
+- **DEBT registered:** config-as-events bootstrap-seed pattern (Marten `IInitialData` idempotent guard + seed payload) — ADR-011's explicitly-deferred skill, now groundable from this reference impl, but only after the two design questions above are resolved. New skill or `marten-wolverine-aggregates` extension is the tidy session's call.
 - **Auditor-surfaced later-arc skill gaps (not registered this PR — they belong to the slices that hit them):** recurring/scheduled sweep-handler shape (slice 4 eviction), non-event-sourced document write path (slice 4 `LastKnownPosition`), Kafka publish-first/no-outbox convention (slice 3), windowed gRPC client-streaming discipline (slice 2). The `wolverine-grpc-bidirectional-handlers` skill's illustrative examples are also stale vs the shipped proto (fictional `PushTelemetry`/split-service names) — flag when slice 2 lands.
 - **CLAUDE.md status line** ("first vertical slice … all other BCs pre-workshop") is now stale — Telemetry is a second service with code. Deferred to a `tidy: housekeeping` pass (not edited opportunistically here).
 - **Pre-existing `"CritterCab Dispatch API"`/Swagger and NU1903 (`Microsoft.OpenApi` 2.0.0 vuln)** — unrelated, carried.

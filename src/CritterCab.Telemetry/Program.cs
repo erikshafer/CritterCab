@@ -34,7 +34,9 @@ if (!string.IsNullOrEmpty(connectionString))
     })
     .IntegrateWithWolverine()
     .UseLightweightSessions()
-    // ADR-011 Option A migration-time seed for the singleton policy stream.
+    // Config-as-events bootstrap seed for the singleton policy stream (ADR-011). Runs at host
+    // start (and under `resources setup`); idempotent. See TelemetryPolicyBootstrap for the
+    // ADR-011 Option-A/B-in-Marten reconciliation note.
     .InitializeWith<TelemetryPolicyBootstrap>();
 }
 
