@@ -2,6 +2,7 @@ using CritterCab.Telemetry.TelemetryPolicy;
 using JasperFx;
 using Marten;
 using Wolverine;
+using Wolverine.FluentValidation;
 using Wolverine.Http;
 using Wolverine.Http.FluentValidation;
 using Wolverine.Marten;
@@ -52,6 +53,12 @@ builder.Services.ConfigureSystemTextJsonForWolverineOrMinimalApi(options =>
 builder.Host.UseWolverine(opts =>
 {
     opts.ServiceName = "Telemetry";
+
+    // Discover and register the app's FluentValidation validators into the container.
+    // The HTTP UseFluentValidationProblemDetailMiddleware (below) resolves IValidator<T>
+    // from DI — without this discovery step it finds no validator and the invalid command
+    // passes through as 200 instead of a 400 ProblemDetails.
+    opts.UseFluentValidation();
 });
 
 var app = builder.Build();
