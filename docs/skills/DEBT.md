@@ -28,6 +28,11 @@ This file is the working ledger between retros that surface gaps and the tidy se
   2. **Singleton write-path concurrency / `[WriteAggregate]`-to-constant-id.** `ConfigureTelemetryPolicyEndpoint` uses a manual `session.Events.Append(TelemetryPolicyStream.Id, …)` with no expected-version arg (no optimistic concurrency) because `[WriteAggregate]` has no documented binding to a well-known **constant** `Guid` when the command carries no id field. Deliberate LWW is defensible for full-replacement config, but it deviates from ADR-011's stated "optimistic concurrency on the singleton stream." The skill (or an ADR note) should settle whether config-as-events singletons want optimistic concurrency and how to bind the aggregate-handler workflow to a constant stream id.
 - **Retro source:** [`retrospectives/implementations/006-telemetry-skeleton-and-slice-1-config.md`](../retrospectives/implementations/006-telemetry-skeleton-and-slice-1-config.md).
 
+### Wolverine.HTTP FluentValidation boundary wiring (`wolverine-http-handlers` addendum)
+
+- **Gap:** No skill documents the **two-call** wiring that HTTP boundary validation actually requires. `csharp-coding-standards` § FluentValidation shows the nested `AbstractValidator<T>` shape, but the boundary needs BOTH `opts.UseFluentValidation()` in `UseWolverine` (the `WolverineFx.FluentValidation` assembly-scan that *registers* `IValidator<>` into DI) **and** `opts.UseFluentValidationProblemDetailMiddleware()` in `MapWolverineEndpoints` (the `WolverineFx.Http.FluentValidation` middleware that *resolves* them into a 400 ProblemDetails). Wiring only the middleware silently passes invalid input through as 200 — a footgun CI caught on slice-1's first run (`src/CritterCab.Telemetry/Program.cs` is the repo's first FluentValidation instance and the reference wiring). A tidy session should add this to `wolverine-http-handlers` (both packages, both calls, the DI-resolution dependency between them).
+- **Retro source:** [`retrospectives/implementations/006-telemetry-skeleton-and-slice-1-config.md`](../retrospectives/implementations/006-telemetry-skeleton-and-slice-1-config.md) (§ "CI caught a bug local tooling structurally could not").
+
 ---
 
 ## Recently drained
