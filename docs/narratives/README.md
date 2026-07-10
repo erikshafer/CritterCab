@@ -182,6 +182,22 @@ A new narrative is *not* warranted for:
 
 When in doubt, prefer extending an existing narrative's Setting or per-Moment alternate-path subsection over forking a new narrative.
 
+## When the narrative layer does not apply
+
+The section above governs *variations of a journey that has a protagonist*. This section governs the prior question: **does the bounded context have a journey to render at all?** Some do not.
+
+A narrative's load-bearing requirement is the [Voice and perspective](#voice-and-perspective) rule — the omniscient narrator dramatizes *what the protagonist actually perceives*. That convention tolerates Moments where the system does most of the work off-stage, but it still hangs on the protagonist perceiving **something**: a view they read (Context), an action they take or a trigger they witness (Interaction), a state change visible to them on screen (Response). A **headless / machine-to-machine bounded context** — one whose slices are entirely inter-service plumbing or server-side processing with no protagonist-perceivable surface — has all three phases empty. There is nothing to dramatize, and forcing a narrative would require **inventing** UX surfaces (a status indicator, a permission prompt) that the workshop never modeled — violating the [`Do not carry: UX / UI design`](#what-narratives-carry-and-dont) guardrail and the [two-layer-fidelity](#two-layer-fidelity) "no confabulation" discipline.
+
+**The test is empirical, not presumed.** Before skipping, read the BC's workshop for *any* protagonist-app-visible detail — a "sharing is on" indicator, a permission prompt, a status surface, an action the protagonist takes or witnesses. If one exists, thread it into a (possibly very short) narrative. If none exists, skip — but **record the skip and its rationale here**; per the [session workflow](../../CLAUDE.md) the narrative step cannot be silently dropped.
+
+This mirrors, one layer up, the same call an Event Modeling workshop makes when it takes the **EM-direct path and skips Domain Storytelling** for a machine-to-machine BC with no human language boundary (W005, W006). No perceiving protagonist, no journey to tell.
+
+### Skipped narratives (recorded)
+
+| BC / Workshop | Decision | Rationale |
+|---|---|---|
+| **Telemetry** ([Workshop 006](../workshops/006-telemetry-event-model.md)) | Narrative layer **does not apply** (recorded 2026-07-10). | Machine-to-machine throughout: a driver device streams GPS pings over gRPC client-streaming; Dispatch consumes a Kafka-joined view. W006 §6.2 processing is entirely server-side; the UL (§4) defines *driver session* as "a logical concept, decoupled from any physical stream"; no driver-app-visible surface — indicator, permission prompt, or status screen — is named anywhere in W006 or [ADR-018](../decisions/018-candidate-projection-ownership-and-telemetry-geospatial-supply.md). No protagonist-perceivable moment exists to dramatize. Matches W006's own EM-direct precedent (it skipped Domain Storytelling for the same reason). See [retro](../retrospectives/telemetry-narrative-layer-decision.md). |
+
 ## Retrospective convention
 
 Every narrative ships its retrospective in the same file, appended after the `## Deferred from this narrative` section. The retrospective shape mirrors workshop 001's §12 with narrative-flavored content. See narrative 001's retrospective for the canonical structure.
@@ -193,7 +209,10 @@ Every narrative ships its retrospective in the same file, appended after the `##
 | [001](./001-rider-books-a-ride.md) | Accepted | Rider | Happy path | 5.1, 5.2, 5.3, 5.4, 5.5, 5.10 |
 | [002](./002-driver-accepts-a-ride.md) | Accepted | Driver | Happy path | 5.4, 5.5, 5.10 |
 
+*Telemetry (Workshop 006) is intentionally **not** narrativized — a headless machine-to-machine BC with no protagonist-perceivable moment. See [§ When the narrative layer does not apply](#when-the-narrative-layer-does-not-apply).*
+
 ## Document history
 
 - **v0.1** (2026-04-25): Initial authoring conventions established alongside narrative 001. Format dialect locked (NDD-informed structured markdown; no NDK dependency). Frontmatter schema v1 bounded. Moment body structure (prose-paragraph labels) locked. Single-named-protagonist voice convention locked. Cumulative deferral discipline established with seven disposition tags. Bidirectional referencing convention proposed (forward-looking; not yet adopted in workshops).
 - **v0.2** (2026-05-04): Added "Two-layer fidelity" section per narrative 002's session — locked prose stays in narrator-omniscient voice; assumptions about un-modeled BC behavior live in the authorial-call layer as forward-constraints on later workshops. Added narrative 002 row to the Index.
+- **v0.3** (2026-07-10): Added the "When the narrative layer does not apply" section — the criterion for a headless / machine-to-machine BC with no protagonist-perceivable moment, its empirical test, and a "Skipped narratives (recorded)" table. First entry: **Telemetry (Workshop 006)** — narrative layer does not apply; no driver-app-visible surface exists in W006 to dramatize, matching W006's own EM-direct (Domain-Storytelling-skip) precedent. Recorded per the session-workflow rule that the narrative step cannot be silently dropped. Session produced no narrative and no prompt doc; a disposable planning note (`docs/planning/2026-07-10-telemetry-narrative-decision-handoff.md`) served as the prompt-equivalent (W005/W006 precedent). See [retro](../retrospectives/telemetry-narrative-layer-decision.md).
