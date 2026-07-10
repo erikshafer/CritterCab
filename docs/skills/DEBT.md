@@ -20,7 +20,19 @@ This file is the working ledger between retros that surface gaps and the tidy se
 
 ## Open debt
 
-*(none currently open — the two `wolverine-handlers`/automation rows were drained 2026-07-02; see below.)*
+### config-as-events bootstrap-seed pattern (new skill or `marten-wolverine-aggregates` extension)
+
+- **Gap:** No skill codifies the config-as-events seed — the Marten `IInitialData` idempotent guard (`FetchStreamStateAsync` → `StartStream<T>` only if empty) plus the `operatorId = "system-bootstrap"` / `reason = "Initial deployment defaults"` payload, and the full-replacement singleton-stream shape. [ADR-011](../decisions/011-configuration-as-events-bootstrap.md) (§ Consequences, final ¶) explicitly deferred codifying this "until the first migration is written during implementation." That reference impl now exists: `src/CritterCab.Telemetry/TelemetryPolicy/{TelemetryPolicyBootstrap,TelemetryPolicyStream,TelemetryPolicy,ConfigureTelemetryPolicy}.cs`.
+- **Two design questions the reference impl raised are now RESOLVED** by the [ADR-011 Amendment (2026-07-10)](../decisions/011-configuration-as-events-bootstrap.md#amendment--2026-07-10-marten-realization-via-iinitialdata) — the skill can codify their answers rather than re-litigate them:
+  1. **ADR-011 Option A vs B for the Marten idiom** — resolved: `IInitialData` (registered via `.InitializeWith<T>()`) is the canonical Marten realization of Option A; it seeds at the deploy-time apply step (`resources setup`) and idempotently at host start as a self-healing safety net; the multi-instance race is mitigated by the idempotent guard + full-replacement (a double-seed converges) and avoided by the deploy-time step / single-instance MVP.
+  2. **Singleton write-path concurrency** — resolved: config-as-events singletons use **last-writer-wins** (no optimistic concurrency; full-replacement has no invariant to defend), and a manual `session.Events.Append(<well-known-constant-id>, event)` is the accepted reconfigure shape (`[WriteAggregate]` does not apply — no id field on the command).
+- **Remaining open debt (the skill only):** ground the seed pattern from the reference impl per the amendment's answers.
+- **Retro source:** [`retrospectives/implementations/006-telemetry-skeleton-and-slice-1-config.md`](../retrospectives/implementations/006-telemetry-skeleton-and-slice-1-config.md).
+
+### Wolverine.HTTP FluentValidation boundary wiring (`wolverine-http-handlers` addendum)
+
+- **Gap:** No skill documents the **two-call** wiring that HTTP boundary validation actually requires. `csharp-coding-standards` § FluentValidation shows the nested `AbstractValidator<T>` shape, but the boundary needs BOTH `opts.UseFluentValidation()` in `UseWolverine` (the `WolverineFx.FluentValidation` assembly-scan that *registers* `IValidator<>` into DI) **and** `opts.UseFluentValidationProblemDetailMiddleware()` in `MapWolverineEndpoints` (the `WolverineFx.Http.FluentValidation` middleware that *resolves* them into a 400 ProblemDetails). Wiring only the middleware silently passes invalid input through as 200 — a footgun CI caught on slice-1's first run (`src/CritterCab.Telemetry/Program.cs` is the repo's first FluentValidation instance and the reference wiring). A tidy session should add this to `wolverine-http-handlers` (both packages, both calls, the DI-resolution dependency between them).
+- **Retro source:** [`retrospectives/implementations/006-telemetry-skeleton-and-slice-1-config.md`](../retrospectives/implementations/006-telemetry-skeleton-and-slice-1-config.md) (§ "CI caught a bug local tooling structurally could not").
 
 ---
 

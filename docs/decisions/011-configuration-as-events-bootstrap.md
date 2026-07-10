@@ -1,7 +1,8 @@
 # ADR-011: Configuration-as-Events Bootstrap Strategy
 
 **Status:** Accepted  
-**Date:** 2026-05-10
+**Date:** 2026-05-10  
+**Amended:** 2026-07-10 — Marten realization via `IInitialData`; write-path concurrency for config singletons (see [Amendment](#amendment--2026-07-10-marten-realization-via-iinitialdata) below).
 
 ## Context
 
@@ -54,3 +55,30 @@ The migration script becomes a pseudo-source-of-truth for "what defaults does th
 Regional-singleton policy streams (Workshop 001 §5.11 post-MVP enhancement) extend the pattern: when per-region policy is adopted, the migration seeds N events (one per region) using the same idempotent-guard pattern. This ADR codifies the bootstrap mechanism; per-region extension does not require superseding it.
 
 A skill file codifying the migration template — idempotent guard plus seed event payload — is identified as a follow-up. It is not authored in this session; the gap is recorded for the DEBT.md ledger and addressed when the first migration is written during implementation.
+
+## Amendment — 2026-07-10: Marten realization via `IInitialData`
+
+The first implementation of this decision (Workshop 006 Telemetry, slice 1, PR #42) surfaced a gap between the options above and CritterCab's actual stack. This ADR was authored design-only, before any Marten code existed, and its Option A ("database migration or deployment script") vs Option B ("service checks at startup from baked-in code defaults, using `FetchStreamStateAsync`") distinction assumed a stack with a separate SQL-migration phase. **Marten has no such phase** — schema management and initial data are applied through Marten's own machinery, not hand-written migration scripts. So a literal reading forces a false choice: the idiomatic Marten seed (`IInitialData`) reads at a glance like the rejected Option B.
+
+This amendment refines the Decision for the Marten idiom. It is a clarification, not a reversal — the idempotent-guard pattern and the `system-bootstrap` audit markers are unchanged.
+
+### The seed is realized via Marten's `IInitialData`
+
+CritterCab seeds policy streams with an `IInitialData` implementation (the seed payload as reviewed code constants, e.g. `TelemetryPolicyBootstrap`) registered via `.InitializeWith<T>()`. Its `Populate` runs the unchanged idempotent guard — load the singleton's well-known stream state via `FetchStreamStateAsync`; if empty, `StartStream` the seed event; otherwise no-op. This is CritterCab's **canonical config-as-events seed mechanism**.
+
+### How this reconciles Option A and Option B
+
+`IInitialData` runs at Marten initialization in two situations, and this is what dissolves the A/B tension:
+
+- **At deploy time** when the JasperFx database-apply step runs (`RunJasperFxCommands` / `resources setup`), before instances take traffic — this realizes **Option A's intent** (seeded once per environment, ahead of scale-out) with the payload living in reviewed code alongside the BC rather than in a SQL script.
+- **Idempotently at host startup** as a safety net — this is the execution path that reads like Option B.
+
+The multi-instance seed race that made Option B undesirable is **mitigated rather than eliminated**: because the seed is full-replacement and the guard is idempotent, a race producing two seed events converges to identical policy state (an extra no-op version increment, not a divergent policy). Running the deploy-time apply step before scaling out avoids the race entirely; single-instance deployments (CritterCab's MVP posture) cannot hit it. **Option A remains the preferred posture** — the amendment simply records that `IInitialData` is how Option A is expressed in Marten, and that its host-start execution is an acceptable, self-healing safety net rather than a slide into the rejected Option B.
+
+### Write-path concurrency for config singletons — last-writer-wins
+
+A separate question surfaced by the same implementation: the reconfigure endpoint appends without an optimistic-concurrency check. This is **accepted and correct** for config-as-events. The pattern is full-replacement — each `<BC>PolicyConfigured` wholly replaces prior policy state, and there is no state-transition invariant to defend (a later configuration always wins). **Last-writer-wins is the intended semantic**; optimistic concurrency is not required on the reconfigure path, and the Context's earlier "Marten optimistic concurrency on the singleton stream" phrasing is scoped to conflict-detection scenarios that do not arise under full replacement. Because the singleton stream lives at a well-known constant id with no id field on the command, the aggregate-handler workflow (`[WriteAggregate]`, which binds identity from a command/route/header/claim source) does not apply; a manual `session.Events.Append(<well-known-id>, event)` is the accepted shape for the reconfigure write.
+
+### Consequence
+
+The config-as-events bootstrap-seed skill deferred in the original Consequences can now be grounded from the Telemetry reference implementation (`TelemetryPolicyBootstrap`, `TelemetryPolicyStream`, `TelemetryPolicy`, `ConfigureTelemetryPolicy`), documenting `IInitialData` + idempotent guard + code-constant payload as the canonical seed, and last-writer-wins (no optimistic concurrency, manual constant-id append) as the config-singleton write shape. Both `DEBT.md` questions this amendment answers are thereby unblocked.
