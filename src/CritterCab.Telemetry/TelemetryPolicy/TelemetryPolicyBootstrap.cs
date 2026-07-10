@@ -8,13 +8,11 @@ namespace CritterCab.Telemetry.TelemetryPolicy;
 // if the singleton policy stream is empty). CritterCab's first config-as-events seed realized
 // in code (ADR-011's third instance; Dispatch and Onboarding are design-only so far).
 //
-// A/B RECONCILIATION (flagged — retro §"design meets code" + docs/skills/DEBT.md): W006 §6.1
-// locks "ADR-011 Option A (migration-time seed)". IInitialData realizes Option A's intent when
-// run at deploy time via the JasperFx `resources setup` CLI command — but .InitializeWith<T>()
-// ALSO runs it on every host start (Option B's execution timing), so absent a deploy-time
-// resources-setup step it carries Option B's multi-instance seed race. Benign here (idempotent
-// guard + full-replacement make a double-seed converge), and fine for single-instance MVP.
-// Whether ADR-011 should be amended to describe this Marten realization is an open ADR decision.
+// A/B reconciliation (RESOLVED — ADR-011 Amendment 2026-07-10): IInitialData is the canonical
+// Marten realization of ADR-011 Option A. It seeds at the deploy-time apply step (`resources
+// setup`) and idempotently at host start as a self-healing safety net; the multi-instance seed
+// race is mitigated by this idempotent guard + full-replacement (a double-seed converges to
+// identical state) and avoided by the deploy-time step / single-instance MVP posture.
 public sealed class TelemetryPolicyBootstrap : IInitialData
 {
     // Documented, ops-tunable seed defaults (W006 §6.1). h3Resolution 9 ≈ city-block

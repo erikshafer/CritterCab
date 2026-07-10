@@ -35,9 +35,9 @@ if (!string.IsNullOrEmpty(connectionString))
     })
     .IntegrateWithWolverine()
     .UseLightweightSessions()
-    // Config-as-events bootstrap seed for the singleton policy stream (ADR-011). Runs at host
-    // start (and under `resources setup`); idempotent. See TelemetryPolicyBootstrap for the
-    // ADR-011 Option-A/B-in-Marten reconciliation note.
+    // Config-as-events bootstrap seed for the singleton policy stream: the Marten realization
+    // of ADR-011 Option A (see the ADR's 2026-07-10 Amendment). Runs at the deploy-time apply
+    // step and idempotently at host start. See TelemetryPolicyBootstrap.
     .InitializeWith<TelemetryPolicyBootstrap>();
 }
 
