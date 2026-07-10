@@ -6,8 +6,10 @@
 	</Folder>
 	<Folder Name="/src/">
 		<Project Path="src/CritterCab.Dispatch/CritterCab.Dispatch.csproj" />
+		<Project Path="src/CritterCab.Telemetry/CritterCab.Telemetry.csproj" />
 	</Folder>
 	<Folder Name="/tests/">
 		<Project Path="tests/CritterCab.Dispatch.Tests/CritterCab.Dispatch.Tests.csproj" />
+		<Project Path="tests/CritterCab.Telemetry.Tests/CritterCab.Telemetry.Tests.csproj" />
 	</Folder>
 </Solution>

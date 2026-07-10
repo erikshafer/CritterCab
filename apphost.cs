@@ -21,6 +21,7 @@ var postgres = builder.AddPostgres("postgres")
     .WithLifetime(ContainerLifetime.Persistent);
 
 var dispatchDb = postgres.AddDatabase("crittercab_dispatch");
+var telemetryDb = postgres.AddDatabase("crittercab_telemetry");
 
 // === Services ===
 
@@ -34,5 +35,16 @@ builder.AddProject<Projects.CritterCab_Dispatch>("dispatch", launchProfileName: 
     .WithHttpEndpoint(port: 5311, name: "http")
     .WithReference(dispatchDb)
     .WaitFor(dispatchDb);
+
+// Telemetry is CritterCab's second service (stream-processing shape, W006). This PR
+// stands up its skeleton + config-as-events slice 1 only; the Kafka resource that
+// slice 3 needs is deliberately NOT wired yet (same deferral the Dispatch skeleton
+// made for transport). Ports follow the +5 slot convention after Dispatch's 5310;
+// 5315 https / 5316 http. See docs/skills/aspire/SKILL.md § Port allocation.
+builder.AddProject<Projects.CritterCab_Telemetry>("telemetry", launchProfileName: null)
+    .WithHttpsEndpoint(port: 5315, name: "https")
+    .WithHttpEndpoint(port: 5316, name: "http")
+    .WithReference(telemetryDb)
+    .WaitFor(telemetryDb);
 
 builder.Build().Run();

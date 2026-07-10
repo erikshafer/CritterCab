@@ -20,7 +20,10 @@ This file is the working ledger between retros that surface gaps and the tidy se
 
 ## Open debt
 
-*(none currently open — the two `wolverine-handlers`/automation rows were drained 2026-07-02; see below.)*
+### config-as-events bootstrap-seed pattern (new skill or `marten-wolverine-aggregates` extension)
+
+- **Gap:** No skill codifies the ADR-011 Option A migration-time seed — the Marten `IInitialData` idempotent guard (`FetchStreamStateAsync` → `StartStream<T>` only if empty) plus the `operatorId = "system-bootstrap"` / `reason = "Initial deployment defaults"` seed payload, and the full-replacement singleton-stream shape it seeds. [ADR-011](../decisions/011-configuration-as-events-bootstrap.md) (§ Consequences, final ¶) explicitly deferred codifying this "until the first migration is written during implementation." That migration now exists: `src/CritterCab.Telemetry/TelemetryPolicy/TelemetryPolicyBootstrap.cs` (+ `TelemetryPolicyStream`, `TelemetryPolicy`, `ConfigureTelemetryPolicy`) is the first config-as-events instance realized in code. A tidy session should ground the pattern from this reference impl — whether as a new skill or a section on `marten-wolverine-aggregates` is the tidy session's call.
+- **Retro source:** [`retrospectives/implementations/006-telemetry-skeleton-and-slice-1-config.md`](../retrospectives/implementations/006-telemetry-skeleton-and-slice-1-config.md).
 
 ---
 

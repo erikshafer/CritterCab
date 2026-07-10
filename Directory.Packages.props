@@ -21,6 +21,7 @@
   <ItemGroup>
     <PackageVersion Include="WolverineFx" Version="6.17.0" />
     <PackageVersion Include="WolverineFx.Http" Version="6.17.0" />
+    <PackageVersion Include="WolverineFx.Http.FluentValidation" Version="6.17.0" />
     <PackageVersion Include="WolverineFx.Grpc" Version="6.17.0" />
     <PackageVersion Include="WolverineFx.Marten" Version="6.17.0" />
     <PackageVersion Include="WolverineFx.Polecat" Version="6.17.0" />
