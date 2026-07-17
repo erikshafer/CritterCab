@@ -1,4 +1,4 @@
-#:sdk Aspire.AppHost.Sdk@13.4.3
+#:sdk Aspire.AppHost.Sdk@13.4.6
 
 // The file-based AppHost is self-contained: it pins its Aspire versions inline
 // via #:package directives. Opt out of the repo-wide Central Package Management
@@ -7,7 +7,7 @@
 // Aspire.Hosting.AppHost reference collides with its PackageVersion entry (NU1009).
 #:property ManagePackageVersionsCentrally=false
 
-#:package Aspire.Hosting.PostgreSQL@13.4.3
+#:package Aspire.Hosting.PostgreSQL@13.4.6
 
 #:project ./src/CritterCab.Dispatch/CritterCab.Dispatch.csproj
 
