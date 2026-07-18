@@ -3,9 +3,11 @@
 [![CI](https://github.com/erikshafer/CritterCab/actions/workflows/dotnet.yml/badge.svg)](https://github.com/erikshafer/CritterCab/actions/workflows/dotnet.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/download/dotnet/10.0)
-[![Wolverine](https://img.shields.io/badge/Wolverine-5.39%2B-512BD4)](https://wolverine.netlify.app/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Marten-336791?logo=postgresql&logoColor=white)](https://martendb.io/)
-[![SQL Server](https://img.shields.io/badge/SQL_Server-Polecat-CC2927?logo=microsoftsqlserver&logoColor=white)](https://polecat.netlify.app/)
+[![Wolverine](https://img.shields.io/badge/Wolverine-6.19-512BD4)](https://wolverine.netlify.app/)
+[![Marten](https://img.shields.io/badge/Marten-9.15-512BD4)](https://martendb.io/)
+[![Polecat](https://img.shields.io/badge/Polecat-4.x-512BD4)](https://polecat.jasperfx.net/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![SQL Server](https://img.shields.io/badge/SQL_Server-2025-CC2927?logo=microsoftsqlserver&logoColor=white)](https://learn.microsoft.com/en-us/sql/sql-server/)
 [![Kafka](https://img.shields.io/badge/Kafka-Transport-231F20?logo=apachekafka&logoColor=white)](https://kafka.apache.org/)
 [![gRPC](https://img.shields.io/badge/gRPC-Streaming-4285F4)](https://grpc.io/)
 
@@ -19,14 +21,17 @@ CritterCab is an open-source reference architecture for a ride-sharing platform,
 
 ### Technology Versions
 
+Versions are managed centrally in [`Directory.Packages.props`](Directory.Packages.props). Marten, Polecat, and the JasperFx/Weasel libraries resolve **transitively** through the `WolverineFx.*` integration packages rather than being pinned directly, so the versions below are the currently-resolved values.
+
 | Concern | Package | Version |
 |---|---|---|
-| Messaging, HTTP, gRPC, handlers | Wolverine | 5.32+ floor; currently on 5.39+ |
-| Event sourcing (PostgreSQL) | Marten | 8.35+ |
-| Document store (SQL Server) | Polecat | 3.1+ |
-| Local-dev orchestration | Aspire | 13.4.3 |
-| Database | PostgreSQL | 18 |
-| Integration test host | Alba | 8.5+ |
+| Messaging, HTTP, gRPC, handlers | Wolverine (`WolverineFx`) | 6.19.0 (5.32 gRPC floor that motivated the project) |
+| Event sourcing + document store (PostgreSQL) | Marten | 9.15 (via `WolverineFx.Marten` 6.19) |
+| Event sourcing + document store (SQL Server) | Polecat | 4.x (via `WolverineFx.Polecat` 6.19; pinned, first SQL Server service pending) |
+| Relational engine — Marten | PostgreSQL | 18 |
+| Relational engine — Polecat | SQL Server | 2025 |
+| Local-dev orchestration | Aspire | 13.4.6 |
+| Integration test host | Alba | 8.5.3 |
 
 ## What's Distinctive
 
@@ -37,12 +42,17 @@ CritterCab is an open-source reference architecture for a ride-sharing platform,
 
 ## Status
 
-Early development. The Dispatch service has its first two vertical slices implemented end-to-end with Marten event sourcing, Wolverine.HTTP, and Alba integration tests:
+Early development. Two services exist, both backed by Marten event sourcing, Wolverine.HTTP, and Alba integration tests:
+
+**Dispatch** — the first bounded-context service, with three vertical slices implemented end-to-end:
 
 - **Slice 5.1** — `SubmitRideRequest` → `RideRequested` (HTTP entry point, aggregate, projections).
 - **Slice 5.2** — `RideRequested` → `FareQuoteAutomation` → `FareQuoted` / `FareQuoteFailed` (Wolverine-driven automation against a stub `IPricingClient`; the Pricing BC itself is pending its own workshop).
+- **Slice 5.3** — `CandidateSelectionAutomation` → `CandidatesSelected` / `NoCandidatesAvailable` (driver-matching rounds against a stub `INearbyAvailableDriversSource`).
 
-All other bounded contexts remain pre-workshop. See [`docs/vision/README.md`](docs/vision/README.md) for the full scope and [`docs/decisions/`](docs/decisions/) for committed decisions.
+**Telemetry** — the second service (stream-processing shape), currently a skeleton plus slice 1: `TelemetryPolicyConfigured` (config-as-events). Its Kafka transport is designed but not yet wired.
+
+Transports (gRPC, Kafka, Azure Service Bus) are richly designed but not yet built in code — every flow to date runs in-process over HTTP + Marten. All other bounded contexts remain pre-workshop. See [`docs/vision/README.md`](docs/vision/README.md) for the full scope and [`docs/decisions/`](docs/decisions/) for committed decisions.
 
 ## Prerequisites
 
@@ -56,13 +66,13 @@ No global tool installs are required; the AppHost is a [file-based .NET 10 progr
 
 ## Running Locally
 
-Clone the repository and start the Aspire AppHost. This boots the PostgreSQL container and the Dispatch service together, and opens the Aspire dashboard at `https://localhost:5300` (pinned — see the [`aspire` skill](docs/skills/aspire/SKILL.md) § Port allocation for CritterCab's `53xx` local-dev port band).
+Clone the repository and start the Aspire AppHost. This boots the PostgreSQL container and the Dispatch and Telemetry services together, and opens the Aspire dashboard at `https://localhost:5300` (pinned — see the [`aspire` skill](docs/skills/aspire/SKILL.md) § Port allocation for CritterCab's `53xx` local-dev port band).
 
 ```bash
 git clone https://github.com/erikshafer/CritterCab.git
 cd CritterCab
 
-# Boot Postgres + Dispatch via the Aspire AppHost
+# Boot Postgres + Dispatch + Telemetry via the Aspire AppHost
 dotnet run apphost.cs
 ```
 
@@ -85,10 +95,12 @@ The Dispatch service exposes `POST /ride-requests` for slice 5.1 and a health en
 ├── Directory.Packages.props # Central package versions
 ├── protos/                  # Protobuf contracts (buf-managed)
 ├── src/
-│   └── CritterCab.Dispatch/ # First bounded-context service
+│   ├── CritterCab.Dispatch/  # First bounded-context service (RideRequesting, FareQuoting, CandidateSelection)
+│   └── CritterCab.Telemetry/ # Second service (stream-processing shape, TelemetryPolicy)
 ├── tests/
-│   └── CritterCab.Dispatch.Tests/
-└── docs/                    # Layered design artifacts (see below)
+│   ├── CritterCab.Dispatch.Tests/
+│   └── CritterCab.Telemetry.Tests/
+└── docs/                     # Layered design artifacts (see below)
 ```
 
 The `docs/` directory is the heart of the project — design happens there before code does. See the [Documentation](#documentation) section below.
