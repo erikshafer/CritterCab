@@ -2,7 +2,7 @@
 
 CritterCab is an open-source ride-sharing reference architecture built on the Critter Stack, showcasing Wolverine's gRPC feature set alongside event-driven messaging, event sourcing, and multi-transport messaging. It is structured as a set of **separately deployable services**, one per bounded context (or small group thereof), communicating exclusively via gRPC or Wolverine messages.
 
-The Dispatch service has its first vertical slice (`RideRequested`) running end-to-end with Marten event sourcing, Wolverine.HTTP, and Alba integration tests. All other bounded contexts remain pre-workshop; the project is otherwise still in the design phase.
+Two services run in code: Dispatch (three vertical slices — `RideRequested`, `FareQuoted`, `CandidatesSelected`/`NoCandidatesAvailable` — end-to-end with Marten event sourcing, Wolverine.HTTP, and Alba integration tests) and Telemetry (service skeleton plus its first slice, `TelemetryPolicyConfigured` config-as-events; transport slices — gRPC ingest, Kafka publish, Dispatch consumer — still pending). Trips, Onboarding, and Identity have completed Event Modeling workshops but no code yet; Rider Profile, Driver Profile, Pricing, Payments, Ratings, and Operations remain pre-workshop.
 
 > For the canonical project overview (goals, tentative bounded contexts, technology stack, design principles, parked decisions, open questions), see [`docs/vision/README.md`](./docs/vision/README.md). **This file is a routing layer, not a manual.**
 
