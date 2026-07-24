@@ -1,3 +1,4 @@
+using CritterCab.Telemetry.LastKnownPosition;
 using CritterCab.Telemetry.TelemetryPolicy;
 using JasperFx;
 using Marten;
@@ -39,6 +40,13 @@ if (!string.IsNullOrEmpty(connectionString))
     // of ADR-011 Option A (see the ADR's 2026-07-10 Amendment). Runs at the deploy-time apply
     // step and idempotently at host start. See TelemetryPolicyBootstrap.
     .InitializeWith<TelemetryPolicyBootstrap>();
+
+    // The W006 §6.4 heartbeat-absence eviction sweep. Registered inside the Marten guard on
+    // purpose: the sweep handler resolves an IDocumentSession, so without a store there is
+    // nothing for it to sweep and it would only log failures every interval. Wolverine has no
+    // recurring-message primitive, so the timer is a plain BackgroundService — see
+    // LastKnownPositionEvictionService for why, and for why it holds no logic.
+    builder.Services.AddHostedService<LastKnownPositionEvictionService>();
 }
 
 builder.Services.AddSingleton(TimeProvider.System);

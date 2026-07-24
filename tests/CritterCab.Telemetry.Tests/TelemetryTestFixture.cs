@@ -1,9 +1,12 @@
 using Alba;
+using CritterCab.Telemetry.LastKnownPosition;
 using CritterCab.Telemetry.TelemetryPolicy;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Testcontainers.PostgreSql;
+using Wolverine;
 using Xunit;
+using LastKnownPositionDocument = global::CritterCab.Telemetry.LastKnownPosition.LastKnownPosition;
 
 namespace CritterCab.Telemetry.Tests;
 
@@ -19,6 +22,10 @@ public class TelemetryTestFixture : IAsyncLifetime
 
     public IAlbaHost Host { get; private set; } = null!;
 
+    // Exposed so a test can build a second host with the production wiring intact — the fixture
+    // host deliberately strips the eviction timer, so nothing else would cover its registration.
+    public string ConnectionString => _postgres.GetConnectionString();
+
     public async Task InitializeAsync()
     {
         await _postgres.StartAsync();
@@ -26,6 +33,19 @@ public class TelemetryTestFixture : IAsyncLifetime
         Host = await AlbaHost.For<Program>(builder =>
         {
             builder.UseSetting("ConnectionStrings:crittercab_telemetry", _postgres.GetConnectionString());
+
+            // Drop the slice-4 eviction timer from the test host. The BackgroundService is the
+            // deliberately untested half of slice 4 — all its logic lives in
+            // EvictStalePositionsHandler — and leaving it ticking would let a background sweep
+            // race the eviction tests' own explicit invocations.
+            builder.ConfigureServices(services =>
+            {
+                var timer = services.FirstOrDefault(
+                    d => d.ImplementationType == typeof(LastKnownPositionEvictionService));
+
+                if (timer is not null)
+                    services.Remove(timer);
+            });
         });
     }
 
@@ -43,6 +63,25 @@ public class TelemetryTestFixture : IAsyncLifetime
         var store = Host.Services.GetRequiredService<IDocumentStore>();
         await store.Advanced.Clean.DeleteAllEventDataAsync();
         await new TelemetryPolicyBootstrap().Populate(store, CancellationToken.None);
+    }
+
+    // LastKnownPosition is a plain document, so it survives ResetToSeedAsync (which only clears
+    // event data). Slice-4 tests wipe it separately to start from a known-empty store.
+    public async Task ResetPositionsAsync()
+    {
+        var store = Host.Services.GetRequiredService<IDocumentStore>();
+        await store.Advanced.Clean.DeleteDocumentsByTypeAsync(typeof(LastKnownPositionDocument));
+    }
+
+    // Sends a message through Wolverine exactly the way production does. IMessageBus is registered
+    // scoped, so it must be resolved from a scope rather than the root provider — the same reason
+    // LastKnownPositionEvictionService creates a scope per tick. InvokeAsync is inline and awaited,
+    // so there is no async commit to wait out and no tracked session needed.
+    public async Task InvokeAsync(object message)
+    {
+        await using var scope = Host.Services.CreateAsyncScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
+        await bus.InvokeAsync(message);
     }
 }
 
