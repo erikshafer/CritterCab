@@ -1,6 +1,6 @@
 ---
 name: wolverine-grpc-handlers
-description: "Proto-first gRPC service handlers in CritterCab using Wolverine 5.32+. Covers the [WolverineGrpcService] stub pattern, unary handlers (Task<TResponse> bus.InvokeAsync<T>), server-streaming handlers (IAsyncEnumerable<TResponse> bus.StreamAsync<T>), the Validate / [WolverineBefore] / [WolverineAfter] middleware surface, AIP-193 exception → StatusCode mapping (default table plus opts.MapException<T>() overrides), opt-in google.rpc.Status rich error details, the Kestrel HTTP/2 + AddGrpc + AddWolverineGrpc + MapWolverineGrpcServices bootstrap, client-side Grpc.Net.Client typed clients with Aspire service discovery, and the wolverine-diagnostics codegen-preview --grpc surface for inspecting generated wrappers. Use when authoring or modifying a service-side gRPC handler for unary or server-streaming RPCs. Client-streaming and bidirectional patterns live in wolverine-grpc-bidirectional-handlers (Phase 4)."
+description: "Proto-first gRPC service handlers in CritterCab using WolverineFx.Grpc 6.21+. Covers the [WolverineGrpcService] stub pattern, unary handlers (Task<TResponse> bus.InvokeAsync<T>), server-streaming handlers (IAsyncEnumerable<TResponse> bus.StreamAsync<T>), client-streaming handlers (Task<TResponse> Handle(IAsyncEnumerable<TRequest>) via bus.StreamAsync<TRequest, TResponse>) and why middleware does NOT weave for that shape, the Validate / [WolverineBefore] / [WolverineAfter] middleware surface, AIP-193 exception → StatusCode mapping (default table plus opts.MapException<T>() overrides), opt-in google.rpc.Status rich error details, the Kestrel HTTP/2 + AddGrpc + AddWolverineGrpc + MapWolverineGrpcServices bootstrap, client-side Grpc.Net.Client typed clients with Aspire service discovery, and the wolverine-diagnostics codegen-preview --grpc surface for inspecting generated wrappers. Use when authoring or modifying a service-side gRPC handler for unary, server-streaming or client-streaming RPCs. Bidirectional patterns live in wolverine-grpc-bidirectional-handlers."
 cluster: wolverine
 tags: [grpc, wolverine, proto-first, streaming, server-streaming, unary, aip-193, exception-mapping, validate, wolverine-grpc-service, message-bus, http2]
 ---
@@ -13,7 +13,9 @@ The single most useful idea in this skill: **a Cab gRPC handler is just a Wolver
 
 The wiring is what's gRPC-specific: a `[WolverineGrpcService]`-marked abstract stub that derives from the proto-generated base class, plus the bootstrap that turns it on. Wolverine code-generates the concrete subclass at startup, overrides every RPC method, and forwards each call to the message bus. Tooling (`wolverine-diagnostics codegen-preview --grpc`) shows exactly what was emitted.
 
-This skill covers **unary** and **server-streaming** RPCs — the two shapes that account for nearly every Cab gRPC interaction (`RequestRide`, `StreamDriverOffers`, `WatchTripStatus`, `CompleteTrip`, `RequestQuote`). Client-streaming (`PushTelemetry` per `transport-selection`) and bidirectional patterns are deferred to `wolverine-grpc-bidirectional-handlers` (Phase 4) — and Wolverine 5.32 doesn't yet auto-generate client-streaming wrappers, so that skill also covers the hand-written workaround.
+This skill covers **unary**, **server-streaming** and **client-streaming** RPCs — the three shapes that account for every Cab gRPC interaction shipped so far (`RequestRide`, `StreamDriverOffers`, `WatchTripStatus`, `CompleteTrip`, `RequestQuote`, `ReportLocations`). Bidirectional patterns are deferred to `wolverine-grpc-bidirectional-handlers`.
+
+> **Client-streaming is auto-generated as of WolverineFx.Grpc 6.21.0.** Earlier versions had no emit path for `stream in → unary out`, so a `[WolverineGrpcService]` stub declaring one failed fast at startup and the shape had to be hand-wired against `IMessageBus`. **That constraint is closed and the workaround is obsolete** — do not hand-wire client-streaming. Any document still describing it as unsupported is stale. The auto-generated path is documented below, alongside the one genuine asymmetry it carries: middleware does not weave for it.
 
 ---
 
@@ -75,9 +77,9 @@ The handlers themselves are not gRPC-aware. They take the request type, return t
 Two alternative paths exist in Wolverine.Grpc:
 
 - **Code-first** with `[ServiceContract]` interfaces (via `protobuf-net.Grpc`) — Wolverine generates a concrete implementation of the interface that forwards to the bus. ADR-009 rejects this path: the contract is the `.proto` file, not the C# interface.
-- **Hand-written** services not marked `[WolverineGrpcService]` — the user implements every RPC method directly, calling `IMessageBus` if they want. Used as the workaround for client-streaming RPCs that Wolverine 5.32 doesn't yet auto-generate (covered in `wolverine-grpc-bidirectional-handlers`).
+- **Hand-written** services not marked `[WolverineGrpcService]` — the user implements every RPC method directly, calling `IMessageBus` if they want. A legacy/opt-out path, not a shape-specific workaround; it was historically how client-streaming had to be done before 6.21.0 added the emit path.
 
-Cab uses proto-first auto-generation everywhere it can. Hand-written stubs only appear where Wolverine's code-gen doesn't reach yet (today: client-streaming).
+Cab uses proto-first auto-generation everywhere. Since 6.21.0 that means **every** RPC shape except bidirectional streaming, so a hand-written stub in Cab code today is either legacy or a mistake — there is no shape left that requires one.
 
 ---
 
@@ -175,7 +177,7 @@ public abstract partial class TripsGrpcService : Trips.TripsBase;
 
 Three things to know about this declaration:
 
-- **`abstract`** is required. The stub doesn't implement the RPC methods — Wolverine's generated subclass does. Concrete stubs are valid only for the hand-written path (client-streaming workaround), which lives in `wolverine-grpc-bidirectional-handlers`.
+- **`abstract`** is required. The stub doesn't implement the RPC methods — Wolverine's generated subclass does. Concrete stubs are valid only on the hand-written path, which since 6.21.0 no RPC shape requires (it was formerly the client-streaming workaround).
 - **`partial`** is optional but conventional in Cab. Adding `Validate` methods, `[WolverineBefore]` middleware, or other supporting code in a sibling `TripsGrpcService.Validate.cs` file keeps the discovery declaration crisp.
 - **Naming**: `<Service>GrpcService` matches the convention `MapWolverineGrpcServices` uses for discovery (name suffix `GrpcService`). The `[WolverineGrpcService]` attribute is required for proto-first stubs regardless — discovery checks for the suffix OR the attribute, but the attribute is what tells Wolverine "code-generate the wrapper" rather than "map this class directly."
 
@@ -351,6 +353,83 @@ The handler's responsibility is to:
 ### Naming the handler matches the request type
 
 Same convention as unary: `StreamDriverOffersHandler` lives in `StreamDriverOffersFeature/` and handles `StreamDriverOffersRequest`. The fact that it returns `IAsyncEnumerable<DriverOffer>` rather than a single response is just the handler's shape, not the slice's shape.
+
+---
+
+## Client-streaming handlers
+
+The mirror image of server-streaming: many requests in, one response out, returned when the client half-closes. **Auto-generated since WolverineFx.Grpc 6.21.0** — the stub is empty exactly as it is for unary and server-streaming. Reference implementation: Telemetry's `ReportLocations` ingest (W006 §6.2).
+
+### Proto declaration
+
+```proto
+service TelemetryService {
+  rpc ReportLocations(stream LocationPing) returns (LocationIngestAck);
+}
+```
+
+### Handler shape
+
+```csharp
+// The stub is empty, like every other shape.
+[WolverineGrpcService]
+public abstract class TelemetryGrpcService : TelemetryService.TelemetryServiceBase;
+
+// The whole stream is the message.
+public static class ReportLocationsHandler
+{
+    public static async Task<LocationIngestAck> Handle(
+        IAsyncEnumerable<LocationPing> pings,
+        IDriverLocationPublisher publisher,   // ordinary DI
+        CancellationToken ct)
+    {
+        var accepted = 0;
+
+        await foreach (var ping in pings.WithCancellation(ct))
+        {
+            // per-item work
+            accepted++;
+        }
+
+        return new LocationIngestAck { AcceptedCount = accepted };
+    }
+}
+```
+
+The handler's message type is `IAsyncEnumerable<TRequest>`, not `TRequest`. It imports nothing from `Grpc.*` — the same protocol-agnostic property the other shapes have.
+
+### What's actually happening at runtime
+
+Two codegen layers stack, and understanding the split explains why the stub can be empty:
+
+1. **protoc** emits `TelemetryServiceBase` with a *virtual* `ReportLocations(IAsyncStreamReader<LocationPing>, ServerCallContext)` — raw gRPC primitives.
+2. **Wolverine** emits the concrete override, which adapts that reader into an `IAsyncEnumerable` via `WolverineGrpcStreamAdapters.ReadAllAsync(requestStream, ct)` and forwards:
+
+```csharp
+return await _bus.StreamAsync<LocationPing, LocationIngestAck>(
+    WolverineGrpcStreamAdapters.ReadAllAsync(requestStream, ct), ct);
+```
+
+The adapter carries `[EnumeratorCancellation]` and is passed `context.CancellationToken`, so a client half-close or disconnect surfaces as normal cancellation inside the handler's `await foreach`.
+
+### ⚠ Middleware does NOT weave for client-streaming
+
+`Validate`, `[WolverineBefore]` and `[WolverineAfter]` **do not run** for a client-streaming RPC. This is structural, not an oversight: a before-frame needs a concrete `TRequest` instance in scope at method entry, and a stream cannot provide one. The generated wrapper skips the middleware frames entirely.
+
+**The failure mode is silence, not an error.** Wolverine does not warn that your `Validate` will never run — you simply get a validation gate that isn't there. So for this shape:
+
+- Per-item validation lives **inside** the handler. Decide explicitly whether an invalid item is dropped, counted, or terminates the stream; there is no framework default.
+- Cross-cutting concerns you would normally weave (auth checks, tenant resolution) must be handler-side too.
+
+This is a real asymmetry with the rest of CritterCab. Slice 1's `ConfigureTelemetryPolicy` validates at the HTTP boundary with FluentValidation and the aggregate stays thin; `ReportLocations` cannot, and inlines the checks instead. That is compliant, not drift.
+
+### Caller identity
+
+Because there is no `[WolverineBefore]` seam, the `ServerCallContext` → `GetHttpContext().User` pattern in `identity-acl` **does not apply to this shape**. Resolve identity through an ordinary DI seam reading `IHttpContextAccessor` instead — gRPC call metadata travels as HTTP/2 headers, so it is reachable there. CritterCab's `IDriverPrincipalAccessor` is the reference.
+
+### Known limitation: request type is the handler key
+
+Wolverine keys the handler slot on `typeof(IAsyncEnumerable<TRequest>)`, not the RPC name. **Two client-streaming RPCs that stream the same request type map to the same handler.** The disambiguator is the request type, so give each client-streaming RPC its own message type even when the shapes look alike. Moot for CritterCab today (one client-streaming RPC, one `LocationPing`), but it will bite silently rather than loudly.
 
 ---
 
@@ -654,7 +733,8 @@ For client-side inspection during development, `grpcurl` and `Evans` are the sta
 - **Plaintext HTTP/2 in production-like environments.** Wolverine's sample uses unencrypted HTTP/2 for simplicity. Cab uses HTTPS in dev (Aspire dev cert) and TLS in production. The `AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true)` flag the sample uses is appropriate only for sample code, never for Cab.
 - **Not handling `OperationCanceledException` distinctly.** When a streaming handler is cancelled (client disconnect), it throws `OperationCanceledException`, which the AIP-193 table maps to `Cancelled`. This is correct — but if the handler catches all exceptions (`catch (Exception)` instead of letting it propagate), the cancellation becomes invisible and the framework can't terminate the stream cleanly.
 - **Confusing the gRPC service stub with a Wolverine handler.** They're different things in different roles. The stub (`TripsGrpcService`) is empty and exists for the wrapper code-gen; the handler (`StartTripHandler.Handle`) does the actual work. Adding handler logic to the stub is wrong on two counts: the stub is abstract (so the code wouldn't run anyway), and the gRPC-ness of the request type doesn't change where the handler should live.
-- **Trying to use `[WolverineGrpcService]` for a client-streaming RPC.** Wolverine 5.32 doesn't auto-generate wrappers for client-streaming methods — startup fails fast with a clear error. Use the hand-written workaround from `wolverine-grpc-bidirectional-handlers`.
+- **Hand-wiring a client-streaming RPC against `IMessageBus`.** This was mandatory before WolverineFx.Grpc 6.21.0 and is now obsolete — `[WolverineGrpcService]` auto-generates the shape. A hand-written client-streaming stub in new code is a stale-doc artifact, not a requirement.
+- **Expecting `Validate` or `[WolverineBefore]` to run on a client-streaming RPC.** They do not weave, and the failure is silent — the middleware simply never runs, so a validation gate you believe is protecting the handler is not there. Put the checks inside the handler. See the client-streaming section above.
 
 ---
 
@@ -678,7 +758,7 @@ For client-side inspection during development, `grpcurl` and `Evans` are the sta
 
 **Downstream:**
 
-- `wolverine-grpc-bidirectional-handlers` (Phase 4) — client-streaming and bidirectional patterns, including the hand-written workaround for client-streaming since Wolverine 5.32 doesn't auto-generate that shape.
+- `wolverine-grpc-bidirectional-handlers` — bidirectional streaming. **Note:** that skill still describes client-streaming as requiring a hand-written workaround; it is stale on that point and carries a superseded banner. This skill is the home for the auto-generated client-streaming pattern.
 - `cli-grpc-tooling` (Phase 3) — buf, grpcurl, Evans CLI invocations.
 - `testing-integration` — fixture pattern for integration-testing a service with gRPC endpoints.
 - `testing-advanced` (Phase 4) — gRPC-specific scenario assembly, in-process gRPC clients via `WebApplicationFactory`, streaming-test patterns.
@@ -686,7 +766,7 @@ For client-side inspection during development, `grpcurl` and `Evans` are the sta
 
 **External:**
 
-- [Wolverine gRPC documentation](https://wolverinefx.net/guide/grpc/) — Wolverine 5.32+ gRPC integration guide.
+- [Wolverine gRPC documentation](https://wolverinefx.net/guide/grpc/) — WolverineFx.Grpc integration guide. CritterCab's floor is **6.21.0**, the release that added client-streaming auto-codegen.
 - [Google AIP-193 — Errors](https://google.aip.dev/193) — the canonical exception → gRPC status code mapping table this skill follows.
 - [`google.rpc.Status`](https://github.com/googleapis/googleapis/blob/master/google/rpc/status.proto) — the rich-error-details message type used by `UseGrpcRichErrorDetails()`.
 - [ASP.NET Core gRPC services documentation](https://learn.microsoft.com/aspnet/core/grpc/) — Kestrel HTTP/2 configuration, `AddGrpc()`, `MapGrpcService<T>()`.
