@@ -20,6 +20,7 @@
     <PackageReference Include="Grpc.AspNetCore" />
     <PackageReference Include="Grpc.Tools" />
     <PackageReference Include="Google.Protobuf" />
+    <PackageReference Include="pocketken.H3" />
   </ItemGroup>
 
   <!-- The .proto is the contract (ADR-009), so it lives in the repo-root protos/
@@ -31,10 +32,24 @@
        LocationIngestAck message classes in namespace CritterCab.Telemetry.V1.
        First codegen-behind-a-proto in the repo. -->
   <ItemGroup>
+    <!-- GrpcServices="Both" rather than "Server": the integration tests drive a real client
+         stream, and generating the client here is the only way they can. Generating it in the
+         test project instead would re-emit LocationPing / LocationIngestAck into a second
+         assembly and collide with these (CS0433), because Grpc.Tools cannot split the message
+         types from the service stubs. -->
     <Protobuf Include="..\..\protos\crittercab\telemetry\v1\report_locations.proto"
               ProtoRoot="..\..\protos"
               Link="protos\crittercab\telemetry\v1\report_locations.proto"
-              GrpcServices="Server" />
+              GrpcServices="Both" />
+
+    <!-- Message-only (no service in the file), so GrpcServices="None". This is slice 3's Kafka
+         event, generated here in PR B so the IDriverLocationPublisher seam carries the real
+         published-language payload from the start — PR C then swaps only the publisher
+         implementation, never the seam's contract. No Kafka transport is wired in this PR. -->
+    <Protobuf Include="..\..\protos\crittercab\telemetry\v1\driver_location_updated.proto"
+              ProtoRoot="..\..\protos"
+              Link="protos\crittercab\telemetry\v1\driver_location_updated.proto"
+              GrpcServices="None" />
   </ItemGroup>
 
 </Project>
