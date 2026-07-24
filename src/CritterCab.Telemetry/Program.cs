@@ -1,5 +1,8 @@
+using CritterCab.Telemetry.LastKnownPosition;
+using CritterCab.Telemetry.ReportLocations;
 using CritterCab.Telemetry.TelemetryPolicy;
 using JasperFx;
+using Wolverine.Grpc;
 using Marten;
 using Wolverine;
 using Wolverine.FluentValidation;
@@ -39,11 +42,32 @@ if (!string.IsNullOrEmpty(connectionString))
     // of ADR-011 Option A (see the ADR's 2026-07-10 Amendment). Runs at the deploy-time apply
     // step and idempotently at host start. See TelemetryPolicyBootstrap.
     .InitializeWith<TelemetryPolicyBootstrap>();
+
+    // The W006 §6.4 heartbeat-absence eviction sweep. Registered inside the Marten guard on
+    // purpose: the sweep handler resolves an IDocumentSession, so without a store there is
+    // nothing for it to sweep and it would only log failures every interval. Wolverine has no
+    // recurring-message primitive, so the timer is a plain BackgroundService — see
+    // LastKnownPositionEvictionService for why, and for why it holds no logic.
+    builder.Services.AddHostedService<LastKnownPositionEvictionService>();
 }
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddHealthChecks();
 builder.Services.AddWolverineHttp();
+
+// gRPC ingest (W006 §6.2). AddWolverineGrpc registers the codegen that turns the abstract
+// [WolverineGrpcService] stub into a concrete service forwarding to Wolverine handlers;
+// MapWolverineGrpcServices (below) discovers and maps it.
+builder.Services.AddGrpc();
+builder.Services.AddWolverineGrpc();
+
+// The ingest resolves driverId from the ambient request rather than the payload (R5), so it needs
+// the accessor. Both registrations below are ready-to-swap seams, not final implementations:
+// HeaderDriverPrincipalAccessor gives way to a real Entra claim once Identity exists, and
+// LoggingDriverLocationPublisher to the WolverineFx.Kafka producer in PR C.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton<IDriverPrincipalAccessor, HeaderDriverPrincipalAccessor>();
+builder.Services.AddSingleton<IDriverLocationPublisher, LoggingDriverLocationPublisher>();
 
 // Enum names on the wire; Wolverine HTTP shares the Minimal-API JsonOptions this configures.
 builder.Services.ConfigureSystemTextJsonForWolverineOrMinimalApi(options =>
@@ -68,6 +92,13 @@ app.MapHealthChecks("/health");
 // Boundary validation: nested AbstractValidator<T> is auto-discovered; a failing rule
 // short-circuits with an RFC-7807 ProblemDetails 400 before the endpoint handler runs.
 app.MapWolverineEndpoints(opts => opts.UseFluentValidationProblemDetailMiddleware());
+
+// Discovers the abstract [WolverineGrpcService] stubs and maps the generated concrete services.
+// Note the asymmetry with the line above: FluentValidation middleware weaves for HTTP endpoints,
+// but Wolverine cannot weave Before/Validate frames for a client-streaming RPC (a before-frame
+// needs a concrete request at method entry, which a stream cannot supply), so ReportLocations
+// validates inside its handler instead.
+app.MapWolverineGrpcServices();
 
 if (app.Environment.IsDevelopment())
 {

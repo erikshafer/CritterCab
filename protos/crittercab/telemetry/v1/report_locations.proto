@@ -18,12 +18,19 @@ option csharp_namespace = "CritterCab.Telemetry.V1";
 // the two RPC_*_STANDARD_NAME lint rules are excepted for this file only in
 // buf.yaml. See docs/prompts/decisions/003-protobuf-telemetry-v1.md.
 //
-// Implementation forward-constraint: WolverineFx.Grpc has no client-streaming
-// auto-codegen adapter on the verified 5.x line — a [WolverineGrpcService]-marked
-// stub declaring this RPC fails fast at startup. If 6.8 still lacks it, hand-wire
-// ReportLocations against IMessageBus (the documented workaround). Re-verify against
-// 6.8 source when implementation begins. The .proto itself is plain proto3 — Wolverine
-// imposes no proto-side shape.
+// Implementation note: WolverineFx.Grpc auto-generates this shape as of 6.21.0. An empty
+// [WolverineGrpcService] stub deriving the generated TelemetryServiceBase gets a generated
+// override forwarding to IMessageBus.StreamAsync, and the handler receives the stream as
+// IAsyncEnumerable<LocationPing>. The forward-constraint this comment previously carried —
+// "no client-streaming adapter, hand-wire against IMessageBus" — held only through the 5.x
+// line and is CLOSED; do not hand-wire this RPC. Realized in code by W006 slice 2.
+//
+// One consequence worth knowing at the contract level: Wolverine cannot weave Before/Validate
+// middleware for a client-streaming RPC, because a before-frame needs a concrete request
+// instance at method entry and a stream cannot supply one. Per-ping validation is therefore a
+// handler concern, not a boundary one.
+//
+// The .proto itself is plain proto3 — Wolverine imposes no proto-side shape.
 service TelemetryService {
   rpc ReportLocations(stream LocationPing) returns (LocationIngestAck);
 }

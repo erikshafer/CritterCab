@@ -7,9 +7,49 @@
     <PackageReference Include="WolverineFx.Http.FluentValidation" />
     <PackageReference Include="WolverineFx.FluentValidation" />
     <PackageReference Include="WolverineFx.Marten" />
+    <PackageReference Include="WolverineFx.Grpc" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="Microsoft.OpenApi" />
     <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" />
+  </ItemGroup>
+
+  <!-- gRPC proto-first codegen toolchain. Grpc.Tools is build-only (PrivateAssets
+       in Directory.Packages.props); Google.Protobuf and Grpc.AspNetCore are the
+       runtime halves the generated code binds against. -->
+  <ItemGroup>
+    <PackageReference Include="Grpc.AspNetCore" />
+    <PackageReference Include="Grpc.Tools" />
+    <PackageReference Include="Google.Protobuf" />
+    <PackageReference Include="pocketken.H3" />
+  </ItemGroup>
+
+  <!-- The .proto is the contract (ADR-009), so it lives in the repo-root protos/
+       tree shared across services rather than inside this project, and is compiled
+       in from there. ProtoRoot points at that tree so the proto's own package path
+       (crittercab/telemetry/v1) resolves for imports. GrpcServices="Server"
+       generates TelemetryService.TelemetryServiceBase — the abstract base the
+       [WolverineGrpcService] stub derives from — plus the LocationPing and
+       LocationIngestAck message classes in namespace CritterCab.Telemetry.V1.
+       First codegen-behind-a-proto in the repo. -->
+  <ItemGroup>
+    <!-- GrpcServices="Both" rather than "Server": the integration tests drive a real client
+         stream, and generating the client here is the only way they can. Generating it in the
+         test project instead would re-emit LocationPing / LocationIngestAck into a second
+         assembly and collide with these (CS0433), because Grpc.Tools cannot split the message
+         types from the service stubs. -->
+    <Protobuf Include="..\..\protos\crittercab\telemetry\v1\report_locations.proto"
+              ProtoRoot="..\..\protos"
+              Link="protos\crittercab\telemetry\v1\report_locations.proto"
+              GrpcServices="Both" />
+
+    <!-- Message-only (no service in the file), so GrpcServices="None". This is slice 3's Kafka
+         event, generated here in PR B so the IDriverLocationPublisher seam carries the real
+         published-language payload from the start — PR C then swaps only the publisher
+         implementation, never the seam's contract. No Kafka transport is wired in this PR. -->
+    <Protobuf Include="..\..\protos\crittercab\telemetry\v1\driver_location_updated.proto"
+              ProtoRoot="..\..\protos"
+              Link="protos\crittercab\telemetry\v1\driver_location_updated.proto"
+              GrpcServices="None" />
   </ItemGroup>
 
 </Project>

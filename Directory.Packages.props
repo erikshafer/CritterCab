@@ -19,17 +19,41 @@
   </ItemGroup>
   <!-- Wolverine -->
   <ItemGroup>
-    <PackageVersion Include="WolverineFx" Version="6.19.0" />
-    <PackageVersion Include="WolverineFx.Http" Version="6.19.0" />
-    <PackageVersion Include="WolverineFx.Http.FluentValidation" Version="6.19.0" />
-    <PackageVersion Include="WolverineFx.FluentValidation" Version="6.19.0" />
-    <PackageVersion Include="WolverineFx.Grpc" Version="6.19.0" />
-    <PackageVersion Include="WolverineFx.Marten" Version="6.19.0" />
-    <PackageVersion Include="WolverineFx.Polecat" Version="6.19.0" />
-    <PackageVersion Include="WolverineFx.AzureServiceBus" Version="6.19.0" />
-    <PackageVersion Include="WolverineFx.Kafka" Version="6.19.0" />
-    <PackageVersion Include="WolverineFx.SignalR" Version="6.19.0" />
-    <PackageVersion Include="WolverineFx.RuntimeCompilation" Version="6.19.0" />
+    <PackageVersion Include="WolverineFx" Version="6.21.0" />
+    <PackageVersion Include="WolverineFx.Http" Version="6.21.0" />
+    <PackageVersion Include="WolverineFx.Http.FluentValidation" Version="6.21.0" />
+    <PackageVersion Include="WolverineFx.FluentValidation" Version="6.21.0" />
+    <PackageVersion Include="WolverineFx.Grpc" Version="6.21.0" />
+    <PackageVersion Include="WolverineFx.Marten" Version="6.21.0" />
+    <PackageVersion Include="WolverineFx.Polecat" Version="6.21.0" />
+    <PackageVersion Include="WolverineFx.AzureServiceBus" Version="6.21.0" />
+    <PackageVersion Include="WolverineFx.Kafka" Version="6.21.0" />
+    <PackageVersion Include="WolverineFx.SignalR" Version="6.21.0" />
+    <PackageVersion Include="WolverineFx.RuntimeCompilation" Version="6.21.0" />
+  </ItemGroup>
+  <!-- gRPC proto-first codegen (Telemetry ReportLocations).
+       Grpc.Tools runs protoc + the C# gRPC plugin at build time over the
+       <Protobuf> items in CritterCab.Telemetry.csproj; Google.Protobuf is the
+       runtime the generated message classes bind against; Grpc.AspNetCore is the
+       ASP.NET Core server integration WolverineFx.Grpc layers on top of.
+       Versions are pinned to exactly what WolverineFx.Grpc 6.21.0 declares as its
+       own dependencies (Grpc.AspNetCore 2.76.0 -> Grpc.Tools 2.76.0 +
+       Google.Protobuf 3.31.1), so the codegen toolchain matches the pairing
+       Wolverine itself was built and tested against. Newer lines exist
+       (Grpc.* 2.80.0, Google.Protobuf 3.35.1) — take them as a deliberate
+       tidy: packages bump, not incidentally. -->
+  <ItemGroup>
+    <PackageVersion Include="Grpc.AspNetCore" Version="2.76.0" />
+    <PackageVersion Include="Grpc.Tools" Version="2.76.0" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
+    <PackageVersion Include="Google.Protobuf" Version="3.31.1" />
+  </ItemGroup>
+  <!-- H3 geospatial indexing (Telemetry cell computation).
+       pocketken.H3 is the published id for github.com/pocketken/h3.net (the bare "H3" id is a
+       different, prerelease-only package). Pure-managed C# port — no native P/Invoke, so CI stays
+       clean. Ships a native lib/net10.0 and pulls NetTopologySuite transitively, which is what
+       makes the degrees-native NTS Coordinate path free of any added dependency. -->
+  <ItemGroup>
+    <PackageVersion Include="pocketken.H3" Version="4.5.0.1" />
   </ItemGroup>
   <!-- SignalR client (integration-test transport for Relay BC push assertions) -->
   <ItemGroup>

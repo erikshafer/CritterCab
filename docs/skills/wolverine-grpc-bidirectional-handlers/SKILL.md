@@ -1,17 +1,19 @@
 ---
 name: wolverine-grpc-bidirectional-handlers
-description: "Proto-first bidirectional and client-streaming gRPC handlers in CritterCab using Wolverine 5.32+. Covers the bidirectional handler shape (IAsyncEnumerable<TResponse> Handle(TRequest, [EnumeratorCancellation] CancellationToken) — invoked once per inbound request, same as server-streaming), why client-streaming wrappers are NOT auto-generated (NotSupportedException at chain construction with the canonical workaround spelled out), the two hand-written workaround patterns for proto-first client-streaming (separate-proto-service split vs. fully hand-written stub), the Validate / [WolverineBefore] / [WolverineAfter] asymmetry (not woven into bidi methods, not woven onto direct-mapped hand-written stubs), the AIP-193 exception interceptor that DOES still apply, and Cab's canonical use cases (PushTelemetry for client-streaming GPS-ping ingest; SubscribeTripUpdates for bidirectional driver-rider exchange). Use when authoring or modifying a service-side gRPC handler for client-streaming or bidirectional RPCs, or when diagnosing the startup throw that proto-first client-streaming triggers."
+description: "Proto-first bidirectional gRPC handlers in CritterCab using WolverineFx.Grpc 6.21+. Covers the bidirectional handler shape (IAsyncEnumerable<TResponse> Handle(TRequest, [EnumeratorCancellation] CancellationToken) — invoked once per inbound request, same as server-streaming), the Validate / [WolverineBefore] / [WolverineAfter] asymmetry (not woven into bidi methods), the AIP-193 exception interceptor that DOES still apply, and Cab's canonical bidirectional use case (SubscribeTripUpdates for driver-rider exchange). PARTIALLY SUPERSEDED: this skill's client-streaming content predates 6.21.0 and describes a hand-written workaround that is now obsolete — client-streaming is auto-generated and documented in wolverine-grpc-handlers. Use when authoring or modifying a service-side gRPC handler for bidirectional RPCs."
 cluster: wolverine
 tags: [grpc, wolverine, client-streaming, bidirectional, hand-written-stub, push-telemetry, subscribe-trip-updates, async-stream-reader, async-stream-writer, message-bus, enumerator-cancellation]
 ---
 
 # Wolverine gRPC Bidirectional and Client-Streaming Handlers
 
-CritterCab uses Wolverine 5.32+ for all four gRPC streaming modes per ADR-009 and `protobuf-contracts`. `wolverine-grpc-handlers` covers the two shapes Wolverine auto-generates wrappers for end-to-end (unary, server-streaming). This skill closes out the remaining two: **bidirectional**, which Wolverine also auto-generates but with subtly different middleware semantics, and **client-streaming**, which Wolverine 5.32 does NOT auto-generate at all and which Cab handles via a hand-written stub.
+> **⚠ PARTIALLY SUPERSEDED as of WolverineFx.Grpc 6.21.0.** This skill was written when client-streaming could not be auto-generated. **It now is** — via the same empty `[WolverineGrpcService]` stub as every other shape — and the auto-generated pattern lives in **`wolverine-grpc-handlers`**, which is the authority for it. Everything here about **bidirectional** streaming remains correct. The client-streaming sections below document a hand-written workaround that is **obsolete**: do not follow them, and do not hand-wire client-streaming. Their structural rewrite is a registered `tidy: skills` DEBT row (see `docs/skills/DEBT.md`); this banner exists so the repo does not actively contradict shipped, passing code (`src/CritterCab.Telemetry/ReportLocations/`).
+
+CritterCab uses WolverineFx.Grpc 6.21+ for all four gRPC streaming modes per ADR-009 and `protobuf-contracts`. `wolverine-grpc-handlers` covers the three shapes with straightforward auto-generated wrappers (unary, server-streaming, client-streaming). This skill closes out the fourth: **bidirectional**, which Wolverine also auto-generates but with subtly different middleware semantics.
 
 The single most useful idea: **a bidirectional gRPC handler in Cab looks exactly like a server-streaming handler** — one `TRequest` parameter, returning `IAsyncEnumerable<TResponse>`, with `[EnumeratorCancellation]` on the cancellation token. The "bidi" part is in the wire shape, not the handler signature. Wolverine's generated wrapper loops over each inbound request from the client and dispatches each one through `bus.StreamAsync<TResponse>`, pumping every yielded response back to the client. This means **the handler is invoked once per inbound request, not once per stream** — a subtle but consequential semantics that the bidirectional integration tests in Wolverine's source pin down explicitly.
 
-Client-streaming is the opposite story. The `[WolverineGrpcService]` discovery path actively rejects proto-first stubs that declare client-streaming RPCs — `GrpcServiceChain`'s constructor throws `NotSupportedException` at startup with a message naming the offending method and pointing at the workaround. The workaround is a hand-written concrete stub class deriving from the proto-generated base, which Cab dispatches to the message bus directly. This skill lays out both the auto-generated bidi shape and the hand-written client-streaming pattern, including which middleware surfaces still apply on each path.
+Client-streaming *used to be* the opposite story: before 6.21.0 the `[WolverineGrpcService]` discovery path rejected proto-first stubs declaring client-streaming RPCs, throwing `NotSupportedException` at startup, and Cab worked around it with a hand-written concrete stub. **6.21.0 added the emit path, so that rejection no longer happens and the workaround is obsolete.** Client-streaming now uses the same empty stub as every other shape, with the handler taking `IAsyncEnumerable<TRequest>` and returning `Task<TResponse>` — documented in `wolverine-grpc-handlers`. This skill is now about the auto-generated **bidi** shape and its middleware asymmetries; its client-streaming sections are retained only as a legacy record pending rewrite.
 
 This skill assumes the proto-first bootstrap from `wolverine-grpc-handlers` (Kestrel HTTP/2, `AddGrpc()`, `AddWolverineGrpc()`, `MapWolverineGrpcServices()`) and the proto-naming conventions from `protobuf-contracts`. Both apply unchanged to bidirectional and client-streaming surfaces.
 
@@ -22,10 +24,9 @@ This skill assumes the proto-first bootstrap from `wolverine-grpc-handlers` (Kes
 Use this skill when:
 
 - Authoring a bidirectional gRPC handler (e.g., `SubscribeTripUpdates` on the Trips service).
-- Authoring a client-streaming gRPC handler (e.g., `PushTelemetry` on the Telemetry service for mobile-client GPS ingest).
-- Diagnosing a `NotSupportedException` thrown at service startup mentioning "Client-streaming" and the offending RPC method name.
+- Reading legacy code or docs that reference the pre-6.21.0 hand-written client-streaming workaround, and needing to know what replaced it. **Authoring** a client-streaming handler is `wolverine-grpc-handlers`, not this skill.
 - Deciding whether a flow that already lives in proto belongs as bidirectional or as client-streaming + server-streaming pair.
-- Reviewing a PR that adds the hand-written workaround for a client-streaming RPC.
+- Reviewing a PR that adds a hand-written client-streaming stub — to reject it. Since 6.21.0 the auto-generated path is correct and the workaround is obsolete.
 - Wiring middleware (`Validate`, `[WolverineBefore]`, `[WolverineAfter]`) and confirming the asymmetries between the auto-generated and hand-written paths.
 
 Do NOT use this skill for:
@@ -41,16 +42,18 @@ Do NOT use this skill for:
 
 ## Mental model
 
-Wolverine's gRPC integration recognizes four canonical RPC shapes via reflection over the proto-generated `*Base` class. The four shapes are classified by the `GrpcMethodKind` enum: `Unary`, `ServerStreaming`, `ClientStreaming`, `BidirectionalStreaming`. Three of these are wrapped automatically; one is rejected with a fail-fast at startup.
+Wolverine's gRPC integration recognizes four canonical RPC shapes via reflection over the proto-generated `*Base` class. The four shapes are classified by the `GrpcMethodKind` enum: `Unary`, `ServerStreaming`, `ClientStreaming`, `BidirectionalStreaming`. **As of 6.21.0 all four are wrapped automatically.**
 
-| Shape | Proto declaration | Wolverine 5.32 wrapping | Cab path |
+| Shape | Proto declaration | Wolverine wrapping | Cab path |
 |---|---|---|---|
 | Unary | `rpc X(Req) returns (Resp);` | Auto-generated (`bus.InvokeAsync<Resp>`) | `wolverine-grpc-handlers` |
 | Server-streaming | `rpc X(Req) returns (stream Resp);` | Auto-generated (`bus.StreamAsync<Resp>`) | `wolverine-grpc-handlers` |
 | **Bidirectional** | `rpc X(stream Req) returns (stream Resp);` | **Auto-generated**, with middleware caveats | This skill |
-| **Client-streaming** | `rpc X(stream Req) returns (Resp);` | **Rejected at startup** — hand-written workaround | This skill |
+| Client-streaming | `rpc X(stream Req) returns (Resp);` | Auto-generated (`bus.StreamAsync<TReq, TResp>`) — **since 6.21.0** | `wolverine-grpc-handlers` |
 
-Both bidirectional and client-streaming take an `IAsyncStreamReader<TRequest>` on the wire. The difference is what the server returns: bidirectional returns an `IServerStreamWriter<TResponse>` (a stream of responses), client-streaming returns a single `Task<TResponse>` (one summary response). That single-response shape is what makes client-streaming hard to auto-wrap on top of `IMessageBus.StreamAsync<T>`, which is item-streaming by construction. Wolverine's authors chose to fail fast rather than half-support it.
+Both bidirectional and client-streaming take an `IAsyncStreamReader<TRequest>` on the wire. The difference is what the server returns: bidirectional returns an `IServerStreamWriter<TResponse>` (a stream of responses), client-streaming returns a single `Task<TResponse>` (one summary response). That single-response shape is why client-streaming needed its own emit path rather than riding the item-streaming `IMessageBus.StreamAsync<T>` — 6.21.0 added a `StreamAsync<TRequest, TResponse>` overload that folds a whole inbound stream into one reply. Before that overload existed, the shape was rejected at startup rather than half-supported.
+
+**Both shapes share one consequence that has not changed:** neither weaves `Validate` / `[WolverineBefore]` / `[WolverineAfter]`, because a before-frame needs a concrete request instance at method entry and a stream cannot supply one. Validation and cross-cutting concerns are handler-side for both.
 
 The discovery rules that drive each path are in `WolverineGrpcExtensions.IsCodeFirstGrpcServiceType` (matches name suffix `GrpcService` or the `[WolverineGrpcService]` attribute), `GrpcGraph.IsProtoFirstStub` (abstract + attribute + proto base), and `GrpcGraph.AssertNoConcreteProtoStubs` (rejects concrete `[WolverineGrpcService]` classes that derive from a proto base). The hand-written client-streaming workaround threads through these rules deliberately: a concrete class deriving from a proto base, **not marked `[WolverineGrpcService]`**, name ending in `GrpcService` so `MapWolverineGrpcServices()` discovers it for direct mapping.
 
@@ -147,7 +150,14 @@ The AIP-193 exception interceptor (`WolverineGrpcExceptionInterceptor`) is regis
 
 ---
 
-## Client-streaming handlers (hand-written workaround)
+## Client-streaming handlers (hand-written workaround) — ⚠ OBSOLETE
+
+> **⚠ SUPERSEDED as of WolverineFx.Grpc 6.21.0 — do not follow this section.**
+>
+> Client-streaming is auto-generated. The empty `[WolverineGrpcService]` stub works for it exactly as for unary and server-streaming, and the handler shape is
+> `Task<TResponse> Handle(IAsyncEnumerable<TRequest>, …)`. See **`wolverine-grpc-handlers` § Client-streaming handlers**, which is the authority.
+>
+> Everything below documents the pre-6.21.0 hand-written workaround and is retained only as a legacy record. Its removal and this skill's retitling to bidirectional-only are a registered `tidy: skills` DEBT row. CritterCab ships auto-generated client-streaming today (`src/CritterCab.Telemetry/ReportLocations/`), so following this section would contradict working code.
 
 Cab's canonical client-streaming case is `PushTelemetry` on the Telemetry service per `transport-selection`: a driver's mobile client streams GPS pings continuously into the Telemetry service, which acknowledges with a single `PushTelemetryResponse` summary when the client closes the stream. Client-streaming is the right shape for this — high-frequency, low-overhead inbound items where the response is incidental. The challenge is that Wolverine 5.32 doesn't generate the wrapper.
 

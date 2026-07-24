@@ -10,6 +10,7 @@
 #:package Aspire.Hosting.PostgreSQL@13.4.6
 
 #:project ./src/CritterCab.Dispatch/CritterCab.Dispatch.csproj
+#:project ./src/CritterCab.Telemetry/CritterCab.Telemetry.csproj
 
 var builder = DistributedApplication.CreateBuilder(args);
 
@@ -36,11 +37,17 @@ builder.AddProject<Projects.CritterCab_Dispatch>("dispatch", launchProfileName: 
     .WithReference(dispatchDb)
     .WaitFor(dispatchDb);
 
-// Telemetry is CritterCab's second service (stream-processing shape, W006). This PR
-// stands up its skeleton + config-as-events slice 1 only; the Kafka resource that
-// slice 3 needs is deliberately NOT wired yet (same deferral the Dispatch skeleton
-// made for transport). Ports follow the +5 slot convention after Dispatch's 5310;
-// 5315 https / 5316 http. See docs/skills/aspire/SKILL.md § Port allocation.
+// Telemetry is CritterCab's second service (stream-processing shape, W006). Ports follow
+// the +5 slot convention after Dispatch's 5310; 5315 https / 5316 http. See
+// docs/skills/aspire/SKILL.md § Port allocation.
+//
+// The ReportLocations gRPC ingest (W006 §6.2) rides the HTTPS endpoint via Kestrel HTTP/2 —
+// the same arrangement the Dispatch block describes above, so gRPC needs no endpoint of its
+// own. This is CritterCab's first gRPC surface that actually serves traffic.
+//
+// The Kafka resource that slice 3 needs is still deliberately NOT wired: slice 2's publish
+// goes to the IDriverLocationPublisher seam, and PR C swaps that for the real producer and
+// adds the broker here.
 builder.AddProject<Projects.CritterCab_Telemetry>("telemetry", launchProfileName: null)
     .WithHttpsEndpoint(port: 5315, name: "https")
     .WithHttpEndpoint(port: 5316, name: "http")
