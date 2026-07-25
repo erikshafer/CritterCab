@@ -133,16 +133,9 @@ public class Slice2ReportLocationsTests
 
         // R5: driverId comes from the principal and is never carried in the payload — which is why
         // the proto has no driver_id field. A stream that presents no identity cannot be attributed.
-        using var channel = _fixture.CreateGrpcChannel();
-        var client = new TelemetryService.TelemetryServiceClient(channel);
-        using var call = client.ReportLocations();
-
-        var exception = await Should.ThrowAsync<RpcException>(async () =>
-        {
-            await call.RequestStream.WriteAsync(PingAt(LoopLat, LoopLon));
-            await call.RequestStream.CompleteAsync();
-            await call.ResponseAsync;
-        });
+        var exception = await Should.ThrowAsync<RpcException>(() =>
+            ReportLocationsClient.StreamWithoutIdentityAsync(
+                _fixture.CreateGrpcChannel, PingAt(LoopLat, LoopLon)));
 
         exception.StatusCode.ShouldBe(StatusCode.Unauthenticated);
         _fixture.Publisher.Published.ShouldBeEmpty();
@@ -182,26 +175,8 @@ public class Slice2ReportLocationsTests
         _fixture.Publisher.Clear();
     }
 
-    private async Task<LocationIngestAck> StreamAsync(Guid driverId, params LocationPing[] pings)
-    {
-        using var channel = _fixture.CreateGrpcChannel();
-        var client = new TelemetryService.TelemetryServiceClient(channel);
-
-        // gRPC call metadata travels as HTTP/2 headers, which is how the dev principal accessor
-        // sees it. The real Entra claim replaces this without the handler changing.
-        using var call = client.ReportLocations(new Metadata
-        {
-            { HeaderDriverPrincipalAccessor.DriverIdHeader, driverId.ToString() }
-        });
-
-        foreach (var ping in pings)
-            await call.RequestStream.WriteAsync(ping);
-
-        // Half-close: this is what makes the single ack come back.
-        await call.RequestStream.CompleteAsync();
-
-        return await call.ResponseAsync;
-    }
+    private Task<LocationIngestAck> StreamAsync(Guid driverId, params LocationPing[] pings) =>
+        ReportLocationsClient.StreamAsync(_fixture.CreateGrpcChannel, driverId, pings);
 
     private async Task<LastKnownPositionDocument?> LoadAsync(Guid driverId)
     {
@@ -213,11 +188,6 @@ public class Slice2ReportLocationsTests
     private static string CellAt(double lat, double lon) =>
         H3CellIndexer.TryComputeCell(lat, lon, 9)!;
 
-    private static LocationPing PingAt(double lat, double lon, double accuracyMeters = 8d) => new()
-    {
-        Lat = lat,
-        Lon = lon,
-        AccuracyMeters = accuracyMeters,
-        DeviceTimestamp = Timestamp.FromDateTimeOffset(DateTimeOffset.UtcNow)
-    };
+    private static LocationPing PingAt(double lat, double lon, double accuracyMeters = 8d) =>
+        ReportLocationsClient.PingAt(lat, lon, accuracyMeters);
 }

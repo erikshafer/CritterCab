@@ -8,6 +8,8 @@
     <PackageReference Include="WolverineFx.FluentValidation" />
     <PackageReference Include="WolverineFx.Marten" />
     <PackageReference Include="WolverineFx.Grpc" />
+    <PackageReference Include="WolverineFx.Kafka" />
+    <PackageReference Include="WolverineFx.Protobuf" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="Microsoft.OpenApi" />
     <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" />
@@ -43,9 +45,11 @@
               GrpcServices="Both" />
 
     <!-- Message-only (no service in the file), so GrpcServices="None". This is slice 3's Kafka
-         event, generated here in PR B so the IDriverLocationPublisher seam carries the real
-         published-language payload from the start — PR C then swaps only the publisher
-         implementation, never the seam's contract. No Kafka transport is wired in this PR. -->
+         event, generated in PR B so the IDriverLocationPublisher seam carried the real
+         published-language payload from the start — which is what let PR C swap only the
+         publisher implementation, never the seam's contract. The generated type is now both the
+         seam's payload and, via WolverineFx.Protobuf, the binary wire format on
+         telemetry.driver-location-updated. -->
     <Protobuf Include="..\..\protos\crittercab\telemetry\v1\driver_location_updated.proto"
               ProtoRoot="..\..\protos"
               Link="protos\crittercab\telemetry\v1\driver_location_updated.proto"

@@ -15,6 +15,10 @@ option csharp_namespace = "CritterCab.Telemetry.V1";
 //   | Dedup / LWW key: server_received_at — server-stamped, monotonic; consumer dedups
 //     on (driver_id, server_received_at) against at-least-once redelivery (R7)
 // Slice reference: docs/workshops/006-telemetry-event-model.md §6.3.
+// SHIPPED 2026-07-24. Telemetry publishes this to the topic above, serialized as binary
+// protobuf on the wire (not JSON) — this file is the wire format, not only the C# type.
+// Topic naming follows ADR-019; the Kafka delivery semantics that go with it (partition key,
+// no outbox, inline send) are the Kafka column of that ADR's per-transport table.
 message DriverLocationUpdated {
   string driver_id = 1;
   double lat = 2;

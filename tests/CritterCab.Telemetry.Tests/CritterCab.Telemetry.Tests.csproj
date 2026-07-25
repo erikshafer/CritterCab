@@ -16,6 +16,11 @@
     <PackageReference Include="Shouldly" />
     <PackageReference Include="Alba" />
     <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="Testcontainers.Kafka" />
+    <!-- The slice-3 round-trip test consumes the raw Kafka record to assert on the
+         partition key and the binary protobuf value, which needs ConsumerBuilder
+         directly rather than anything Wolverine surfaces. -->
+    <PackageReference Include="Confluent.Kafka" />
   </ItemGroup>
 
 </Project>

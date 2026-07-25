@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Alba;
+using DotNet.Testcontainers.Images;
 using CritterCab.Telemetry.LastKnownPosition;
 using CritterCab.Telemetry.ReportLocations;
 using CritterCab.Telemetry.TelemetryPolicy;
@@ -22,7 +23,11 @@ namespace CritterCab.Telemetry.Tests;
 // default TelemetryPolicy before any test acts.
 public class TelemetryTestFixture : IAsyncLifetime
 {
+    // Named uniquely because the project now starts a second Postgres container in
+    // TelemetryKafkaTestFixture, and xUnit runs the two collections in parallel.
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18-alpine")
+        .WithName($"telemetry-test-{Guid.NewGuid():N}")
+        .WithImagePullPolicy(PullPolicy.Missing)
         .Build();
 
     public IAlbaHost Host { get; private set; } = null!;
@@ -119,10 +124,26 @@ public sealed class RecordingDriverLocationPublisher : IDriverLocationPublisher
 
     public IReadOnlyList<DriverLocationUpdated> Published => [.. _published];
 
-    public void Clear() => _published.Clear();
+    // Simulates a broker rejection. Slice 3 configures the Kafka endpoint so a failed publish
+    // throws rather than being swallowed (SendInline + UseSyncRetryBlock), which is what makes
+    // W006 §6.3's publish-before-store ordering observable. Setting this lets a test assert what
+    // the handler does with that exception without needing a broker to break.
+    public bool FailNextPublish { get; set; }
+
+    public void Clear()
+    {
+        _published.Clear();
+        FailNextPublish = false;
+    }
 
     public Task PublishAsync(DriverLocationUpdated update, CancellationToken ct)
     {
+        if (FailNextPublish)
+        {
+            FailNextPublish = false;
+            throw new InvalidOperationException("Simulated broker rejection.");
+        }
+
         _published.Enqueue(update);
         return Task.CompletedTask;
     }
