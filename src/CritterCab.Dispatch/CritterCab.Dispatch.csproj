@@ -6,9 +6,46 @@
     <PackageReference Include="WolverineFx.RuntimeCompilation" />
     <PackageReference Include="WolverineFx.Http" />
     <PackageReference Include="WolverineFx.Marten" />
+    <PackageReference Include="WolverineFx.Kafka" />
+    <PackageReference Include="WolverineFx.Protobuf" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="Microsoft.OpenApi" />
     <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" />
+  </ItemGroup>
+
+  <!-- Protobuf codegen + H3. Grpc.Tools is build-only; Google.Protobuf is the runtime half
+       the generated message class binds against. No Grpc.AspNetCore here — Dispatch consumes
+       a Kafka message, it does not serve or call a gRPC service. -->
+  <ItemGroup>
+    <PackageReference Include="Grpc.Tools" />
+    <PackageReference Include="Google.Protobuf" />
+    <PackageReference Include="pocketken.H3" />
+  </ItemGroup>
+
+  <!-- Dispatch compiles a Telemetry-owned .proto. This is the FIRST time two services generate
+       from the same contract file, and it is deliberately NOT a shared assembly: each service
+       generates its own copy into its own assembly, and no project reference crosses the service
+       boundary (docs/rules/structural-constraints.md). Wolverine tolerates the two copies because
+       its message identity is Type.FullName-based and assembly-agnostic — both sides resolve to
+       CritterCab.Telemetry.V1.DriverLocationUpdated, so they agree on the wire. Two consequences
+       worth knowing before editing this: the proto's `option csharp_namespace` must stay identical
+       across both builds (it is the actual coupling, not the assembly), and the message must stay
+       top-level, because a nested proto type would gain a DeclaringType_ prefix on one side only
+       if the nesting ever diverged.
+
+       Note this resembles the wording of protobuf-contracts § Anti-patterns ("a shared type
+       defined inside a service's package and imported cross-BC"), but it is a different
+       relationship. That anti-pattern is about borrowing a shared VALUE type — GeoLocation living
+       in dispatch.v1 and being pulled into trips.v1 — which couples two BCs through a type neither
+       owns as a contract. Here Telemetry PUBLISHES DriverLocationUpdated as its outbound event
+       contract (ADR-009, ADR-018) and Dispatch subscribes to it. Publisher-owned event contracts
+       are supposed to be consumed by their subscribers; that is what published language means.
+       The skill does not currently draw that distinction — see DEBT. -->
+  <ItemGroup>
+    <Protobuf Include="..\..\protos\crittercab\telemetry\v1\driver_location_updated.proto"
+              ProtoRoot="..\..\protos"
+              Link="protos\crittercab\telemetry\v1\driver_location_updated.proto"
+              GrpcServices="None" />
   </ItemGroup>
 
 </Project>

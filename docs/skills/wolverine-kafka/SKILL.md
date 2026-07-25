@@ -52,9 +52,9 @@ Telemetry service                           Dispatch service
                                            └─────────────────┘
 ```
 
-The Telemetry service publishes `DriverLocationUpdated` messages to a Kafka topic partitioned by `driverId`. Dispatch consumes it; a future Pricing service would consume the same topic under its own consumer group. Each handler is a plain messaging handler — it receives the message and does its work. The Kafka-specific concerns (partitioning, consumer groups, offsets) are configured in `Program.cs`, invisible to the handler.
+The Telemetry service publishes `DriverLocationUpdated` messages to a Kafka topic partitioned by `driverId`. Dispatch consumes it into its `AvailableDriver` view; any future consumer would read the same topic under its own consumer group. Each handler is a plain messaging handler — it receives the message and does its work. The Kafka-specific concerns (partitioning, consumer groups, offsets, cold-start position) are configured in `Program.cs`, invisible to the handler.
 
-> **⚠ Illustrative names below predate the implementation.** Only the shipped topic above and the § Topic naming, § Publishing and § Serialization sections have been reconciled against real code (2026-07-24). The listener, consumer-group, batching and DLQ examples further down still use a speculative `LocationPing` / `telemetry.location-pings` pairing that **does not exist**: `LocationPing` is the gRPC *ingest* message (W006 §6.2), never a Kafka payload, and nothing consumes this topic until W006 slice 5. Read those sections for the mechanic, not the names. A DEBT row tracks refreshing them once the consumer is real.
+> **Reconciled against shipped code 2026-07-24.** Both halves of this topic now run: Telemetry publishes (PR C) and Dispatch consumes (PR D). Every named topic, message type and handler in this skill exists in the codebase. Where a section illustrates a mechanic Cab does **not** currently use — `ProcessInline`, batching, raw JSON, tombstones, custom envelope mappers — it says so inline.
 
 ## Bootstrap
 
@@ -143,18 +143,56 @@ For surge-pricing demand signals, partitioning by `zone_id` keeps all demand eve
 
 ## Listening
 
-### Single-topic listeners
+> **Rewritten 2026-07-24 from shipped code (PR D).** This section and § Consumer groups previously illustrated with a `LocationPing` → `telemetry.location-pings` pairing that never existed — `LocationPing` is the gRPC *ingest* message (W006 §6.2) and is never a Kafka payload. Everything below is now the real Dispatch consumer.
 
-`opts.ListenToKafkaTopic("...")` creates a consumer; messages route through the Wolverine handler pipeline as standard messaging handlers — the handler doesn't know it came from Kafka:
+### The shipped listener, whole
+
+Cab's only Kafka listener lives in `CritterCab.Dispatch`. Read it as the reference for every clause:
 
 ```csharp
-public static class LocationPingHandler
+opts.UseKafkaUsingNamedConnection("kafka");   // no AutoProvision — the producer owns the topic
+
+opts.ListenToKafkaTopic("telemetry.driver-location-updated")
+    .ConfigureConsumer(c => c.GroupId = "dispatch")
+    .BeginAtLatest()
+    .UseProtobufSerialization()
+    .DefaultIncomingMessage<DriverLocationUpdated>();
+```
+
+```csharp
+public static class DriverLocationUpdatedHandler
 {
-    public static void Handle(LocationPing ping, ILogger logger) =>
-        logger.LogDebug("Ping from driver {DriverId} at {Lat},{Lng}",
-            ping.DriverId, ping.Latitude, ping.Longitude);
+    public static async Task Handle(
+        DriverLocationUpdated message, IDocumentSession session, CancellationToken ct)
+    { /* ... */ }
 }
 ```
+
+The handler is a **vanilla Wolverine messaging handler** — nothing in it references Kafka, a topic, an offset or a partition. Handler *shape* is `wolverine-messaging-handlers`' subject, not this skill's.
+
+### Handler discovery is a precondition for deserialization
+
+The single most surprising failure mode, and the first thing to suspect when a listener goes quiet with **no error at all**.
+
+Wolverine resolves an incoming message's wire type name through `HandlerGraph._messageTypes`, which is populated *from discovered handler chains*. If no handler is discovered for a message type, the pipeline short-circuits to `NoHandlerContinuation` and the payload is **never deserialized** — so a handler that is made `internal`, renamed out of convention, or moved to an unscanned assembly does not produce a deserialization error. It produces silence.
+
+Note also that `CustomizeHandlerDiscovery(...)` is **additive**: Wolverine appends its built-in conventions (`*Handler`, `*Consumer`, `Saga`, `IWolverineHandler`, `[WolverineHandler]`) at bootstrap, *after* your customization, and the include filters are OR'd. Dispatch registers a `*Automation` suffix and still discovers `DriverLocationUpdatedHandler` by the built-in one. Only `DisableConventionalDiscovery()` changes this.
+
+### Declaring the incoming message type
+
+`.DefaultIncomingMessage<T>()` pins the message type at the endpoint. It is **hardening, not a requirement**: Wolverine's default Kafka envelope mapper writes a `message-type` header on publish, so a Wolverine producer's type resolves from the wire without it. Declaring it *replaces* that header mapping with a constant, which makes the listener immune to a producer that omits or misspells the header — appropriate for a single-type topic, wrong for a shared one.
+
+There is **no** `ListenToKafkaTopic<T>(...)` generic overload and no `.ReceivesMessage<T>()` fluent method; `DefaultIncomingMessage<T>()` is the API.
+
+### Cold-start position — `BeginAtLatest()` / `BeginAtEarliest()`
+
+Both apply **only when the consumer group has no committed offset**. Once the group commits, it resumes from its committed position and these are ignored.
+
+State one explicitly. `ConfigureConsumer` replaces the parent `ConsumerConfig`, so leaving it unset falls through to Confluent's default (`Latest`) rather than to anything Wolverine chose for you.
+
+Cab's telemetry consumer uses `BeginAtLatest()`: a stale position is worthless (W006 §6.4 evicts positions older than three heartbeats), and the heartbeat refills the view within `heartbeatIntervalSeconds` regardless — whereas `BeginAtEarliest()` would replay however many hours of retained telemetry the topic holds on a first deploy to arrive at the same state. Prefer `BeginAtEarliest()` instead when a topic carries facts that are *not* self-healing and a cold-start gap would lose them permanently.
+
+**Testing consequence:** under `BeginAtLatest()`, anything produced before the consumer group finishes joining is legitimately missed. Invisible in production; a guaranteed hang in a test that produces once and waits. Cab's `DispatchKafkaTestFixture` performs a warm-up handshake — producing throwaway records until one is observably handled — before any test runs. Do not paper over this with a fixed `Thread.Sleep`.
 
 ### Multi-topic listeners (topic groups)
 
@@ -165,39 +203,49 @@ For consuming several related topics from a single consumer (reducing rebalance 
 For streams like GPS pings where throughput matters more than durability guarantees, `ProcessInline()` bypasses the durable inbox and processes messages synchronously in the Kafka consumer loop:
 
 ```csharp
-opts.ListenToKafkaTopic("telemetry.location-pings")
+opts.ListenToKafkaTopic("telemetry.driver-location-updated")
     .ProcessInline();
 ```
 
-Without `ProcessInline()`, Wolverine stores incoming messages in the durable inbox (the PostgreSQL or SQL Server-backed transactional inbox) before processing. That's the right default for domain events on ASB where reliability trumps throughput. For GPS pings arriving at hundreds per second per driver, the inbox write is unnecessary overhead — a lost ping is replaced by the next one in seconds.
+**Get the baseline right first: a Kafka listener is NOT durable by default.** `Endpoint` defaults to `EndpointMode.BufferedInMemory`, and the Kafka transport does not override it. So an un-configured listener already buffers in memory and can lose in-flight messages on a crash. The durable inbox is opt-*in* via `UseDurableInbox()`, not opt-out via `ProcessInline()`. The three modes:
+
+| Mode | How | Behaviour |
+|---|---|---|
+| `BufferedInMemory` | **the default** — nothing to configure | Queued in-process, handled on a worker; in-flight messages lost on crash |
+| `ProcessInline()` | explicit | Handled on the Kafka consumer loop itself; no queue, back-pressure straight to the broker |
+| `UseDurableInbox()` | explicit | Written to the PostgreSQL/SQL Server inbox before handling; survives a crash |
+
+**Cab's shipped listener configures none of them**, so it runs buffered — which is the honest default for this flow: `telemetry.driver-location-updated` carries positions the heartbeat reproduces within `heartbeatIntervalSeconds` (W006 §6.4), so paying for an inbox write to protect a fact that regenerates itself is poor value. Reach for `UseDurableInbox()` when a topic carries facts that do *not* regenerate — and note that per `transport-selection` such a flow may belong on ASB in the first place.
 
 ### Batch processing
 
-For handlers that benefit from processing many messages at once (aggregating GPS pings per driver, computing demand across a zone), use `opts.BatchMessagesOf<T>()` paired with the listener:
+For handlers that benefit from processing many messages at once, use `opts.BatchMessagesOf<T>()` paired with the listener:
 
 ```csharp
-opts.ListenToKafkaTopic("telemetry.location-pings");
-opts.BatchMessagesOf<LocationPing>();
+opts.ListenToKafkaTopic("telemetry.driver-location-updated");
+opts.BatchMessagesOf<DriverLocationUpdated>();
 
-public static class LocationPingBatchHandler
+public static class DriverLocationUpdatedBatchHandler
 {
-    public static void Handle(LocationPing[] pings, ILogger logger)
+    public static void Handle(DriverLocationUpdated[] updates, ILogger logger)
     {
-        var byDriver = pings.GroupBy(p => p.DriverId);
+        var byDriver = updates.GroupBy(u => u.DriverId);
         foreach (var group in byDriver)
-            logger.LogDebug("Batch of {Count} pings for driver {DriverId}",
+            logger.LogDebug("Batch of {Count} positions for driver {DriverId}",
                 group.Count(), group.Key);
     }
 }
 ```
 
-Batch processing pairs naturally with high-volume Kafka topics where per-message invocation overhead is wasteful.
+Batch processing pairs naturally with high-volume topics where per-message invocation overhead is wasteful. **Cab does not currently batch** — the shipped consumer handles one position at a time, because its per-message work is a single guarded upsert and batching would only complicate the last-writer-wins guard. Illustrated here as the mechanic, not as Cab's practice.
 
 ## Consumer groups
 
 ### Default group ID
 
-Wolverine sets the Kafka consumer group ID to the **service name** (`WolverineOptions.ServiceName`) by default. In Cab, each service has a unique name, so Dispatch and Pricing each get their own consumer group on `telemetry.location-pings` automatically — no explicit configuration needed for the standard fan-out pattern.
+Wolverine sets the Kafka consumer group ID to the **service name** by default — `ConsumerConfig.GroupId ??= runtime.Options.ServiceName` in `KafkaTransport`. Each Cab service has a unique name, so several services listening to `telemetry.driver-location-updated` would each get their own consumer group automatically, which is the standard fan-out pattern.
+
+**Cab's shipped listener pins it explicitly anyway** (`c.GroupId = "dispatch"`), and the reason is worth copying: a group id derived from the service name silently changes if the service is ever renamed, and a *new* group under `BeginAtLatest()` starts at the tail — quietly discarding the old group's committed position with no error. A literal is cheap insurance against an invisible offset reset.
 
 ### Transport-level override
 
@@ -264,6 +312,8 @@ Wolverine ships `SchemaRegistryAvroSerializer` and `SchemaRegistryJsonSerializer
 ### Enabling native dead letter topics
 
 Kafka has no built-in DLQ. Wolverine implements dead-letter routing as a separate Kafka topic; opt in per listener with `.EnableNativeDeadLetterQueue()`. Override the default name (`wolverine-dead-letter-queue`) globally with `.DeadLetterQueueTopicName("crittercab-dlq")`. Wolverine stamps four diagnostic headers on dead-lettered messages (`exception-type`, `exception-message`, `exception-stack`, `failed-at`). See ai-skills `wolverine-integrations-kafka` § Dead letter queue.
+
+**Cab's shipped listener does not enable it**, and the reason generalizes: `telemetry.driver-location-updated` carries positions that are self-healing by design — a dropped message is superseded by the next heartbeat within `heartbeatIntervalSeconds` (W006 §6.4), so a dead-lettered position is worth strictly less than the operational cost of a topic to inspect and replay. Enable the native DLT when a topic carries facts that are **not** reproducible on a timer, and note that per `transport-selection` such a flow may belong on ASB in the first place — see § Common pitfalls.
 
 ### Retry policies
 
@@ -334,7 +384,13 @@ Wolverine's Kafka transport propagates OpenTelemetry trace context through Kafka
 
 - **Assuming a publish reached the broker when `PublishAsync` returns.** A Kafka publishing endpoint defaults to `BufferedInMemory`, which batches into an in-process queue and returns before the broker has seen anything. If a flow's correctness depends on the publish landing *before* some local write, `SendInline()` is required — and even inline is not enough on its own, because Wolverine's default async retry block swallows the send failure, logs it, re-posts to a background block and returns success. Pair `SendInline()` with `opts.Durability.UseSyncRetryBlock = true` (process-global) so a broker rejection actually throws. `telemetry.driver-location-updated` does exactly this for W006 §6.3's publish-before-store ordering.
 
-- **Assuming ConfigureConsumer merges with the parent.** `ConfigureConsumer` on a per-topic listener **replaces** the parent `ConsumerConfig`. Bootstrap servers are auto-inherited, but other settings (SASL, timeouts) from the transport-level config are lost. Re-apply them in the per-topic override if needed.
+- **Assuming ConfigureConsumer merges with the parent.** `ConfigureConsumer` on a per-topic listener **replaces** the parent `ConsumerConfig`. Bootstrap servers are auto-inherited, but other settings (SASL, timeouts) from the transport-level config are lost. Re-apply them in the per-topic override if needed. Note this is also why an unset cold-start position falls through to Confluent's default rather than to a Wolverine one — see § Listening.
+
+- **A silent listener is a discovery problem before it is a serialization problem.** If messages are demonstrably on the topic and nothing happens — no handler invocation, no exception, no dead letter — check that the handler is `public`, concrete, conventionally named, and in a scanned assembly *before* looking at serializers. Wolverine resolves the wire type name from discovered handler chains, so an undiscovered handler means the payload is never deserialized at all, and the failure mode is silence rather than an error.
+
+- **Producing before the consumer group has joined, in a test.** Under `BeginAtLatest()` (Cab's default for the telemetry feed) a record published before the group finishes joining is behind the tail and will never be delivered. Production never notices because the heartbeat republishes; a test hangs until its timeout. Warm the listener with a throwaway round trip first — and retry rather than sleeping, because group-join time varies with broker startup.
+
+- **Registering a document for `TryUpdateRevision` without `UseNumericRevisions(true)`.** The last-writer-wins guard only engages when the document is configured for numeric revisions; without it the call degrades to a plain unguarded upsert and stale redeliveries start overwriting fresh state, with no error anywhere. If the revision is a timestamp, the document must also implement `ILongVersioned` (`long`) rather than `IRevisioned` (`int`) — unix-milliseconds overflowed `int` in 1970.
 
 - **Using Kafka for domain events that need dead-lettering.** Kafka is append-only; dead-letter routing is a Wolverine-layer construct that produces to a separate topic. Azure Service Bus has native dead-letter queues with built-in inspection, replay, and session support. If your flow needs robust DLQ semantics, it probably belongs on ASB per `transport-selection`.
 

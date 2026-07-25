@@ -151,6 +151,10 @@ public class Slice52FareQuotedFailurePathTests : IDisposable
             NotesForDriver: null);
 
         IScenarioResult httpResult = null!;
+
+        // 30s rather than the 5s default — and this suite needs it most, because the retry loop
+        // under test spends real time in cooldowns before reaching a terminal outcome. See the
+        // same widening in Slice53CandidatesSelectedTests for why the default stopped sufficing.
         await _host.ExecuteAndWaitAsync(async () =>
         {
             httpResult = await _host.Scenario(s =>
@@ -158,7 +162,7 @@ public class Slice52FareQuotedFailurePathTests : IDisposable
                 s.Post.Json(command).ToUrl("/api/rides/request");
                 s.StatusCodeShouldBe(HttpStatusCode.Created);
             });
-        });
+        }, timeoutInMilliseconds: 30_000);
 
         var response = httpResult.ReadAsJson<RideRequestResponse>();
         response.ShouldNotBeNull();

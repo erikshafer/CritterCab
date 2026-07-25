@@ -48,11 +48,20 @@ var kafka = builder.AddKafka("kafka", port: 5392)
 // launch profile — the AppHost-declared endpoints are authoritative. gRPC rides
 // the HTTPS endpoint via Kestrel HTTP/2; 5312 is reserved if a dedicated gRPC
 // listener is ever needed. See docs/skills/aspire/SKILL.md § Port allocation.
+//
+// Dispatch LISTENS to telemetry.driver-location-updated (W006 §6.5) — its first transport, and the
+// second half of CritterCab's first cross-service flow. Same named-connection arrangement as
+// Telemetry below: the reference injects the broker address under the key "kafka", which is what
+// UseKafkaUsingNamedConnection reads. Unlike Telemetry, Dispatch does NOT AutoProvision — the
+// producer owns the topic. WaitFor is therefore ordering hygiene here rather than a hard
+// requirement: a listener that starts before the broker retries, it does not fail.
 builder.AddProject<Projects.CritterCab_Dispatch>("dispatch", launchProfileName: null)
     .WithHttpsEndpoint(port: 5310, name: "https")
     .WithHttpEndpoint(port: 5311, name: "http")
     .WithReference(dispatchDb)
-    .WaitFor(dispatchDb);
+    .WaitFor(dispatchDb)
+    .WithReference(kafka)
+    .WaitFor(kafka);
 
 // Telemetry is CritterCab's second service (stream-processing shape, W006). Ports follow
 // the +5 slot convention after Dispatch's 5310; 5315 https / 5316 http. See
