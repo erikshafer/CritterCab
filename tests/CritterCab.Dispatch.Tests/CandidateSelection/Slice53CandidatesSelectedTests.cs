@@ -158,6 +158,15 @@ public class Slice53CandidatesSelectedTests : IDisposable
             NotesForDriver: null);
 
         IScenarioResult httpResult = null!;
+
+        // 30s rather than the 5s default. The cascade under test is RideRequested → FareQuoted →
+        // CandidatesSelected across three handlers, and the first invocation in the assembly also
+        // pays for Marten schema creation — which fits comfortably in 5s on a developer machine and
+        // did until slice 5 added a second Postgres and a Kafka broker to this project's fixtures.
+        // Both assemblies now start their containers in parallel on a 2-core CI runner, and this
+        // test began timing out intermittently at 4.6s. The timeout is a safety net against a hung
+        // cascade, not an assertion about latency, so widening it costs nothing and removes a
+        // failure that says nothing about the code.
         await _host.ExecuteAndWaitAsync(async () =>
         {
             httpResult = await _host.Scenario(s =>
@@ -165,7 +174,7 @@ public class Slice53CandidatesSelectedTests : IDisposable
                 s.Post.Json(command).ToUrl("/api/rides/request");
                 s.StatusCodeShouldBe(HttpStatusCode.Created);
             });
-        });
+        }, timeoutInMilliseconds: 30_000);
 
         var response = httpResult.ReadAsJson<RideRequestResponse>();
         response.ShouldNotBeNull();

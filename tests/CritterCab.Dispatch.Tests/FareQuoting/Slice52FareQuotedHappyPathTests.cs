@@ -39,6 +39,11 @@ public class Slice52FareQuotedHappyPathTests
             NotesForDriver: "meet at side entrance");
 
         IScenarioResult httpResult = null!;
+
+        // 30s rather than the 5s default. Same reason as the widening in
+        // Slice53CandidatesSelectedTests: the timeout guards against a hung cascade, not slowness,
+        // and 5s became marginal on CI once slice 5 added a second Postgres and a Kafka broker to
+        // this project's fixtures.
         var tracked = await _host.ExecuteAndWaitAsync(async () =>
         {
             httpResult = await _host.Scenario(s =>
@@ -46,7 +51,7 @@ public class Slice52FareQuotedHappyPathTests
                 s.Post.Json(command).ToUrl("/api/rides/request");
                 s.StatusCodeShouldBe(HttpStatusCode.Created);
             });
-        });
+        }, timeoutInMilliseconds: 30_000);
 
         var response = httpResult.ReadAsJson<RideRequestResponse>();
         response.ShouldNotBeNull();
