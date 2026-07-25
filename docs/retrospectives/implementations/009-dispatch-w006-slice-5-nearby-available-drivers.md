@@ -90,6 +90,10 @@ Fixed with a serial `docker pull` step ahead of `dotnet test`, by user sign-off,
 - **"It failed in code I didn't touch" is evidence about *load*, not innocence.** The blast radius of a new test fixture is the whole CI job, not its own assembly.
 - **Pinning an image tag by hand is a place to verify, not guess.** The first version of the pre-pull step named `testcontainers/ryuk:0.11.0`; Testcontainers 4.13.0 actually pins `0.14.0` by digest, read out of the package assembly. A wrong tag there fails silently in the worst way — it pre-pulls an image nothing uses and quietly restores the behaviour it was meant to fix, while looking like a fix.
 
+**The load pressure then surfaced a second, unrelated symptom.** With the pulls fixed, one *pre-existing* test — `Slice53CandidatesSelectedTests` — timed out at the `TrackedSession` default of 5 s, having reached 4.6 s. Nothing about it changed; the three-handler cascade it exercises simply no longer fits in 5 s on a 2-core runner that is also starting six containers. Widened to 30 s there and in the two `Slice52` helpers carrying the same default, since all three were equally exposed and leaving them would have left landmines for the next contributor to trip.
+
+That is worth separating from the "no opportunistic edits" rule rather than blurring into it: those are files this session's prompt did not name, and the edits were still right, because **the session destabilised them**. The rule exists to stop unrelated improvements riding along, not to stop a session cleaning up after itself. A useful test for the distinction — *would this file still need touching if my change were reverted?* If no, it is in scope.
+
 ### Regression tests must be proven to fail
 
 Having written the fix, I wrote two regression tests, and they passed. That is not evidence — a test that passes on both the broken and fixed implementation pins nothing.
