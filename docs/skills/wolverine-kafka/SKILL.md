@@ -130,7 +130,7 @@ For the broader routing surface (`Specification` for partition count + replicati
 
 ### Convention-based routing
 
-Wolverine supports `opts.PublishAllMessages().ToKafkaTopics()` for derive-topic-name-from-message-type publishing. **Cab does not use this** — Cab's `<bc>.<descriptive-name>` topic convention doesn't match type names. Named topic routing (above) is the Cab default.
+Wolverine supports `opts.PublishAllMessages().ToKafkaTopics()` for derive-topic-name-from-message-type publishing. **Cab does not use this.** ADR-019's `<source-bc>.<event-name-kebab>` is close enough to a type-name derivation to make the shortcut tempting, and that is exactly why it is worth declining: the derivation would bind a wire-visible topic name to a C# type name, so a routine refactor rename would silently repoint the producer at a new topic while consumers stayed on the old one. The BC prefix also has no type to derive from. Named topic routing (above) keeps the topic an explicit, reviewable string — which is what a cross-BC contract should be.
 
 ### Partition keys
 

@@ -18,7 +18,7 @@
   - `tests/CritterCab.Telemetry.Tests/TelemetryTestFixture.cs` — `RecordingDriverLocationPublisher` gains `FailNextPublish`
   - **`docs/decisions/019-transport-agnostic-topic-naming.md`** — new ADR; `docs/decisions/014-*.md` status line + scope note; `docs/decisions/README.md` index
   - `docs/skills/wolverine-kafka/SKILL.md` — topic-naming and serialization sections corrected, two pitfalls added, publish-path examples reconciled against shipped code
-  - `docs/skills/DEBT.md` — 3 new rows
+  - `docs/skills/DEBT.md` — 4 new rows
   - `docs/workshops/006-telemetry-event-model.md` `## Document History` — §6.3 realized; §11 candidate #1 discharged; the publish-first qualifier recorded
   - `docs/prompts/README.md` — Implementations index entry
   - This retro
@@ -101,13 +101,14 @@ Both corrections rode in-PR under the session-runner-blocking exception, on the 
 - **Source verification and convention discovery are not substitutes.** This prompt was thoroughly gate-verified and still had four convention-level errors the Phase 1 auditor caught, including a missing governing skill. Both passes, in that order.
 - **A skill that says "not yet" is a decision, not a silence.** When a session's plan overrides one, that belongs in front of the user. When a skill is merely absent on a point, the session runner decides. This session had one of each — protobuf serialization (escalated) and endpoint-scoped-vs-global (decided) — and the line held usefully.
 - **When correcting a skill in-session, scope the correction to what the session actually shipped.** The publish path was corrected against real code; the listener half was left with a warning and a DEBT row, because correcting it now would mean inventing the consumer PR D is going to build.
+- **Correcting one section of a skill leaves the sections that quoted it stale.** The Phase 2 audit found that two sections below the rewritten topic-naming rule, § Convention-based routing still justified itself with *"Cab's `<bc>.<descriptive-name>` topic convention doesn't match type names"* — reintroducing by name the exact rule the correction had just rejected, inside a file whose new banner claimed that section was reconciled. Fixed in-session. The general lesson: after editing a skill's normative section, grep the rest of the file for its old vocabulary rather than trusting section boundaries, because supporting prose tends to restate the rule it depends on.
 
 ---
 
 ## Outstanding items / next-session inputs
 
 - **PR D — W006 slice 5**, the last pending slice: Dispatch consumes `telemetry.driver-location-updated` into the `AvailableDriver` view, replacing `NearbyAvailableDriversStub`, and closes the W001 §5.3 amendment. It also owns §6.3's **Dedup GWT**, which asserts consumer behavior and could not be tested here. Two constraints already verified for it: `ListenToKafkaTopic(...).ConfigureConsumer(c => c.GroupId = ...)` is the listener shape (there is no `.GroupId(string)`), and the listener **must** carry `UseProtobufSerialization()` because `ProtobufMessageSerializer.ReadFromData(byte[])` throws — only the `(Type, Envelope)` overload works.
-- **Three new DEBT rows**: `wolverine-kafka` listener examples (drain with PR D), `transport-selection`'s missing built-vs-modeled status axis (two of three transports are now built), and the `aspire` `AddKafka` example.
+- **Four new DEBT rows**: `wolverine-kafka` listener examples (drain with PR D), `transport-selection`'s missing built-vs-modeled status axis (two of three transports are now built), the `aspire` `AddKafka` example, and `service-bootstrap`'s undocumented optional connection-string guard — the last surfaced by the Phase 2 audit, which noticed that Telemetry's `Program.cs` has now twice chosen an optional guard over the skill's canonical mandatory-throw without anything sanctioning the deviation.
 - **Design-return cadence.** ADR-019 served as this run's interleave, so the counter is satisfied — but ASB is now the only modeled-and-unbuilt transport, and the Driver Profile workshop is the prerequisite for the ASB half of ADR-018's join. That is the natural design-side successor once slice 5 lands.
 - **CLAUDE.md's status line is further out of date than it was**, and PR [#43](https://github.com/erikshafer/CritterCab/pull/43) — already stale on arrival for describing a transport-less Telemetry — is now stale in one more respect. Re-read its diff before merging; accurate now is *two services, two live transports, W006 slices 1/2/3/4 realized.*
 - **The CI-cannot-see-`apphost.cs` gap bit again** (this session edited the file and caught a compile error only locally). Still its own session; extend the existing "Verify solution completeness" step rather than adding a guard.
