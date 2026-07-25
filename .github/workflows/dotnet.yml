@@ -69,6 +69,31 @@ jobs:
       - name: Build
         run: dotnet build CritterCab.slnx --no-restore --configuration Release
 
+      # Pull every Testcontainers image serially BEFORE the test run, so nothing is fetched from
+      # Docker Hub while tests are starting.
+      #
+      # Why this is needed: xUnit runs the two test assemblies in parallel, and each one stands up
+      # its own Testcontainers session — a Ryuk resource reaper plus a Postgres per fixture plus a
+      # Kafka broker. Once Dispatch grew its own Kafka-backed fixture (W006 slice 5) that became six
+      # containers and two reapers racing to pull at once, and the runner's connection to
+      # registry-1.docker.io started timing out mid-pull. The symptom is misleading: the failure
+      # surfaces as DockerApiException "context deadline exceeded" inside
+      # ResourceReaper.GetAndStartNewAsync, in whichever suite happened to lose the race, so it
+      # reads like a broken test rather than a saturated network.
+      #
+      # After this step the images are local and the fixtures' PullPolicy.Missing makes every pull a
+      # no-op. Keep this list in sync with the tags pinned in the fixtures — a tag that drifts out
+      # of sync here does not fail the build, it just quietly restores the old behaviour.
+      #
+      # The ryuk tag is NOT ours to choose: Testcontainers pins it internally (4.13.0 → 0.14.0,
+      # by digest). Re-read it from the package when Testcontainers is bumped, otherwise this line
+      # pre-pulls an image nothing uses and the reaper goes back to racing for its own.
+      - name: Pre-pull Testcontainers images
+        run: |
+          docker pull postgres:18-alpine
+          docker pull confluentinc/cp-kafka:7.6.1
+          docker pull testcontainers/ryuk:0.14.0
+
       - name: Test
         run: >
           dotnet test CritterCab.slnx
