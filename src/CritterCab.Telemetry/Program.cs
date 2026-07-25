@@ -1,6 +1,7 @@
 using CritterCab.Telemetry.LastKnownPosition;
 using CritterCab.Telemetry.ReportLocations;
 using CritterCab.Telemetry.TelemetryPolicy;
+using CritterCab.Telemetry.V1;
 using JasperFx;
 using Wolverine.Grpc;
 using Marten;
@@ -8,7 +9,9 @@ using Wolverine;
 using Wolverine.FluentValidation;
 using Wolverine.Http;
 using Wolverine.Http.FluentValidation;
+using Wolverine.Kafka;
 using Wolverine.Marten;
+using Wolverine.Protobuf;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -62,12 +65,29 @@ builder.Services.AddGrpc();
 builder.Services.AddWolverineGrpc();
 
 // The ingest resolves driverId from the ambient request rather than the payload (R5), so it needs
-// the accessor. Both registrations below are ready-to-swap seams, not final implementations:
-// HeaderDriverPrincipalAccessor gives way to a real Entra claim once Identity exists, and
-// LoggingDriverLocationPublisher to the WolverineFx.Kafka producer in PR C.
+// the accessor. HeaderDriverPrincipalAccessor is still a ready-to-swap seam — it gives way to a
+// real Entra claim once Identity exists.
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<IDriverPrincipalAccessor, HeaderDriverPrincipalAccessor>();
-builder.Services.AddSingleton<IDriverLocationPublisher, LoggingDriverLocationPublisher>();
+
+// The publish seam (W006 §6.3). Guarded on the connection string the same way Marten is above:
+// with a broker configured the real producer is used, and without one the service still boots
+// and logs what it would have published. That keeps a broker-less `dotnet run` useful and keeps
+// the slice-1/2/4 test suites from having to stand up Kafka to exercise the ingest.
+//
+// The lifetimes differ on purpose. KafkaDriverLocationPublisher is scoped because it depends on
+// IMessageBus, which Wolverine registers scoped; the logging fallback holds only an ILogger and
+// stays a singleton.
+var kafkaConnectionString = builder.Configuration.GetConnectionString("kafka");
+
+if (!string.IsNullOrEmpty(kafkaConnectionString))
+{
+    builder.Services.AddScoped<IDriverLocationPublisher, KafkaDriverLocationPublisher>();
+}
+else
+{
+    builder.Services.AddSingleton<IDriverLocationPublisher, LoggingDriverLocationPublisher>();
+}
 
 // Enum names on the wire; Wolverine HTTP shares the Minimal-API JsonOptions this configures.
 builder.Services.ConfigureSystemTextJsonForWolverineOrMinimalApi(options =>
@@ -83,6 +103,60 @@ builder.Host.UseWolverine(opts =>
     // from DI — without this discovery step it finds no validator and the invalid command
     // passes through as 200 instead of a 400 ProblemDetails.
     opts.UseFluentValidation();
+
+    if (string.IsNullOrEmpty(kafkaConnectionString))
+        return;
+
+    // === Kafka: the slice-3 publish (W006 §6.3) ===
+    //
+    // Read the broker address by NAME rather than by value: Aspire injects it under the "kafka"
+    // key via .WithReference(kafka), and the same code then works against a local container, the
+    // test Testcontainer, and Azure Event Hubs with no environment branching.
+    //
+    // Note UseKafkaUsingNamedConnection has a side effect beyond Kafka: it sets
+    // EnableAutomaticFailureAcks = false globally, because automatic acks do not interact
+    // correctly with Kafka serialization failures. That is deliberate upstream behavior — do not
+    // re-enable the flag.
+    //
+    // AutoProvision creates the topic at startup through the Kafka admin API. It works against a
+    // real broker (what Aspire and Testcontainers both start) but NOT against the Event Hubs
+    // Emulator, which serves only producer and consumer APIs. An EH-Emulator environment must
+    // pre-provision the topic and drop this call.
+    opts.UseKafkaUsingNamedConnection("kafka")
+        .AutoProvision();
+
+    // Makes a broker rejection observable to the caller. Without this, an inline send's failure
+    // is swallowed by Wolverine's default async retry block, which logs, re-posts to a background
+    // block, and returns success — so ReportLocationsHandler would proceed to upsert
+    // LastKnownPosition believing a publish happened. The sync block instead retries across a few
+    // pauses and then rethrows, which is what makes §6.3's publish-first ordering real rather
+    // than nominal.
+    //
+    // PROCESS-GLOBAL, not per-endpoint. Affordable today because Telemetry publishes to exactly
+    // one transport; a second publisher added here inherits this and should re-weigh it.
+    opts.Durability.UseSyncRetryBlock = true;
+
+    // The topic name is spelled out rather than shared as a constant with the tests, so the
+    // round-trip test asserts against the literal ADR-019 convention and would catch a rename
+    // here instead of silently following it.
+    opts.PublishMessage<DriverLocationUpdated>()
+        .ToKafkaTopic("telemetry.driver-location-updated")
+        // SendInline, not the BufferedInMemory default. Buffered batches into an in-process queue
+        // and returns before the broker has seen the record, which would make "publish first,
+        // then upsert" true only in statement order. Inline awaits the broker ack, so a failed
+        // publish throws, the upsert is skipped, the driver's baseline stays stale, and their
+        // next ping republishes — self-healing, and the branch §6.3 argued for. The cost is a
+        // broker round trip per publish, which is affordable because publishes are throttled to
+        // cell-change-or-heartbeat, never per raw ping.
+        .SendInline()
+        // enable.idempotence=true + acks=all: the broker de-duplicates producer retries, so the
+        // retry block above cannot turn one position into several records.
+        .UseIdempotentProducer()
+        // Endpoint-scoped, so only this topic goes binary. DriverLocationUpdated is generated
+        // from the .proto that IS the contract (ADR-009); serializing it as JSON would leave the
+        // contract governing the type but not the wire. Telemetry's HTTP surface stays JSON —
+        // the global UseProtobufSerialization overload would have taken that with it.
+        .UseProtobufSerialization();
 });
 
 var app = builder.Build();

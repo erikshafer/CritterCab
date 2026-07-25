@@ -8,6 +8,8 @@
     <PackageReference Include="WolverineFx.FluentValidation" />
     <PackageReference Include="WolverineFx.Marten" />
     <PackageReference Include="WolverineFx.Grpc" />
+    <PackageReference Include="WolverineFx.Kafka" />
+    <PackageReference Include="WolverineFx.Protobuf" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="Microsoft.OpenApi" />
     <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" />

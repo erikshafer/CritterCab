@@ -119,10 +119,26 @@ public sealed class RecordingDriverLocationPublisher : IDriverLocationPublisher
 
     public IReadOnlyList<DriverLocationUpdated> Published => [.. _published];
 
-    public void Clear() => _published.Clear();
+    // Simulates a broker rejection. Slice 3 configures the Kafka endpoint so a failed publish
+    // throws rather than being swallowed (SendInline + UseSyncRetryBlock), which is what makes
+    // W006 §6.3's publish-before-store ordering observable. Setting this lets a test assert what
+    // the handler does with that exception without needing a broker to break.
+    public bool FailNextPublish { get; set; }
+
+    public void Clear()
+    {
+        _published.Clear();
+        FailNextPublish = false;
+    }
 
     public Task PublishAsync(DriverLocationUpdated update, CancellationToken ct)
     {
+        if (FailNextPublish)
+        {
+            FailNextPublish = false;
+            throw new InvalidOperationException("Simulated broker rejection.");
+        }
+
         _published.Enqueue(update);
         return Task.CompletedTask;
     }

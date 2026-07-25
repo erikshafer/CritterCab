@@ -30,6 +30,11 @@
     <PackageVersion Include="WolverineFx.Kafka" Version="6.21.0" />
     <PackageVersion Include="WolverineFx.SignalR" Version="6.21.0" />
     <PackageVersion Include="WolverineFx.RuntimeCompilation" Version="6.21.0" />
+    <!-- Endpoint-scoped binary-protobuf serializer for the Kafka publishing rule
+         (W006 §6.3). Separate package from WolverineFx.Kafka; it pins the same
+         Google.Protobuf 3.31.1 the Grpc.Tools codegen above already uses, so
+         there is no version reconciliation between the two protobuf paths. -->
+    <PackageVersion Include="WolverineFx.Protobuf" Version="6.21.0" />
   </ItemGroup>
   <!-- gRPC proto-first codegen (Telemetry ReportLocations).
        Grpc.Tools runs protoc + the C# gRPC plugin at build time over the
@@ -77,6 +82,12 @@
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.13.0" />
     <PackageVersion Include="Testcontainers.ServiceBus" Version="4.13.0" />
     <PackageVersion Include="Testcontainers.Kafka" Version="4.13.0" />
+    <!-- The slice-3 round-trip test asserts on the RAW Kafka record (partition key
+         + binary protobuf value), which needs ConsumerBuilder directly. Confluent.Kafka
+         reaches WolverineFx.Kafka only transitively (via Confluent.SchemaRegistry.Serdes.*),
+         so the test project references it explicitly at the version Wolverine resolves
+         rather than depending on transitive flow. -->
+    <PackageVersion Include="Confluent.Kafka" Version="2.14.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
     <PackageVersion Include="Shouldly" Version="4.3.0" />
