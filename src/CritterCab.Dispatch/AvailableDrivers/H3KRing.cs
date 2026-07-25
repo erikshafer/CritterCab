@@ -41,6 +41,12 @@ public static class H3KRing
     // advances per ring. H3KRingTests pins the resulting k values against measured grid distances.
     private const double MetersPerRingPerEdge = 1.5;
 
+    // ~3,700 cells at the boundary (3k(k+1)+1). Comfortably above anything a sane
+    // resolution/radius pairing produces — resolution 9 at 5km needs 18 — and far below the point
+    // where a single `= ANY` array becomes the problem. See DeriveK for why this refuses rather
+    // than clamps.
+    private const int MaxRingRadius = 35;
+
     // Computes the H3 cell containing a point, at the given resolution. Same Coordinate path as
     // Telemetry's H3CellIndexer, and it must stay the same path: a cell id computed differently
     // here would not match the ids Telemetry publishes, and the join would silently return nothing.
@@ -103,8 +109,28 @@ public static class H3KRing
             return 0;
 
         var metersPerRing = edgeMeters * MetersPerRingPerEdge;
+        var k = (int)Math.Ceiling(radiusMeters / metersPerRing) + 1;
 
-        return (int)Math.Ceiling(radiusMeters / metersPerRing) + 1;
+        // A grid disk holds 3k(k+1)+1 cells, so k grows the array quadratically — and k itself is
+        // driven by a resolution Dispatch does not control (it is read off whatever Telemetry last
+        // published). At resolution 9 a 5km radius is k=18 and ~1,000 cells; at resolution 12 the
+        // same radius is k≈369 and ~410,000 cells, which would be materialised into a single
+        // `= ANY` parameter and would take the query down rather than return slowly.
+        //
+        // Refuse loudly instead of degrading. This is a misconfiguration — a telemetry resolution
+        // that fine is not a tuning choice, it is a mistake — and an exception names it at the one
+        // moment someone can act on it. Returning a truncated k would silently under-cover, which
+        // is the failure mode this whole method is written to avoid.
+        if (k > MaxRingRadius)
+        {
+            throw new InvalidOperationException(
+                $"An H3 k-ring of {k} rings is required to cover {radiusMeters}m at resolution "
+                + $"{resolution}, which exceeds the {MaxRingRadius}-ring ceiling. The cell "
+                + "resolution published by Telemetry is too fine for this search radius — widen "
+                + "the TelemetryPolicy resolution or narrow the radius.");
+        }
+
+        return k;
     }
 
     // Great-circle distance in metres between two degree-denominated points. Used for the exact

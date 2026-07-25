@@ -145,6 +145,100 @@ public class Slice5DriverLocationConsumerTests
         driver.Lat.ShouldBe(LoopLat);
     }
 
+    // The regression test for the defect a two-axis code review found: with ONE revision column
+    // shared by both sides, a heartbeat position stamped later than an availability transition
+    // would silently discard that transition — leaving an offline driver dispatchable, with no
+    // error anywhere. Per-side LWW is what W006 §6.5 locks, and this is what it buys.
+    [Fact]
+    public async Task an_availability_transition_is_applied_even_when_a_later_position_arrived_first()
+    {
+        await _fixture.ResetDriversAsync();
+
+        var driverId = Guid.CreateVersion7();
+        var t = DateTimeOffset.UtcNow;
+
+        // The exact interleaving that broke under a single shared revision column: a position whose
+        // timestamp is AHEAD of the availability transition lands FIRST. Under the old scheme that
+        // position set the revision to t+10s, and the Offline transition stamped t+5s then failed
+        // the `mt_version < ?` guard and was discarded server-side — silently leaving an offline
+        // driver dispatchable. Per-side LWW compares the transition against the AVAILABILITY
+        // side's own clock, which is empty here, so it applies.
+        await ProduceAndWaitAsync(PositionOf(driverId, LoopLat, LoopLon, t));
+        await ProduceAndWaitAsync(PositionOf(driverId, LoopLat, LoopLon, t.AddSeconds(10)));
+
+        await ApplyAvailabilityAsync(driverId, DriverAvailabilityState.Offline, t.AddSeconds(5));
+
+        var driver = await _fixture.LoadDriverAsync(driverId);
+
+        driver.ShouldNotBeNull();
+        driver.AvailabilityState.ShouldBe(DriverAvailabilityState.Offline);
+
+        // And the location side kept the newest position — neither write clobbered the other.
+        driver.ServerReceivedAt.ToUnixTimeMilliseconds()
+            .ShouldBe(t.AddSeconds(10).ToUnixTimeMilliseconds());
+    }
+
+    // Mirror image: a stale availability transition must not win over a newer one just because it
+    // arrived later. Each side is ordered on its own clock.
+    [Fact]
+    public async Task a_stale_availability_transition_never_overwrites_a_newer_one()
+    {
+        await _fixture.ResetDriversAsync();
+
+        var driverId = Guid.CreateVersion7();
+        var now = DateTimeOffset.UtcNow;
+
+        await ProduceAndWaitAsync(PositionOf(driverId, LoopLat, LoopLon, now));
+        await ApplyAvailabilityAsync(driverId, DriverAvailabilityState.Offline, now);
+        await ApplyAvailabilityAsync(driverId, DriverAvailabilityState.Available, now.AddSeconds(-30));
+
+        var driver = await _fixture.LoadDriverAsync(driverId);
+
+        driver.ShouldNotBeNull();
+        driver.AvailabilityState.ShouldBe(DriverAvailabilityState.Offline);
+    }
+
+    // Pins a known, deliberate limitation rather than a desired behaviour — see
+    // DriverAvailabilityChangedHandler for why it is a deferral and what closing it would require
+    // from Driver Profile. Here so the drop cannot start or stop happening silently.
+    [Fact]
+    public async Task an_availability_event_for_an_unseen_driver_is_dropped_not_buffered()
+    {
+        await _fixture.ResetDriversAsync();
+
+        var driverId = Guid.CreateVersion7();
+        var at = DateTimeOffset.UtcNow;
+
+        // Availability first, with no position ever received for this driver.
+        await ApplyAvailabilityAsync(driverId, DriverAvailabilityState.Available, at);
+
+        (await _fixture.LoadDriverAsync(driverId)).ShouldBeNull();
+
+        // A position arrives later. The availability side does NOT reappear — the earlier event is
+        // gone, not queued.
+        await ProduceAndWaitAsync(PositionOf(driverId, LoopLat, LoopLon, at.AddSeconds(5)));
+
+        var driver = await _fixture.LoadDriverAsync(driverId);
+
+        driver.ShouldNotBeNull();
+        driver.AvailabilityState.ShouldBeNull();
+    }
+
+    private async Task ApplyAvailabilityAsync(
+        Guid driverId, DriverAvailabilityState state, DateTimeOffset at)
+    {
+        using var scope = _fixture.Host.Services.CreateScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
+
+        await bus.InvokeAsync(new DriverAvailabilityChanged
+        {
+            DriverId = driverId,
+            AvailabilityState = state,
+            VehicleClass = VehicleClass.Standard,
+            AvailabilityUpdatedAt = at
+        });
+    }
+
     // Produces the record and waits for Dispatch's listener to finish handling it.
     //
     // WaitForMessageToBeReceivedAt is the API that waits on an ARRIVAL. IncludeExternalTransports()

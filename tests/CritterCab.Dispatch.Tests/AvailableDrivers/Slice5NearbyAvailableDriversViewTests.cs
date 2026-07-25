@@ -24,6 +24,7 @@ public class Slice5NearbyAvailableDriversViewTests
     // test is not sensitive to the exact great-circle arithmetic.
     private const double PickupLat = 41.8827d, PickupLon = -87.6233d;
     private const double NearLat = 41.8850d, NearLon = -87.6250d;
+    private const double MidLat = 41.8950d, MidLon = -87.6300d;
     private const double FarLat = 41.9400d, FarLon = -87.6900d;
     private const int Resolution = 9;
     private const int RadiusMeters = 2_000;
@@ -37,23 +38,30 @@ public class Slice5NearbyAvailableDriversViewTests
     {
         await _fixture.ResetDriversAsync();
 
-        var near = await AvailableDriverAt(NearLat, NearLon, VehicleClass.Standard);
-        var far = await AvailableDriverAt(FarLat, FarLon, VehicleClass.Standard);
+        // Two drivers inside the radius at different distances, so the ORDERING is actually
+        // exercised — seeded farther-first so a missing OrderBy returns them the wrong way round
+        // rather than accidentally right. Plus one outside it, to prove the trim.
+        var nearer = await AvailableDriverAt(NearLat, NearLon, VehicleClass.Standard);
+        var farther = await AvailableDriverAt(MidLat, MidLon, VehicleClass.Standard);
+        var outside = await AvailableDriverAt(FarLat, FarLon, VehicleClass.Standard);
 
         var found = await QueryAsync(RadiusMeters, VehicleClass.Standard);
 
-        // The far driver is inside the k-ring — the ring deliberately over-approximates — and is
-        // trimmed by the exact-distance filter. That is the assertion that proves the two-stage
+        // Nearest first — W006 §6.5's "exact-distance ranked".
+        found.Select(d => d.DriverId).ShouldBe([nearer, farther]);
+        found[0].DistanceMeters.ShouldBeLessThan(found[1].DistanceMeters);
+
+        // The outside driver is inside the k-ring — the ring deliberately over-approximates — and
+        // is trimmed by the exact-distance filter. That is the assertion that proves the two-stage
         // query works rather than the ring accidentally being tight enough.
-        found.Select(d => d.DriverId).ShouldBe([near]);
-        found[0].DistanceMeters.ShouldBeLessThan(RadiusMeters);
+        found.Select(d => d.DriverId).ShouldNotContain(outside);
+        found[1].DistanceMeters.ShouldBeLessThan(RadiusMeters);
 
         // ETA is derived from distance against an invented urban-speed constant (W006 §6.5 fork 3).
         // Asserted as a relationship, not a value: pinning the number here would freeze a
         // placeholder that a real ETA service is meant to replace.
         found[0].EtaSeconds.ShouldBeGreaterThan(0);
-
-        far.ShouldNotBe(near);
+        found[0].EtaSeconds.ShouldBeLessThan(found[1].EtaSeconds);
     }
 
     [Fact]

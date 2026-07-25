@@ -207,9 +207,15 @@ opts.ListenToKafkaTopic("telemetry.driver-location-updated")
     .ProcessInline();
 ```
 
-Without `ProcessInline()`, Wolverine stores incoming messages in the durable inbox (the PostgreSQL or SQL Server-backed transactional inbox) before processing. That's the right default for domain events on ASB where reliability trumps throughput. For a throttled position feed, a lost message is replaced by the next heartbeat in seconds, so the inbox write buys little.
+**Get the baseline right first: a Kafka listener is NOT durable by default.** `Endpoint` defaults to `EndpointMode.BufferedInMemory`, and the Kafka transport does not override it. So an un-configured listener already buffers in memory and can lose in-flight messages on a crash. The durable inbox is opt-*in* via `UseDurableInbox()`, not opt-out via `ProcessInline()`. The three modes:
 
-**Cab's shipped listener does not use it.** `telemetry.driver-location-updated` is already throttled to cell-change-or-heartbeat, not raw GPS, so its volume does not justify giving up the inbox. Reach for `ProcessInline()` when a topic carries genuinely per-ping volume — and note the durability trade in § Common pitfalls.
+| Mode | How | Behaviour |
+|---|---|---|
+| `BufferedInMemory` | **the default** — nothing to configure | Queued in-process, handled on a worker; in-flight messages lost on crash |
+| `ProcessInline()` | explicit | Handled on the Kafka consumer loop itself; no queue, back-pressure straight to the broker |
+| `UseDurableInbox()` | explicit | Written to the PostgreSQL/SQL Server inbox before handling; survives a crash |
+
+**Cab's shipped listener configures none of them**, so it runs buffered — which is the honest default for this flow: `telemetry.driver-location-updated` carries positions the heartbeat reproduces within `heartbeatIntervalSeconds` (W006 §6.4), so paying for an inbox write to protect a fact that regenerates itself is poor value. Reach for `UseDurableInbox()` when a topic carries facts that do *not* regenerate — and note that per `transport-selection` such a flow may belong on ASB in the first place.
 
 ### Batch processing
 
@@ -306,6 +312,8 @@ Wolverine ships `SchemaRegistryAvroSerializer` and `SchemaRegistryJsonSerializer
 ### Enabling native dead letter topics
 
 Kafka has no built-in DLQ. Wolverine implements dead-letter routing as a separate Kafka topic; opt in per listener with `.EnableNativeDeadLetterQueue()`. Override the default name (`wolverine-dead-letter-queue`) globally with `.DeadLetterQueueTopicName("crittercab-dlq")`. Wolverine stamps four diagnostic headers on dead-lettered messages (`exception-type`, `exception-message`, `exception-stack`, `failed-at`). See ai-skills `wolverine-integrations-kafka` § Dead letter queue.
+
+**Cab's shipped listener does not enable it**, and the reason generalizes: `telemetry.driver-location-updated` carries positions that are self-healing by design — a dropped message is superseded by the next heartbeat within `heartbeatIntervalSeconds` (W006 §6.4), so a dead-lettered position is worth strictly less than the operational cost of a topic to inspect and replay. Enable the native DLT when a topic carries facts that are **not** reproducible on a timer, and note that per `transport-selection` such a flow may belong on ASB in the first place — see § Common pitfalls.
 
 ### Retry policies
 

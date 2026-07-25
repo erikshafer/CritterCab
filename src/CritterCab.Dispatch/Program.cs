@@ -4,8 +4,11 @@ using CritterCab.Dispatch.FareQuoting;
 using CritterCab.Dispatch.RideRequesting;
 using CritterCab.Telemetry.V1;
 using JasperFx;
+using JasperFx.Core;
 using Marten;
+using Marten.Exceptions;
 using JasperFx.Events.Projections;
+using Wolverine.ErrorHandling;
 using Wolverine;
 using Wolverine.Http;
 using Wolverine.Kafka;
@@ -54,6 +57,10 @@ if (!string.IsNullOrEmpty(connectionString))
             .Duplicate(x => x.H3Cell)
             .Duplicate(x => x.VehicleClass)
             .Duplicate(x => x.AvailabilityState)
+            // Not part of the ring predicate, but the view sorts on it to derive the H3 query
+            // resolution — and an un-duplicated sort key means a full scan plus a JSONB sort over
+            // the whole fleet before every dispatch.
+            .Duplicate(x => x.ServerReceivedAt)
             // Load-bearing, and silent if omitted. TryUpdateRevision only applies its
             // `where mt_version < ?` guard when the document is registered for numeric revisions;
             // without this it degrades to a plain unguarded upsert and stale Kafka redeliveries
@@ -128,6 +135,16 @@ builder.Host.UseWolverine(opts =>
     // the include filters are OR'd. So DriverLocationUpdatedHandler is discovered by the built-in
     // suffix without appearing here. Only DisableConventionalDiscovery() would change that.
     opts.Discovery.CustomizeHandlerDiscovery(d => d.Includes.WithNameSuffix("Automation"));
+
+    // AvailableDriver has two independent writers (the Kafka location handler and the availability
+    // handler), each of which loads the document, merges its own side, and writes the whole thing
+    // back. Marten's revision guard turns a losing race into a ConcurrencyException rather than a
+    // silent lost update — this policy is the other half of that: retry the handler, which reloads
+    // and re-merges against the winner's state. Three attempts with short pauses, because the
+    // contention window is a single round trip and a conflict that survives three retries is a
+    // symptom of something else.
+    opts.Policies.OnException<ConcurrencyException>()
+        .RetryWithCooldown(50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds());
 
     // Guarded rather than early-returned, so a broker-less run cannot silently swallow any
     // Wolverine configuration appended after this line.

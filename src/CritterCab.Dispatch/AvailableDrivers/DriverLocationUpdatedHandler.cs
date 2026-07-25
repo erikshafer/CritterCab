@@ -29,7 +29,14 @@ public static class DriverLocationUpdatedHandler
         IDocumentSession session,
         CancellationToken ct)
     {
-        var driverId = Guid.Parse(message.DriverId);
+        // Guard the wire before trusting it. proto3 has no required fields, so a malformed or
+        // partially-populated record deserializes happily with "" and null defaults — Guid.Parse
+        // would throw FormatException and ServerReceivedAt would NRE, both of which dead-letter a
+        // message that is simply not addressed to us. Drop instead, matching W006 §6.2's treatment
+        // of invalid pings on the producing side: bad input is a value to branch on, not an error.
+        if (!Guid.TryParse(message.DriverId, out var driverId) || message.ServerReceivedAt is null)
+            return;
+
         var serverReceivedAt = message.ServerReceivedAt.ToDateTimeOffset();
 
         // Read the existing document to preserve the availability side. The two sides have separate
@@ -38,6 +45,24 @@ public static class DriverLocationUpdatedHandler
         // case, not an error — a driver's first published position precedes any availability event
         // roughly as often as it follows one.
         var existing = await session.LoadAsync<AvailableDriver>(driverId, ct);
+
+        // The LOCATION side's last-writer-wins guard, compared against the location side's OWN
+        // clock — W006 §6.5 locks "LWW per driver per side", and the two sides are ordered
+        // independently because they arrive from different services over different transports.
+        //
+        // This is deliberately NOT the document's revision. An earlier cut of this handler used
+        // serverReceivedAt AS the Marten revision, which collapsed the two sides onto one ordering
+        // key and produced a real dispatch bug: a driver going Offline at 12:00:05 could have that
+        // write silently discarded by a heartbeat position stamped 12:00:07 that had already raised
+        // the revision — leaving an offline driver dispatchable, with no error anywhere. Business
+        // ordering and write concurrency are two different problems and need two different guards.
+        //
+        // Equality is a no-op, not an update: that IS §6.3's dedup semantics ("the projection
+        // applies the position at most once"). A strictly-older timestamp is the redelivery case
+        // that actually regresses the view — on a consumer-group rebalance, uncommitted offsets
+        // replay, so an older position can arrive after a newer one was already applied.
+        if (existing is not null && serverReceivedAt <= existing.ServerReceivedAt)
+            return;
 
         var updated = new AvailableDriver
         {
@@ -54,28 +79,14 @@ public static class DriverLocationUpdatedHandler
             AvailabilityUpdatedAt = existing?.AvailabilityUpdatedAt
         };
 
-        // The dedup/LWW guard W006 §6.3 asks for, enforced in the database rather than in this
-        // method. TryUpdateRevision emits a single upsert whose WHERE clause compares the stored
-        // revision, so a stale or duplicate delivery is discarded server-side and silently — no
-        // exception, no second round trip, and no window between a read and a write for a
-        // concurrent delivery to slip through.
-        //
-        // Why this matters despite the partition key: Kafka partitions by driverId, so per-driver
-        // ordering IS guaranteed in steady state and a naive Store() would usually be fine. It is
-        // redelivery that breaks the assumption — on a consumer-group rebalance, uncommitted offsets
-        // replay, so an OLDER position can arrive after a newer one was already applied. That is a
-        // real regression of the view, and the guard makes it free to prevent.
-        //
-        // The revision is unix-MILLISECONDS of the server-stamped receipt time, because Marten's
-        // revision is a monotonic long and not a timestamp. Two consequences:
-        //   - Equal timestamps are a no-op, which is exactly the dedup semantics §6.3 specifies
-        //     ("the projection applies the position at most once").
-        //   - Revision 0 means "always win" to Marten, so a zero-valued timestamp would defeat the
-        //     guard entirely. Unreachable in practice (Telemetry server-stamps every publish), but
-        //     the floor costs one Math.Max and removes the failure mode.
-        var revision = Math.Max(1, serverReceivedAt.ToUnixTimeMilliseconds());
-
-        session.TryUpdateRevision(updated, revision);
+        // The document revision guards CONCURRENCY, not business ordering: it closes the window
+        // between the LoadAsync above and this write, during which the availability handler could
+        // have committed its own side. UpdateRevision throws ConcurrencyException on a losing race
+        // rather than swallowing it, and Program.cs registers a Wolverine retry policy that runs
+        // the handler again — reloading, re-evaluating the LWW guard, and merging against fresh
+        // state. Without this the two handlers would lost-update each other: both load at revision
+        // N, both write the whole document, and whichever commits second erases the other's side.
+        session.UpdateRevision(updated, (existing?.Version ?? 0) + 1);
 
         await session.SaveChangesAsync(ct);
     }

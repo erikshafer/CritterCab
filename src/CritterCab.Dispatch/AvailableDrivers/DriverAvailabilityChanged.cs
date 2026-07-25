@@ -45,15 +45,37 @@ public static class DriverAvailabilityChangedHandler
     {
         var existing = await session.LoadAsync<AvailableDriver>(message.DriverId, ct);
 
-        // An availability event can legitimately arrive before Dispatch has ever seen a position
-        // for this driver — a driver who comes on shift indoors, or whose first ping is still in
-        // Telemetry's throttle window. There is no location side to write yet, and inventing one
-        // (0,0 is in the Gulf of Guinea) would put a real driver in a real k-ring somewhere. Drop
-        // it: Telemetry publishes on the driver's first cell change or heartbeat regardless, so
-        // the document appears within one heartbeat interval, carrying this state if it arrives
-        // first. Consistent with W006's heartbeat-as-backstop reasoning throughout.
+        // An availability event can arrive before Dispatch has ever seen a position for this driver
+        // — a driver who comes on shift indoors, or whose first ping is still inside Telemetry's
+        // throttle window. There is no location side to write, and inventing one is not an option
+        // (0,0 is in the Gulf of Guinea, and a fabricated position would put a real driver in a
+        // real k-ring).
+        //
+        // BE PRECISE ABOUT WHAT HAPPENS HERE: the event is DROPPED, not deferred. Telemetry's
+        // heartbeat will create the document within heartbeatIntervalSeconds, but it creates it
+        // with a null availability side — the location handler carries forward whatever it finds,
+        // and it finds nothing. So the driver stays excluded from selection until Driver Profile
+        // sends its NEXT transition, which for a driver who simply came on shift and stayed on
+        // shift may be hours.
+        //
+        // Shipped as an explicit deferral rather than solved, because solving it means deciding
+        // something that belongs to Driver Profile's un-workshopped contract: either it republishes
+        // current state on demand (a snapshot/replay endpoint), or Dispatch buffers unmatched
+        // availability events and applies them when a position lands. Both are real designs; W006
+        // §6.5 chose neither because it assumed both feeders existed. Recorded as a forward-
+        // constraint on that workshop; pinned by a test so the behaviour cannot change silently.
         if (existing is null)
             return;
+
+        // The AVAILABILITY side's last-writer-wins guard, on its OWN clock (W006 §6.5: "LWW per
+        // driver per side"). Mirror image of the location handler's guard — and deliberately not
+        // the document revision, which cannot order two independent clocks. See that handler for
+        // the dispatch bug this separation exists to prevent.
+        if (existing.AvailabilityUpdatedAt is not null
+            && message.AvailabilityUpdatedAt <= existing.AvailabilityUpdatedAt)
+        {
+            return;
+        }
 
         var updated = existing with
         {
@@ -62,14 +84,10 @@ public static class DriverAvailabilityChangedHandler
             AvailabilityUpdatedAt = message.AvailabilityUpdatedAt
         };
 
-        // Same database-side LWW guard as the location side, on this side's own clock. Note both
-        // sides share ONE revision column, so an availability update and a location update compete
-        // for it. That is acceptable while the availability feed is unbuilt and low-rate, and it is
-        // the first thing to revisit when ASB lands: if the two clocks interleave under load, the
-        // sides need independent guards rather than one shared revision.
-        var revision = Math.Max(1, message.AvailabilityUpdatedAt.ToUnixTimeMilliseconds());
-
-        session.TryUpdateRevision(updated, revision);
+        // Concurrency guard only, exactly as on the location side: this closes the window between
+        // the LoadAsync above and this write, so the two handlers cannot lost-update each other's
+        // side. A losing race throws and Wolverine retries the handler against fresh state.
+        session.UpdateRevision(updated, existing.Version + 1);
 
         await session.SaveChangesAsync(ct);
     }
