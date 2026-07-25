@@ -24,3 +24,4 @@ For the template and guidelines on when to write an ADR, see [ADR-001](./001-rec
 | [016](./016-frontend-live-update-transport.md) | Frontend Live-Update Transport | Accepted |
 | [017](./017-rabbitmq-for-critterwatch.md) | RabbitMQ for CritterWatch | Accepted |
 | [018](./018-candidate-projection-ownership-and-telemetry-geospatial-supply.md) | Candidate-Projection Ownership and Telemetry Geospatial Supply | Accepted |
+| [019](./019-transport-agnostic-topic-naming.md) | Transport-Agnostic Topic Naming | Accepted |

@@ -1,7 +1,9 @@
 # ADR-014: Azure Service Bus Topic Naming Convention
 
-**Status:** Accepted  
+**Status:** Accepted — extended by [ADR-019](./019-transport-agnostic-topic-naming.md)  
 **Date:** 2026-05-10
+
+> **ADR-019 generalized the naming rule below to every transport.** This ADR remains authoritative for Azure Service Bus, including its two travelling operational decisions (session keying and outbox coordination) — those are ASB-specific and deliberately do **not** generalize. See ADR-019's per-transport table before applying anything here to a non-ASB broker.
 
 ## Context
 

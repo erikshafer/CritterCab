@@ -36,23 +36,25 @@ In production Cab runs Kafka protocol against **Azure Event Hubs**. Locally, Asp
 ```
 Telemetry service                           Dispatch service
 ┌─────────────────┐                        ┌─────────────────┐
-│ GPS handler     │──publish──►            │ LocationPing    │
+│ Ingest handler  │──publish──►            │ DriverLocation  │
 │ (Wolverine)     │           │            │ handler         │
 └─────────────────┘           │            └─────────────────┘
                               ▼                     ▲
                     ┌─────────────────┐             │
                     │  Kafka topic    │──consume────┘
                     │  telemetry.     │──consume────┐
-                    │  location-pings │             │
-                    └─────────────────┘             ▼
-                                           ┌─────────────────┐
-                                           │ Pricing service │
-                                           │ LocationPing    │
+                    │  driver-        │             │
+                    │  location-      │             ▼
+                    │  updated        │    ┌─────────────────┐
+                    └─────────────────┘    │ Pricing service │
+                                           │ (future)        │
                                            │ handler         │
                                            └─────────────────┘
 ```
 
-The Telemetry service publishes `LocationPing` messages to a Kafka topic partitioned by `driver_id`. Dispatch and Pricing each consume the same topic with independent consumer groups. Each handler is a plain messaging handler — it receives a `LocationPing` and does its work. The Kafka-specific concerns (partitioning, consumer groups, offsets) are configured in `Program.cs`, invisible to the handler.
+The Telemetry service publishes `DriverLocationUpdated` messages to a Kafka topic partitioned by `driverId`. Dispatch consumes it; a future Pricing service would consume the same topic under its own consumer group. Each handler is a plain messaging handler — it receives the message and does its work. The Kafka-specific concerns (partitioning, consumer groups, offsets) are configured in `Program.cs`, invisible to the handler.
+
+> **⚠ Illustrative names below predate the implementation.** Only the shipped topic above and the § Topic naming, § Publishing and § Serialization sections have been reconciled against real code (2026-07-24). The listener, consumer-group, batching and DLQ examples further down still use a speculative `LocationPing` / `telemetry.location-pings` pairing that **does not exist**: `LocationPing` is the gRPC *ingest* message (W006 §6.2), never a Kafka payload, and nothing consumes this topic until W006 slice 5. Read those sections for the mechanic, not the names. A DEBT row tracks refreshing them once the consumer is real.
 
 ## Bootstrap
 
@@ -67,8 +69,8 @@ builder.Host.UseWolverine(opts =>
     opts.UseKafkaUsingNamedConnection("kafka")
         .AutoProvision();
 
-    opts.PublishMessage<LocationPing>()
-        .ToKafkaTopic("telemetry.location-pings");
+    opts.PublishMessage<DriverLocationUpdated>()
+        .ToKafkaTopic("telemetry.driver-location-updated");
 });
 ```
 
@@ -88,17 +90,15 @@ For services that only consume (never publish), call `.ConsumeOnly()` to skip th
 
 ## Topic naming convention
 
-Cab topics follow the pattern `<bc>.<descriptive-name>`, lowercase with hyphens separating words within a segment and dots separating the bounded-context prefix from the topic name:
+**Governed by [ADR-019](../../decisions/019-transport-agnostic-topic-naming.md).** Cab topics are named `<source-bc>.<event-name-kebab>` — the source bounded context's slug, a dot, then the event name in kebab-case. The same rule applies on every transport; Kafka does not get its own convention.
 
-| Topic | Publisher | Consumers | Partition key |
-|---|---|---|---|
-| `telemetry.location-pings` | Telemetry | Dispatch, Pricing | `driver_id` |
-| `telemetry.demand-signals` | Telemetry | Pricing | `zone_id` |
-| `pricing.surge-updates` | Pricing | Dispatch | `zone_id` |
+| Topic | Publisher | Consumers | Partition key | Status |
+|---|---|---|---|---|
+| `telemetry.driver-location-updated` | Telemetry | Dispatch (slice 5) | `driverId` | **Shipped** |
 
 This mirrors the proto package hierarchy (`crittercab.<bc>.v<n>`) minus the `crittercab.` prefix — Kafka topics are cluster-scoped, so the org prefix adds no disambiguation value and wastes characters in every log line.
 
-Topics carry a descriptive name rather than a message-type name. A topic like `telemetry.location-pings` may carry `LocationPing` messages today and an enriched `LocationPingV2` tomorrow; the topic name describes the stream, not the current payload shape.
+> **Corrected 2026-07-24 (first Kafka topic shipped).** This section previously proposed a *different* rule for Kafka — `<bc>.<descriptive-name>`, on the reasoning that a topic should describe the stream rather than the current payload shape, illustrated with speculative topics (`telemetry.location-pings`, `telemetry.demand-signals`, `pricing.surge-updates`) that were never published. ADR-019 weighed that argument on its merits and rejected it for Cab specifically: contract versioning lives in the proto package path (ADR-009), so payload evolution is handled a layer below the topic name, and a break large enough to make the event name misleading needs a new proto package and a deliberate consumer migration anyway. Do not reintroduce the descriptive-name rule; the topics above are the shipped reality.
 
 ## Publishing
 
@@ -107,11 +107,23 @@ Topics carry a descriptive name rather than a message-type name. A topic like `t
 Map a message type to a specific topic via `PublishMessage<T>().ToKafkaTopic("...")`. Cab's standard pattern uses one routing rule per Cab message type per service:
 
 ```csharp
-opts.PublishMessage<LocationPing>()
-    .ToKafkaTopic("telemetry.location-pings");
+opts.PublishMessage<DriverLocationUpdated>()
+    .ToKafkaTopic("telemetry.driver-location-updated");
 
-opts.PublishMessage<DemandSignal>()
-    .ToKafkaTopic("telemetry.demand-signals");
+opts.PublishMessage<DemandSignalled>()
+    .ToKafkaTopic("telemetry.demand-signalled");
+```
+
+The shipped Telemetry rule carries three more calls, each load-bearing — see § Serialization for `UseProtobufSerialization` and § Common pitfalls for why `SendInline` alone is not enough:
+
+```csharp
+opts.Durability.UseSyncRetryBlock = true;   // process-global
+
+opts.PublishMessage<DriverLocationUpdated>()
+    .ToKafkaTopic("telemetry.driver-location-updated")
+    .SendInline()             // await the broker ack, don't batch
+    .UseIdempotentProducer()  // enable.idempotence=true, acks=all
+    .UseProtobufSerialization();
 ```
 
 For the broader routing surface (`Specification` for partition count + replication factor, named brokers for multi-region), see ai-skills `wolverine-integrations-kafka` § Topic binding.
@@ -125,8 +137,7 @@ Wolverine supports `opts.PublishAllMessages().ToKafkaTopics()` for derive-topic-
 Set a partition key when publishing to control which partition receives the message. Messages with the same partition key land in the same partition and are consumed in order:
 
 ```csharp
-await bus.PublishAsync(new LocationPing(driverId, lat, lng, timestamp),
-    new DeliveryOptions { PartitionKey = driverId.ToString() });
+await bus.PublishAsync(update, new DeliveryOptions { PartitionKey = update.DriverId });
 ```
 
 If no partition key is set, Wolverine uses the envelope's message ID (a GUID), which distributes messages randomly across partitions. For GPS pings, partitioning by `driver_id` ensures a single driver's location stream stays ordered through the Telemetry -> Dispatch path — critical for computing heading, speed, and ETA.
@@ -205,20 +216,43 @@ Wolverine stamps the consumer group ID onto `Envelope.GroupId` for every receive
 
 ## Serialization and interop
 
+### Choosing a serializer
+
+Cab uses **two** serializers on Kafka, chosen by whether the payload is a generated protobuf contract:
+
+| Payload | Serializer | How |
+|---|---|---|
+| A protoc-generated type from `protos/` | Binary protobuf | `.UseProtobufSerialization()` on the publishing rule |
+| A hand-authored C# record | Wolverine's default envelope JSON | nothing to configure |
+
+**Endpoint-scoped, always.** `WolverineFx.Protobuf` ships two overloads: one on `WolverineOptions` that replaces the app's `DefaultSerializer` globally, and one on an endpoint configuration. Use the endpoint one — the global overload would take the service's HTTP surface off JSON with it.
+
+```csharp
+opts.PublishMessage<DriverLocationUpdated>()
+    .ToKafkaTopic("telemetry.driver-location-updated")
+    .UseProtobufSerialization();
+```
+
+The Kafka wire payload is `Message<string, byte[]>`, so binary protobuf is natively expressible — no base64 wrapping. **A consumer of a protobuf topic must carry the same serializer on its listener endpoint**: `ProtobufMessageSerializer.ReadFromData(byte[])` throws `NotSupportedException`, and only the `(Type, Envelope)` overload works, so the type information has to come from the endpoint configuration.
+
+> **Corrected 2026-07-24 (first Kafka topic shipped).** This section previously read "Cab uses Wolverine's default JSON serialization" and deferred protobuf to "a future phase," cross-referencing `protobuf-contracts`' forward-looking note. That phase arrived: `DriverLocationUpdated` is generated from the `.proto` that ADR-009 makes the contract of record, and JSON-serializing a protoc-generated class produces bloated, non-canonical output while leaving the contract governing the C# type but not the wire.
+
 ### Default envelope serialization
 
-Cab uses Wolverine's default envelope serialization for service-to-service Kafka communication: message body in the Kafka value, envelope metadata (message ID, correlation ID, content type, message type name) in UTF-8 headers. Both sides must be Wolverine services.
+For non-protobuf payloads, Wolverine's default envelope serialization carries the message body in the Kafka value and envelope metadata (message ID, correlation ID, content type, message type name) in UTF-8 headers. Both sides must be Wolverine services.
 
 ### Raw JSON interop
 
 For interop with non-Wolverine producers/consumers (third-party GPS devices, analytics pipelines), use raw JSON mode. Listener must declare the expected message type at config time:
 
 ```csharp
-opts.PublishMessage<LocationPing>().ToKafkaTopic("telemetry.location-pings").PublishRawJson();
-opts.ListenToKafkaTopic("telemetry.location-pings").ReceiveRawJson<LocationPing>();
+opts.PublishMessage<DemandSignal>().ToKafkaTopic("pricing.demand-signalled").PublishRawJson();
+opts.ListenToKafkaTopic("pricing.demand-signalled").ReceiveRawJson<DemandSignal>();
 ```
 
 Raw JSON strips Wolverine envelope headers — see ai-skills `wolverine-integrations-kafka` § Raw JSON interoperability for the full publisher/listener semantics.
+
+**⚠ `PublishRawJson()` silently destroys `DeliveryOptions.PartitionKey`.** Raw-JSON mode installs `JsonOnlyMapper`, whose `MapEnvelopeToOutgoing` assigns `outgoing.Key = envelope.GroupId` — and it runs *after* the transport has already set the key from `PartitionKey`. Combining the two produces records whose key is the consumer group id (or null), which does not fail, does not log, and only shows up as lost per-partition ordering. Never combine `PublishRawJson()` with a partition key; if a raw-JSON topic needs keyed ordering, set `GroupId` instead and document why.
 
 ### Custom envelope mapper
 
@@ -226,7 +260,7 @@ For wire formats that don't fit the default mapping or raw JSON (CloudEvents, Av
 
 ### Schema Registry serializers
 
-Wolverine ships `SchemaRegistryAvroSerializer` and `SchemaRegistryJsonSerializer` in the Kafka transport package for Confluent Schema Registry integration. These are outside Cab's current scope — Cab uses Wolverine's default JSON serialization. The `protobuf-contracts` skill's forward-looking note on protobuf-as-unified-schema-language may revisit serialization in a future phase; until then, default JSON is the right choice.
+Wolverine ships `SchemaRegistryAvroSerializer` and `SchemaRegistryJsonSerializer` in the Kafka transport package for Confluent Schema Registry integration. These remain outside Cab's scope: Cab's schema authority is the `protos/` tree under ADR-009, not a registry, and `.UseProtobufSerialization()` (above) already gives binary protobuf on the wire without one. Revisit only if a non-Cab producer needs registry-mediated compatibility checks.
 
 ## Dead letter topics and error handling
 
@@ -299,7 +333,9 @@ Wolverine's Kafka transport propagates OpenTelemetry trace context through Kafka
 
 - **Calling AutoProvision against the Event Hubs Emulator.** The EH Emulator does not support Kafka admin APIs. `AutoProvision()` will throw. Use Aspire's `AddKafka` for local dev (which starts a real Kafka container) and provision topics through the management plane for EH Emulator environments.
 
-- **Forgetting a partition key on ordered streams.** Without a partition key, Wolverine uses the envelope's GUID, scattering messages randomly across partitions. GPS pings without `PartitionKey = driverId` lose their per-driver ordering guarantee. Always set a partition key for streams where ordering matters.
+- **Forgetting a partition key on ordered streams.** Without a partition key, Wolverine uses the envelope's GUID, scattering messages randomly across partitions. GPS pings without `PartitionKey = driverId` lose their per-driver ordering guarantee. Always set a partition key for streams where ordering matters — and assert it in an integration test, because the failure is invisible: the records still arrive, only the ordering breaks.
+
+- **Assuming a publish reached the broker when `PublishAsync` returns.** A Kafka publishing endpoint defaults to `BufferedInMemory`, which batches into an in-process queue and returns before the broker has seen anything. If a flow's correctness depends on the publish landing *before* some local write, `SendInline()` is required — and even inline is not enough on its own, because Wolverine's default async retry block swallows the send failure, logs it, re-posts to a background block and returns success. Pair `SendInline()` with `opts.Durability.UseSyncRetryBlock = true` (process-global) so a broker rejection actually throws. `telemetry.driver-location-updated` does exactly this for W006 §6.3's publish-before-store ordering.
 
 - **Assuming ConfigureConsumer merges with the parent.** `ConfigureConsumer` on a per-topic listener **replaces** the parent `ConsumerConfig`. Bootstrap servers are auto-inherited, but other settings (SASL, timeouts) from the transport-level config are lost. Re-apply them in the per-topic override if needed.
 
