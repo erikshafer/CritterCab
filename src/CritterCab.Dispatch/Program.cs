@@ -163,6 +163,11 @@ static void ConfigureKafkaListening(WolverineOptions opts)
         // distributes partitions across instances instead of delivering every position to all of
         // them. It is also what makes the redelivery-on-rebalance case real, which is precisely
         // what DriverLocationUpdatedHandler's revision guard defends against.
+        //
+        // Set explicitly even though Wolverine would default it to ServiceName — pinning it means a
+        // future rename of the service cannot silently create a NEW consumer group, which under
+        // BeginAtLatest below would start at the tail and quietly drop the group's committed
+        // position. A literal is cheap insurance against an invisible reset.
         .ConfigureConsumer(c => c.GroupId = "dispatch")
         // Cold-start position, and it ONLY applies when the group has no committed offset — after
         // the first commit the group resumes where it left off and this is ignored. Stated

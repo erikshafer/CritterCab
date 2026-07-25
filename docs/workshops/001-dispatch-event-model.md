@@ -503,6 +503,15 @@ Then: NoCandidatesAvailable { rideRequestId: X, roundNumber: 1, searchParameters
 
 This **vindicates** the slice's original "No external call" framing: Option B (local projection) keeps it true; the rejected Option A (gRPC query) would have falsified it. Parking-lot #4 is closed; §11 ADR-candidate #3 is authored as ADR-018.
 
+#### Realized in code (2026-07-24, PR D)
+
+The amendment above closed parking-lot #4 as a *design* decision. This entry records that it now **runs**. See [W006 §6.5's Document History entry](006-telemetry-event-model.md#document-history) for the full session record.
+
+- **`NearbyAvailableDrivers` exists** as per-driver `AvailableDriver` documents in `CritterCab.Dispatch`, maintained by a Wolverine Kafka handler consuming `telemetry.driver-location-updated`. Radius queries are an H3 k-ring over the published cell ids plus an exact great-circle filter, exactly as modelled.
+- **`NearbyAvailableDriversStub` is out of the production graph**, demoted to a test double. `CandidateSelectionAutomation` is **unchanged** — the slice-5.3 `INearbyAvailableDriversSource` seam absorbed the entire swap, which is what it was built for. This slice's "No external call. Operates entirely on already-available views" is now a statement about running code.
+- **The location half only.** The Translation-in sources table above lists two feeders; Kafka (Telemetry) is built and ASB (Driver Profile) is not, because that BC has not been workshopped. Dispatch therefore holds a `DriverAvailabilityChanged` handler with **no transport bound to it**, and **a driver with a position but no availability data is excluded from selection** — you cannot dispatch to a driver whose `vehicleClass` capability you have never been told. Until Driver Profile ships, that is every driver, so this slice's three GWTs are exercised against handler-seeded availability rather than a live feed. Not a gap in this slice: the availability half was always Driver Profile's to supply.
+- **Two of this slice's locked decisions gained implementation-time detail** recorded in W006 rather than here, because they are properties of the view's population rather than of the selection decision: where the H3 query resolution comes from, and how `EtaSeconds` is produced by a view with no ETA source (the "Match-score algorithm" row above locks the *distance*; the ETA is derived from it against a constant invented at implementation time).
+
 ### 5.4 Slice 4 — OfferSent (per-candidate broadcast)
 
 **Pattern:** Command Pattern applied per-candidate (drawn once on the board with "×N" annotation).
