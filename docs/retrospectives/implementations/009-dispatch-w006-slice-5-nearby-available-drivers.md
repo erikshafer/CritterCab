@@ -79,6 +79,17 @@ The fix separates the two concerns, which is what §6.5 described all along: eac
 
 **Methodology consequence worth carrying:** when a source-verification gate asks "what is the best API for X," the answer is scoped to the question's implicit cardinality. This gate asked about an upsert and got an answer about *an* upsert. The spec said "per side," and nobody re-read that clause against the chosen primitive until the review.
 
+### This PR broke CI, and the honest test for that was to re-run `main`
+
+CI failed twice with `DockerApiException: "Get https://registry-1.docker.io/v2/: context deadline exceeded"`, thrown from `ResourceReaper.GetAndStartNewAsync` — and it failed in **Telemetry's** pre-existing suites, which this PR does not touch. Every signal said flake.
+
+It was not flake. Re-running `main`'s own workflow at the same moment passed, which is the experiment that settles it: Docker Hub was healthy, and the added load was this PR's. xUnit runs the two test assemblies in parallel, each standing up its own Testcontainers session, and slice 5 took that from four containers to six — including a **second** ~800 MB Kafka image. The concurrent pulls saturated the runner's registry connection, and whichever assembly lost the race reported it as a broken test.
+
+Fixed with a serial `docker pull` step ahead of `dotnet test`, by user sign-off, since CI changes are conventionally their own session. Two things worth carrying:
+
+- **"It failed in code I didn't touch" is evidence about *load*, not innocence.** The blast radius of a new test fixture is the whole CI job, not its own assembly.
+- **Pinning an image tag by hand is a place to verify, not guess.** The first version of the pre-pull step named `testcontainers/ryuk:0.11.0`; Testcontainers 4.13.0 actually pins `0.14.0` by digest, read out of the package assembly. A wrong tag there fails silently in the worst way — it pre-pulls an image nothing uses and quietly restores the behaviour it was meant to fix, while looking like a fix.
+
 ### Regression tests must be proven to fail
 
 Having written the fix, I wrote two regression tests, and they passed. That is not evidence — a test that passes on both the broken and fixed implementation pins nothing.
@@ -133,7 +144,9 @@ This was caught by noticing the magnitude mismatch mid-write, not by a failing t
 2. **A `tidy: skills` session.** Four rows registered this session join the standing backlog — and **three older rows are decisions, not cleanups**, and must not be drained by a routine tidy without a call: test-class naming (`Slice{N}<Feature>Tests` vs. the skill's snake_case mandate), `testing-integration` Gap B (no shipped collection follows the documented Strategy 1, and this session added a **fourth** non-conforming collection, `DispatchKafka`), and the `identity-acl` streaming exception.
 3. **CritterWatch.** It renders meaningfully only once real cross-service traffic exists, which is exactly what this PR created. Needs RabbitMQ as a tooling-only broker (ADR-017); trial licence expired 2026-07-10, so re-check before planning.
 
-**Still true and still unaddressed:** CI cannot build `apphost.cs`. It was edited again this session and verified by hand. That row remains open and remains its own session.
+**Still true and still unaddressed:** CI cannot build `apphost.cs`. It was edited again this session and verified by hand. That row remains open and remains its own session — and note this session touched the workflow for a *different* reason (the pre-pull step), so a future CI session inherits a file that has already been edited once outside its remit.
+
+**New CI consideration for every future service:** the pre-pull list is now something a new Testcontainers-backed fixture must extend. It is not enforced — a fixture pinning an unlisted image still passes locally and merely reintroduces the race in CI. Worth folding into `testing-integration` whenever that skill's other rows are settled.
 
 ---
 
