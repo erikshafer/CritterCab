@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Alba;
+using DotNet.Testcontainers.Images;
 using CritterCab.Telemetry.LastKnownPosition;
 using CritterCab.Telemetry.ReportLocations;
 using CritterCab.Telemetry.TelemetryPolicy;
@@ -22,7 +23,11 @@ namespace CritterCab.Telemetry.Tests;
 // default TelemetryPolicy before any test acts.
 public class TelemetryTestFixture : IAsyncLifetime
 {
+    // Named uniquely because the project now starts a second Postgres container in
+    // TelemetryKafkaTestFixture, and xUnit runs the two collections in parallel.
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18-alpine")
+        .WithName($"telemetry-test-{Guid.NewGuid():N}")
+        .WithImagePullPolicy(PullPolicy.Missing)
         .Build();
 
     public IAlbaHost Host { get; private set; } = null!;

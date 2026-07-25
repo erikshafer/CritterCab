@@ -109,9 +109,6 @@ Map a message type to a specific topic via `PublishMessage<T>().ToKafkaTopic("..
 ```csharp
 opts.PublishMessage<DriverLocationUpdated>()
     .ToKafkaTopic("telemetry.driver-location-updated");
-
-opts.PublishMessage<DemandSignalled>()
-    .ToKafkaTopic("telemetry.demand-signalled");
 ```
 
 The shipped Telemetry rule carries three more calls, each load-bearing — see § Serialization for `UseProtobufSerialization` and § Common pitfalls for why `SendInline` alone is not enough:
@@ -246,8 +243,8 @@ For non-protobuf payloads, Wolverine's default envelope serialization carries th
 For interop with non-Wolverine producers/consumers (third-party GPS devices, analytics pipelines), use raw JSON mode. Listener must declare the expected message type at config time:
 
 ```csharp
-opts.PublishMessage<DemandSignal>().ToKafkaTopic("pricing.demand-signalled").PublishRawJson();
-opts.ListenToKafkaTopic("pricing.demand-signalled").ReceiveRawJson<DemandSignal>();
+opts.PublishMessage<TMessage>().ToKafkaTopic("<source-bc>.<event-name-kebab>").PublishRawJson();
+opts.ListenToKafkaTopic("<source-bc>.<event-name-kebab>").ReceiveRawJson<TMessage>();
 ```
 
 Raw JSON strips Wolverine envelope headers — see ai-skills `wolverine-integrations-kafka` § Raw JSON interoperability for the full publisher/listener semantics.

@@ -91,29 +91,9 @@ public class Slice3KafkaPublishTests
             AutoOffsetReset = AutoOffsetReset.Earliest
         }).Build();
 
-    private async Task<LocationIngestAck> StreamAsync(Guid driverId, params LocationPing[] pings)
-    {
-        using var channel = _fixture.CreateGrpcChannel();
-        var client = new TelemetryService.TelemetryServiceClient(channel);
+    private Task<LocationIngestAck> StreamAsync(Guid driverId, params LocationPing[] pings) =>
+        ReportLocationsClient.StreamAsync(_fixture.CreateGrpcChannel, driverId, pings);
 
-        using var call = client.ReportLocations(new GrpcMetadata
-        {
-            { HeaderDriverPrincipalAccessor.DriverIdHeader, driverId.ToString() }
-        });
-
-        foreach (var ping in pings)
-            await call.RequestStream.WriteAsync(ping);
-
-        await call.RequestStream.CompleteAsync();
-
-        return await call.ResponseAsync;
-    }
-
-    private static LocationPing PingAt(double lat, double lon) => new()
-    {
-        Lat = lat,
-        Lon = lon,
-        AccuracyMeters = 8d,
-        DeviceTimestamp = ProtoTimestamp.FromDateTimeOffset(DateTimeOffset.UtcNow)
-    };
+    private static LocationPing PingAt(double lat, double lon) =>
+        ReportLocationsClient.PingAt(lat, lon);
 }

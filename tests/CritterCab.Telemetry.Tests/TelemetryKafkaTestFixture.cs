@@ -1,5 +1,6 @@
 using Alba;
 using CritterCab.Telemetry.LastKnownPosition;
+using DotNet.Testcontainers.Images;
 using Grpc.Net.Client;
 using Marten;
 using Microsoft.AspNetCore.TestHost;
@@ -21,7 +22,12 @@ namespace CritterCab.Telemetry.Tests;
 // production wiring intact to test the TRANSPORT. Two different questions, two different hosts.
 public class TelemetryKafkaTestFixture : IAsyncLifetime
 {
+    // Unique container names: this project now starts TWO Postgres containers (this fixture and
+    // TelemetryTestFixture), and xUnit runs their collections in parallel, so a fixed name would
+    // collide. Same reason the Kafka container below is named.
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18-alpine")
+        .WithName($"telemetry-kafka-pg-{Guid.NewGuid():N}")
+        .WithImagePullPolicy(PullPolicy.Missing)
         .Build();
 
     // Image pinned explicitly, like the Postgres container above — Testcontainers has deprecated
@@ -33,6 +39,8 @@ public class TelemetryKafkaTestFixture : IAsyncLifetime
     // its log directory to have been formatted by kafka-storage.sh first, so the two combined
     // produce a broker that reads zookeeper.properties, finds no meta.properties, and exits 1.
     private readonly KafkaContainer _kafka = new KafkaBuilder("confluentinc/cp-kafka:7.6.1")
+        .WithName($"telemetry-kafka-{Guid.NewGuid():N}")
+        .WithImagePullPolicy(PullPolicy.Missing)
         .Build();
 
     public IAlbaHost Host { get; private set; } = null!;

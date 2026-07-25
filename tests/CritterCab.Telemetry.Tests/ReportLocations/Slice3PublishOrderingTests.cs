@@ -1,6 +1,5 @@
 using CritterCab.Telemetry.ReportLocations;
 using CritterCab.Telemetry.V1;
-using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
@@ -74,23 +73,8 @@ public class Slice3PublishOrderingTests
         recovered.H3Cell.ShouldBe(H3CellIndexer.TryComputeCell(LoopLat, LoopLon, 9));
     }
 
-    private async Task<LocationIngestAck> StreamAsync(Guid driverId, params LocationPing[] pings)
-    {
-        using var channel = _fixture.CreateGrpcChannel();
-        var client = new TelemetryService.TelemetryServiceClient(channel);
-
-        using var call = client.ReportLocations(new Metadata
-        {
-            { HeaderDriverPrincipalAccessor.DriverIdHeader, driverId.ToString() }
-        });
-
-        foreach (var ping in pings)
-            await call.RequestStream.WriteAsync(ping);
-
-        await call.RequestStream.CompleteAsync();
-
-        return await call.ResponseAsync;
-    }
+    private Task<LocationIngestAck> StreamAsync(Guid driverId, params LocationPing[] pings) =>
+        ReportLocationsClient.StreamAsync(_fixture.CreateGrpcChannel, driverId, pings);
 
     private async Task<LastKnownPositionDocument?> LoadAsync(Guid driverId)
     {
@@ -99,11 +83,6 @@ public class Slice3PublishOrderingTests
         return await session.LoadAsync<LastKnownPositionDocument>(driverId);
     }
 
-    private static LocationPing PingAt(double lat, double lon) => new()
-    {
-        Lat = lat,
-        Lon = lon,
-        AccuracyMeters = 8d,
-        DeviceTimestamp = Timestamp.FromDateTimeOffset(DateTimeOffset.UtcNow)
-    };
+    private static LocationPing PingAt(double lat, double lon) =>
+        ReportLocationsClient.PingAt(lat, lon);
 }

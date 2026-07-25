@@ -78,9 +78,13 @@ builder.Services.AddSingleton<IDriverPrincipalAccessor, HeaderDriverPrincipalAcc
 // The lifetimes differ on purpose. KafkaDriverLocationPublisher is scoped because it depends on
 // IMessageBus, which Wolverine registers scoped; the logging fallback holds only an ILogger and
 // stays a singleton.
-var kafkaConnectionString = builder.Configuration.GetConnectionString("kafka");
+// One flag, read once, used by both the registration above and the transport wiring inside
+// UseWolverine below. Branching on the connection string twice would let the two drift into the
+// state that breaks silently: the real publisher registered against a transport that was never
+// configured, which fails at the first publish rather than at startup.
+var kafkaEnabled = !string.IsNullOrEmpty(builder.Configuration.GetConnectionString("kafka"));
 
-if (!string.IsNullOrEmpty(kafkaConnectionString))
+if (kafkaEnabled)
 {
     builder.Services.AddScoped<IDriverLocationPublisher, KafkaDriverLocationPublisher>();
 }
@@ -104,11 +108,18 @@ builder.Host.UseWolverine(opts =>
     // passes through as 200 instead of a 400 ProblemDetails.
     opts.UseFluentValidation();
 
-    if (string.IsNullOrEmpty(kafkaConnectionString))
-        return;
+    // Guarded rather than early-returned: an early `return` here would silently swallow any
+    // Wolverine configuration appended below it whenever no broker is configured.
+    if (kafkaEnabled)
+        ConfigureKafkaPublishing(opts);
+});
 
-    // === Kafka: the slice-3 publish (W006 §6.3) ===
-    //
+// === Kafka: the slice-3 publish (W006 §6.3) ===
+//
+// A local function rather than an inline block, so the broker-less path is one guarded call at
+// the call site instead of a branch buried in the middle of the Wolverine configuration.
+static void ConfigureKafkaPublishing(WolverineOptions opts)
+{
     // Read the broker address by NAME rather than by value: Aspire injects it under the "kafka"
     // key via .WithReference(kafka), and the same code then works against a local container, the
     // test Testcontainer, and Azure Event Hubs with no environment branching.
@@ -157,7 +168,7 @@ builder.Host.UseWolverine(opts =>
         // contract governing the type but not the wire. Telemetry's HTTP surface stays JSON —
         // the global UseProtobufSerialization overload would have taken that with it.
         .UseProtobufSerialization();
-});
+}
 
 var app = builder.Build();
 
