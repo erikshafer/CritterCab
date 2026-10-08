@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/launchsettings.json",
-  "//": "Pins the Aspire dashboard/OTLP/resource/MCP endpoints for the file-based apphost.cs to CritterCab's 5300-5307 band. A file-based program (dotnet run apphost.cs / aspire run) honors an adjacent Properties/launchSettings.json and applies the first profile by default. Per-service endpoints (Dispatch 5310/5311) and the Postgres host port (5390) are pinned in apphost.cs itself. See docs/skills/aspire/SKILL.md - Port allocation.",
+  "//": "Pins the Aspire dashboard/OTLP/resource/MCP endpoints for the AppHost project to CritterCab's 5300-5307 band; dotnet run / aspire run apply the first profile by default. Per-service endpoints (Dispatch 5310/5311, Telemetry 5315/5316) and the infra host ports (Postgres 5390, Kafka 5392) are pinned in AppHost.cs itself. See docs/skills/aspire/SKILL.md - Port allocation.",
   "profiles": {
     "https": {
       "commandName": "Project",

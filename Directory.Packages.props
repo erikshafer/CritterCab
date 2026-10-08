@@ -2,17 +2,11 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
-    <!-- Aspire hosting packages.
-       NOTE: these versions are NOT consumed by the current file-based apphost.cs.
-       That AppHost pins its Aspire versions inline via #:package directives and
-       opts out of this Central Package Management file (#:property
-       ManagePackageVersionsCentrally=false) — otherwise the inline versions
-       collide with CPM (NU1008) and the SDK's implicit Aspire.Hosting.AppHost
-       reference collides with its PackageVersion entry (NU1009). These entries are
-       the reference version line for a future .csproj-based AppHost; keep them in
-       lockstep with apphost.cs's #:package/#:sdk versions (currently 13.4.6). -->
+  <!-- Aspire hosting integrations (src/CritterCab.AppHost). Aspire.Hosting.AppHost is
+       deliberately absent: the Aspire.AppHost.Sdk carries it implicitly, and a PackageVersion
+       entry for it collides with that implicit reference (NU1009). Keep these on the same
+       13.4.x line as the SDK version in CritterCab.AppHost.csproj. -->
   <ItemGroup>
-    <PackageVersion Include="Aspire.Hosting.AppHost" Version="13.4.6" />
     <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.4.6" />
     <PackageVersion Include="Aspire.Hosting.SqlServer" Version="13.4.6" />
     <PackageVersion Include="Aspire.Hosting.Kafka" Version="13.4.6" />

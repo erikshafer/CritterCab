@@ -1,0 +1,26 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.4.6">
+
+  <!-- Aspire 13 project form: the SDK in the Project element carries Aspire.Hosting.AppHost
+       implicitly, so it is neither referenced here nor pinned in Directory.Packages.props
+       (pinning it there collides with the SDK's implicit reference, NU1009). The hosting
+       integrations below take their versions from Directory.Packages.props like every other
+       project in the solution; keep the SDK version above on the same 13.4.x line. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- Stable across machines and renames, so Aspire's generated parameters (the Postgres
+         password among them) persist in user secrets and keep matching the persistent
+         containers between runs. -->
+    <UserSecretsId>crittercab-apphost</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" />
+    <PackageReference Include="Aspire.Hosting.Kafka" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CritterCab.Dispatch\CritterCab.Dispatch.csproj" />
+    <ProjectReference Include="..\CritterCab.Telemetry\CritterCab.Telemetry.csproj" />
+  </ItemGroup>
+
+</Project>

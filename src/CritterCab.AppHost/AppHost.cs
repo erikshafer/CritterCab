@@ -1,18 +1,3 @@
-#:sdk Aspire.AppHost.Sdk@13.4.6
-
-// The file-based AppHost is self-contained: it pins its Aspire versions inline
-// via #:package directives. Opt out of the repo-wide Central Package Management
-// (Directory.Packages.props) for the synthetic apphost.csproj — otherwise the
-// inline versions collide with CPM (NU1008) and the SDK's implicit
-// Aspire.Hosting.AppHost reference collides with its PackageVersion entry (NU1009).
-#:property ManagePackageVersionsCentrally=false
-
-#:package Aspire.Hosting.PostgreSQL@13.4.6
-#:package Aspire.Hosting.Kafka@13.4.6
-
-#:project ./src/CritterCab.Dispatch/CritterCab.Dispatch.csproj
-#:project ./src/CritterCab.Telemetry/CritterCab.Telemetry.csproj
-
 var builder = DistributedApplication.CreateBuilder(args);
 
 // === Infrastructure ===
