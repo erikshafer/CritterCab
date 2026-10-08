@@ -11,7 +11,7 @@ Event Modeling is a method created by **Adam Dymitruk** (Adaptech Group; first p
 
 It is not specific to event sourcing. Any system whose state changes can be told as discrete facts on a timeline can be modelled this way; event sourcing, CQRS and message-driven systems simply map onto it with very little translation.
 
-Everything below the "In this repository" heading is project-neutral and can be copied between repositories as is.
+Everything above the "In this repository" heading is project-neutral and can be copied between repositories as is.
 
 ## When to apply this skill
 

@@ -25,7 +25,7 @@ This file says what the repository is and where things live. It asserts nothing 
 | `docs/prompts/`, `docs/retrospectives/` | One prompt and one retrospective per working session, sharing a slug. |
 | `docs/narratives/`, `docs/research/`, `docs/planning/` | Optional journey write-ups; background reading and the methodology log; disposable session handoffs. |
 
-The Event Model's authored surface will be a curated `*.emodel.yaml` per service beside its `Program.cs`; none exists yet. Until one does, slice reasoning is cited from the workshop minutes.
+The Event Model's authored surface will be a curated `*.emodel.yaml` per service beside its `Program.cs`. Where a service has none, slice reasoning is cited from the workshop minutes.
 
 ---
 

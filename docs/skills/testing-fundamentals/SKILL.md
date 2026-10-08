@@ -146,7 +146,7 @@ The folder structure under `tests/CritterCab.Trips.Tests/Trips/` mirrors `src/Cr
 
 ### Test class naming
 
-Test **classes** are PascalCase and named by the slice they verify: the slice's event or view name as it appears in the event model, plus `Tests`. When one slice needs two test classes, add a facet suffix between the slice name and `Tests`. The class file name matches the class name.
+Test **classes** are PascalCase and named by the slice they verify: the slice's name in the minutes or the declared model (normally its event or view name, written for the fact the slice establishes rather than the transport that carries it, so W006 slice 3's Kafka publish of `DriverLocationUpdated` is `DriverLocationPublished`), plus `Tests`. When one slice needs two test classes, add a facet suffix between the slice name and `Tests`. The class file name matches the class name.
 
 The point of the rule is traceability: the slice name *is* the class name, so a test class maps to its slice in the model (and can later be bound to it) without a lookup table.
 

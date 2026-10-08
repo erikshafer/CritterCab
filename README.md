@@ -13,7 +13,7 @@ A driver's phone streams GPS pings into the **Telemetry** service over a Wolveri
 
 ## Where the model lives
 
-Each service's Event Model will be a curated `*.emodel.yaml` committed beside its `Program.cs`, reviewed in the PR like code and compared against the model derived from the running application. None is authored yet; their placement, naming and schema follow what CritterMart's Orders experiment settles. Until then, the design reasoning is in the workshop minutes under [`docs/workshops/`](docs/workshops/).
+Each service's Event Model will be a curated `*.emodel.yaml` committed beside its `Program.cs`, reviewed in the PR like code and compared against the model derived from the running application. Their placement, naming and schema follow what CritterMart's Orders experiment settles; until a service has one, the design reasoning for its slices is in the workshop minutes under [`docs/workshops/`](docs/workshops/).
 
 ## Running it
 
