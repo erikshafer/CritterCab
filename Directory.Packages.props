@@ -7,8 +7,8 @@
        entry for it collides with that implicit reference (NU1009). Keep these on the same
        13.4.x line as the SDK version in CritterCab.AppHost.csproj. -->
   <ItemGroup>
-    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.4.6" />
-    <PackageVersion Include="Aspire.Hosting.Kafka" Version="13.4.6" />
+    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.6.1" />
+    <PackageVersion Include="Aspire.Hosting.Kafka" Version="13.6.1" />
   </ItemGroup>
   <!-- Wolverine -->
   <ItemGroup>
