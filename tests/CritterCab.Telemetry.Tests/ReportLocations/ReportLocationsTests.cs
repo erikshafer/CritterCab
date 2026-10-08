@@ -15,7 +15,7 @@ namespace CritterCab.Telemetry.Tests.ReportLocations;
 // first gRPC traffic in a test. Also covers the §6.4 "No-write" GWT, which slice 4 could not
 // reach on its own because deciding not to write is this slice's trigger.
 [Collection("Telemetry")]
-public class Slice2ReportLocationsTests
+public class ReportLocationsTests
 {
     // Two Chicago points roughly 7km apart — comfortably different cells at resolution 9, whose
     // edges are ~174m. Cells are computed rather than hardcoded so the tests state the intent
@@ -25,7 +25,7 @@ public class Slice2ReportLocationsTests
 
     private readonly TelemetryTestFixture _fixture;
 
-    public Slice2ReportLocationsTests(TelemetryTestFixture fixture) => _fixture = fixture;
+    public ReportLocationsTests(TelemetryTestFixture fixture) => _fixture = fixture;
 
     [Fact]
     public async Task a_cell_change_past_the_throttle_floor_publishes_and_stores()

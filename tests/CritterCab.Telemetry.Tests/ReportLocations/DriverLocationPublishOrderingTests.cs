@@ -25,13 +25,13 @@ namespace CritterCab.Telemetry.Tests.ReportLocations;
 // exception at all — rests on source verification and the endpoint configuration, not on this
 // test; see the retrospective.
 [Collection("Telemetry")]
-public class Slice3PublishOrderingTests
+public class DriverLocationPublishOrderingTests
 {
     private const double LoopLat = 41.8827d, LoopLon = -87.6233d;
 
     private readonly TelemetryTestFixture _fixture;
 
-    public Slice3PublishOrderingTests(TelemetryTestFixture fixture) => _fixture = fixture;
+    public DriverLocationPublishOrderingTests(TelemetryTestFixture fixture) => _fixture = fixture;
 
     [Fact]
     public async Task a_failed_publish_leaves_the_baseline_unwritten_so_the_next_ping_republishes()

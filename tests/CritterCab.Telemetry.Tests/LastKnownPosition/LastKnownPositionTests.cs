@@ -19,7 +19,7 @@ namespace CritterCab.Telemetry.Tests.LastKnownPosition;
 // testable now is the store's own contract — overwrite-in-place, a policy-derived eviction
 // threshold, and the absent-baseline state a returning driver finds.
 [Collection("Telemetry")]
-public class Slice4LastKnownPositionTests
+public class LastKnownPositionTests
 {
     // Two adjacent H3 resolution-9 cells over Chicago. Opaque string literals on purpose: slice 4
     // only ever compares and stores cells, so nothing here should depend on H3 arithmetic. The
@@ -29,7 +29,7 @@ public class Slice4LastKnownPositionTests
 
     private readonly TelemetryTestFixture _fixture;
 
-    public Slice4LastKnownPositionTests(TelemetryTestFixture fixture) => _fixture = fixture;
+    public LastKnownPositionTests(TelemetryTestFixture fixture) => _fixture = fixture;
 
     [Fact]
     public async Task an_upsert_overwrites_the_drivers_document_in_place()

@@ -1,6 +1,6 @@
 ---
 name: domain-event-conventions
-description: "Naming, file placement, and shape conventions for domain events in CritterCab services: past-tense naming, slim payloads, aggregate-id-first, Marten event-type registration. Use when adding an event to a service's event stream, or when reviewing event design."
+description: "Naming, file placement, and shape conventions for domain events in CritterCab services: past-tense naming, slim payloads, aggregate-id-first, Marten event-type registration, and forward-constraint placeholder messages for a feeder whose upstream context is not yet modelled. Use when adding an event to a service's event stream, or when reviewing event design."
 cluster: core
 tags: [events, event-sourcing, marten, naming, conventions, domain-modeling]
 ---
@@ -9,7 +9,7 @@ tags: [events, event-sourcing, marten, naming, conventions, domain-modeling]
 
 Conventions for naming, placing, and structuring **domain events** in CritterCab services. A domain event is a fact recorded in a service's event stream — consumed by the aggregate's `Apply()` methods and by the service's own projections.
 
-Cross-service **integration events** that cross deployment boundaries (e.g., a `TripCompleted` published over Azure Service Bus to Pricing, Payments, Ratings, and Operations) are out of scope here; their wire format and contract location are governed by ADR-005 and ADR-009. See `transport-selection` and `wolverine-azure-service-bus` (Phase 3).
+Cross-service **integration events** that cross deployment boundaries (e.g., a `TripCompleted` published over Azure Service Bus to Pricing, Payments, Ratings, and Operations) are out of scope here; their wire format and contract location are governed by ADR-005 and ADR-009. Azure Service Bus is the business-event transport; it is not built yet and enters at the driver-availability slice. See `transport-selection` and `wolverine-azure-service-bus` (archived).
 
 ## When to apply this skill
 
@@ -22,7 +22,7 @@ Use this skill when:
 
 Do NOT use this skill for:
 
-- Designing cross-service integration events. Those have their own conventions; see `wolverine-azure-service-bus` and `transport-selection`.
+- Designing cross-service integration events. Those have their own conventions; see `transport-selection` and `wolverine-azure-service-bus` (archived).
 - Naming gRPC service methods or proto messages. See `protobuf-contracts`.
 
 ---
@@ -128,7 +128,7 @@ For aggregates whose ID name doesn't trivially derive from the type name, use th
 
 Domain events carry only the data needed to reconstruct aggregate state. They live in the service's event stream (Marten) and are consumed only inside the service that owns them.
 
-Integration events that cross service boundaries (ASB) carry richer payloads sized for downstream consumers. They are a separate concern with their own conventions — see `transport-selection` and `wolverine-azure-service-bus`.
+Integration events that cross service boundaries (ASB) carry richer payloads sized for downstream consumers. They are a separate concern with their own conventions — see `transport-selection` and `wolverine-azure-service-bus` (archived).
 
 ```csharp
 // CritterCab.Trips.Events — slim domain event in the Trip stream
@@ -159,7 +159,7 @@ The reverse is also a convention: **don't put fields on the domain event just be
 
 ## 6. Marten Event Type Registration
 
-Every domain event that appears in a Marten event stream must be registered in the service's `ConfigureMarten()` call:
+Every domain event that appears in a Marten event stream must be registered in the service's `ConfigureMarten()` call. (An event-shaped message that is never appended to a stream — a forward-constraint placeholder, §8 — is not a domain event in this sense and is not registered.)
 
 ```csharp
 // In the Trips service — Program.cs or the service's bootstrap module
@@ -197,14 +197,55 @@ In configuration files (`Program.cs`, transport setup), use fully qualified name
 
 ```csharp
 opts.PublishMessage<CritterCab.Trips.Integration.TripCompleted>()
-    .ToAzureServiceBusTopic("trips.events");
+    .ToAzureServiceBusTopic("trips.events");   // ASB: illustrative; the transport is not built yet
 ```
 
 The exact namespace and project organization for integration events is governed by ADR-009 and the cross-service contract conventions. Until those are finalized, treat the namespace `CritterCab.{ServiceName}.Integration` as a placeholder.
 
 ---
 
-## 8. Enum Types That Appear in Events
+## 8. Forward-Constraint Placeholder Messages
+
+Sometimes a slice half-lands across a boundary: the consuming side is built, but the upstream bounded context that will feed it has not been workshopped, so its events do not exist yet. Dispatch's `AvailableDriver` view is the shipped case — its location side is fed by Telemetry's `DriverLocationUpdated` over Kafka, but its availability side waits on Driver Profile, which is un-workshopped and whose transport (Azure Service Bus) is not built.
+
+Model the missing feeder as a **local placeholder message**: `src/CritterCab.Dispatch/AvailableDrivers/DriverAvailabilityChanged.cs`.
+
+```csharp
+namespace CritterCab.Dispatch.AvailableDrivers;
+
+// Header comment states: placeholder for Driver Profile's un-workshopped events; mirrors the
+// view's locked availability-side fields 1:1; Dispatch-local — not a proto, not a published
+// contract, not a Marten event type; no transport bound; only tests invoke it.
+public sealed record DriverAvailabilityChanged
+{
+    public required Guid DriverId { get; init; }
+    public required DriverAvailabilityState AvailabilityState { get; init; }
+    public required VehicleClass VehicleClass { get; init; }
+    public required DateTimeOffset AvailabilityUpdatedAt { get; init; }
+}
+```
+
+Rules:
+
+- **Mirror the consuming view's locked fields 1:1, and nothing more.** `DriverAvailabilityChanged` carries exactly the four availability-side fields Workshop 006 §6.5 locks on `AvailableDriver` (`DriverId`, `AvailabilityState`, `VehicleClass`, `AvailabilityUpdatedAt`). It describes the shape of the hole, not the vocabulary that will fill it.
+- **Invent no transitions or vocabulary for the un-modelled upstream context.** Workshop 001 §5.3 anticipates four Driver Profile events (`DriverCameOnline`, `DriverWentOnBreak`, `DriverWentOffline`, `DriverVehicleChanged`); the placeholder is deliberately none of them. Guessing at them here would pre-empt that context's workshop.
+- **The payoff is a swap, not a migration.** When the upstream context's real published events arrive, they replace the placeholder and its handler becomes their translation target. Because nothing was invented, nothing has to be unwound.
+- **Say so in a header comment** on the type: what it stands in for, that it mirrors the view's fields, and that it is local, unpublished, and transport-less. The next reader must not mistake it for a contract and extend it.
+- **Past-tense naming still applies** (§1) — it records a fact about the driver.
+
+What the shape is not, and therefore which rules do **not** apply:
+
+| It is not | So |
+|---|---|
+| A domain event in a Marten stream — it is never appended | §6's `AddEventType<T>()` registration does not apply. The handler writes a plain document. |
+| A `.proto` or a published contract | `protobuf-contracts` does not govern it; no other service references it. |
+| An integration event on a transport | No routing rule, no transport binding. Tests invoke it in-process through `IMessageBus.InvokeAsync`. |
+
+**`required` init properties are acceptable for this shape** in place of §3's positional record: every field is still mandatory at construction, and the call sites read as named initializers (`new DriverAvailabilityChanged { DriverId = ..., ... }`).
+
+---
+
+## 9. Enum Types That Appear in Events
 
 Enum types used in domain events are defined in the service's own namespace. They never cross service boundaries:
 
@@ -244,7 +285,7 @@ The same rule applies to value objects in events. `GeoLocation` is fine inside t
 - `marten-wolverine-aggregates` — handler patterns that produce these events (Phase 2).
 - `wolverine-handlers` — handler shape and validation pipeline; messaging-specific routing patterns for cross-service publication (Phase 2).
 - `transport-selection` — cross-service integration events and which transport carries them (Phase 3).
-- `wolverine-azure-service-bus` — integration event publishing patterns over ASB (Phase 3).
+- `wolverine-azure-service-bus` (archived) — integration event publishing patterns over ASB, for when ASB is built.
 
 **External:**
 

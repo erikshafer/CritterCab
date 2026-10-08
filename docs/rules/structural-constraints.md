@@ -40,8 +40,8 @@ Rider registered, driver approved, trip completed, and similar business events. 
 **Do not use Kafka for business domain events.**
 Kafka lacks the dead-lettering, session ordering, and operational features that business events require. Using it for business events pushes accidental complexity onto the project.
 
-**Do not use RabbitMQ.**
-RabbitMQ is explicitly excluded. The three committed transports cover all required flow shapes. Do not introduce a fourth transport.
+**Do not use RabbitMQ for domain flows.**
+RabbitMQ carries no business event, telemetry stream or service-to-service call; the three committed transports cover every domain flow shape, so do not introduce a fourth domain transport. The one admitted use is as CritterWatch's telemetry and control backplane ([ADR-017](../decisions/017-rabbitmq-for-critterwatch.md)): tooling infrastructure, not a domain transport, wired when CritterWatch enters after the first v2 slice. No handler publishes to or listens on it.
 
 **When implementing a new inter-service flow, identify its shape before choosing a transport.**
 High-volume, append-only → Kafka. Request-response or streaming interaction → gRPC. Reliable cross-service domain event → ASB. Shape determines transport; do not default to any one choice.

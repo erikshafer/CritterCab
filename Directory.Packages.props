@@ -2,46 +2,36 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
-    <!-- Aspire hosting packages.
-       NOTE: these versions are NOT consumed by the current file-based apphost.cs.
-       That AppHost pins its Aspire versions inline via #:package directives and
-       opts out of this Central Package Management file (#:property
-       ManagePackageVersionsCentrally=false) — otherwise the inline versions
-       collide with CPM (NU1008) and the SDK's implicit Aspire.Hosting.AppHost
-       reference collides with its PackageVersion entry (NU1009). These entries are
-       the reference version line for a future .csproj-based AppHost; keep them in
-       lockstep with apphost.cs's #:package/#:sdk versions (currently 13.4.6). -->
+  <!-- Aspire hosting integrations (src/CritterCab.AppHost). Aspire.Hosting.AppHost is
+       deliberately absent: the Aspire.AppHost.Sdk carries it implicitly, and a PackageVersion
+       entry for it collides with that implicit reference (NU1009). Keep these on the same
+       13.4.x line as the SDK version in CritterCab.AppHost.csproj. -->
   <ItemGroup>
-    <PackageVersion Include="Aspire.Hosting.AppHost" Version="13.4.6" />
     <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.4.6" />
-    <PackageVersion Include="Aspire.Hosting.SqlServer" Version="13.4.6" />
     <PackageVersion Include="Aspire.Hosting.Kafka" Version="13.4.6" />
   </ItemGroup>
   <!-- Wolverine -->
   <ItemGroup>
-    <PackageVersion Include="WolverineFx" Version="6.21.0" />
-    <PackageVersion Include="WolverineFx.Http" Version="6.21.0" />
-    <PackageVersion Include="WolverineFx.Http.FluentValidation" Version="6.21.0" />
-    <PackageVersion Include="WolverineFx.FluentValidation" Version="6.21.0" />
-    <PackageVersion Include="WolverineFx.Grpc" Version="6.21.0" />
-    <PackageVersion Include="WolverineFx.Marten" Version="6.21.0" />
-    <PackageVersion Include="WolverineFx.Polecat" Version="6.21.0" />
-    <PackageVersion Include="WolverineFx.AzureServiceBus" Version="6.21.0" />
-    <PackageVersion Include="WolverineFx.Kafka" Version="6.21.0" />
-    <PackageVersion Include="WolverineFx.SignalR" Version="6.21.0" />
-    <PackageVersion Include="WolverineFx.RuntimeCompilation" Version="6.21.0" />
+    <PackageVersion Include="WolverineFx" Version="6.38.0" />
+    <PackageVersion Include="WolverineFx.Http" Version="6.38.0" />
+    <PackageVersion Include="WolverineFx.Http.FluentValidation" Version="6.38.0" />
+    <PackageVersion Include="WolverineFx.FluentValidation" Version="6.38.0" />
+    <PackageVersion Include="WolverineFx.Grpc" Version="6.38.0" />
+    <PackageVersion Include="WolverineFx.Marten" Version="6.38.0" />
+    <PackageVersion Include="WolverineFx.Kafka" Version="6.38.0" />
+    <PackageVersion Include="WolverineFx.RuntimeCompilation" Version="6.38.0" />
     <!-- Endpoint-scoped binary-protobuf serializer for the Kafka publishing rule
          (W006 §6.3). Separate package from WolverineFx.Kafka; it pins the same
          Google.Protobuf 3.31.1 the Grpc.Tools codegen above already uses, so
          there is no version reconciliation between the two protobuf paths. -->
-    <PackageVersion Include="WolverineFx.Protobuf" Version="6.21.0" />
+    <PackageVersion Include="WolverineFx.Protobuf" Version="6.38.0" />
   </ItemGroup>
   <!-- gRPC proto-first codegen (Telemetry ReportLocations).
        Grpc.Tools runs protoc + the C# gRPC plugin at build time over the
        <Protobuf> items in CritterCab.Telemetry.csproj; Google.Protobuf is the
        runtime the generated message classes bind against; Grpc.AspNetCore is the
        ASP.NET Core server integration WolverineFx.Grpc layers on top of.
-       Versions are pinned to exactly what WolverineFx.Grpc 6.21.0 declares as its
+       Versions are pinned to exactly what WolverineFx.Grpc 6.38.0 declares as its
        own dependencies (Grpc.AspNetCore 2.76.0 -> Grpc.Tools 2.76.0 +
        Google.Protobuf 3.31.1), so the codegen toolchain matches the pairing
        Wolverine itself was built and tested against. Newer lines exist
@@ -60,10 +50,6 @@
   <ItemGroup>
     <PackageVersion Include="pocketken.H3" Version="4.5.0.1" />
   </ItemGroup>
-  <!-- SignalR client (integration-test transport for Relay BC push assertions) -->
-  <ItemGroup>
-    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.10" />
-  </ItemGroup>
   <!-- OpenAPI / SwaggerUI -->
   <ItemGroup>
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
@@ -78,9 +64,7 @@
   <ItemGroup>
     <PackageVersion Include="Alba" Version="8.5.3" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
-    <PackageVersion Include="Testcontainers.MsSql" Version="4.13.0" />
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.13.0" />
-    <PackageVersion Include="Testcontainers.ServiceBus" Version="4.13.0" />
     <PackageVersion Include="Testcontainers.Kafka" Version="4.13.0" />
     <!-- The slice-3 round-trip test asserts on the RAW Kafka record (partition key
          + binary protobuf value), which needs ConsumerBuilder directly. Confluent.Kafka

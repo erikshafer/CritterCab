@@ -1,8 +1,8 @@
 ---
 name: wolverine-http-handlers
-description: "HTTP endpoint patterns in CritterCab — route binding, mixed route+body shapes, [EmptyResponse], concrete return types vs IResult, OpenAPI inference, and the silent-failure footguns specific to HTTP handlers. Use when authoring or reviewing any [WolverinePost]/[WolverineGet]/etc. endpoint."
+description: "HTTP endpoint patterns in CritterCab — route binding, mixed route+body shapes, [EmptyResponse], concrete return types vs IResult, OpenAPI inference, FluentValidation boundary validation and its two-call wiring, and the silent-failure footguns specific to HTTP handlers. Use when authoring or reviewing any [WolverinePost]/[WolverineGet]/etc. endpoint."
 cluster: wolverine
-tags: [wolverine, handlers, http, endpoints, openapi, routes]
+tags: [wolverine, handlers, http, endpoints, openapi, routes, fluentvalidation, validation]
 ---
 
 # Wolverine HTTP Handlers
@@ -18,7 +18,8 @@ Use this skill when:
 - Authoring an HTTP endpoint as a Wolverine handler — `[WolverinePost]`, `[WolverineGet]`, `[WolverinePut]`, `[WolverineDelete]`, `[WolverinePatch]`.
 - Designing the request/response shape of an endpoint.
 - Choosing between compound-handler and single-method-endpoint patterns.
-- Diagnosing endpoint-specific issues: 200 returned but events missing, OpenAPI schemas incomplete, route parameters not binding.
+- Adding FluentValidation boundary validation to an endpoint, or wiring it into a service for the first time.
+- Diagnosing endpoint-specific issues: 200 returned but events missing, invalid input accepted with 200, OpenAPI schemas incomplete, route parameters not binding.
 - Reviewing a PR that adds or modifies an HTTP endpoint.
 
 Do NOT use this skill for:
@@ -144,6 +145,104 @@ For the full identity-resolution chain (route segment matching, header, claim, c
 
 ---
 
+## FluentValidation at the HTTP Boundary
+
+Input-shape validation — ranges, required fields, cross-parameter rules — runs at the HTTP boundary through FluentValidation, before the endpoint handler runs. A failing rule short-circuits with an RFC 7807 `ProblemDetails` 400. The aggregate (or document) only rejects illegal state transitions; it does not re-validate input.
+
+### The validator: nested in the command record
+
+```csharp
+// src/CritterCab.Telemetry/TelemetryPolicy/ConfigureTelemetryPolicy.cs
+public sealed record ConfigureTelemetryPolicy(
+    int H3Resolution,
+    int HeartbeatIntervalSeconds,
+    int MinPublishIntervalSeconds,
+    string OperatorId,
+    string Reason)
+{
+    public sealed class ConfigureTelemetryPolicyValidator : AbstractValidator<ConfigureTelemetryPolicy>
+    {
+        private const int MinH3Resolution = 0;
+        private const int MaxH3Resolution = 15;
+
+        public ConfigureTelemetryPolicyValidator()
+        {
+            RuleFor(x => x.H3Resolution)
+                .InclusiveBetween(MinH3Resolution, MaxH3Resolution)
+                .WithMessage($"H3 resolution must be between {MinH3Resolution} and {MaxH3Resolution}.");
+
+            RuleFor(x => x.HeartbeatIntervalSeconds).GreaterThan(0);
+            RuleFor(x => x.MinPublishIntervalSeconds).GreaterThan(0);
+
+            // Cross-parameter rule.
+            RuleFor(x => x.HeartbeatIntervalSeconds)
+                .GreaterThanOrEqualTo(x => x.MinPublishIntervalSeconds)
+                .WithMessage("Heartbeat interval must be greater than or equal to the minimum publish interval.");
+
+            RuleFor(x => x.OperatorId).NotEmpty();
+            RuleFor(x => x.Reason).NotEmpty();
+        }
+    }
+}
+```
+
+The nested-validator shape is the general convention from `csharp-coding-standards` § FluentValidation. The endpoint itself (`ConfigureTelemetryPolicyEndpoint.Handle`) carries no validation code.
+
+### The wiring: two packages, two calls
+
+Both packages are required — `src/CritterCab.Telemetry/CritterCab.Telemetry.csproj` references both:
+
+| Package | Namespace | Call | Job |
+|---|---|---|---|
+| `WolverineFx.FluentValidation` | `Wolverine.FluentValidation` | `opts.UseFluentValidation()` inside `UseWolverine` | Scans the application assembly and **registers** every `IValidator<T>` into DI. |
+| `WolverineFx.Http.FluentValidation` | `Wolverine.Http.FluentValidation` | `opts.UseFluentValidationProblemDetailMiddleware()` inside `MapWolverineEndpoints` | Weaves middleware into each endpoint that **resolves** `IValidator<T>` from DI and short-circuits with a 400 `ProblemDetails`. |
+
+```csharp
+// src/CritterCab.Telemetry/Program.cs
+using Wolverine.FluentValidation;
+using Wolverine.Http.FluentValidation;
+
+builder.Host.UseWolverine(opts =>
+{
+    // Call 1 — register the validators.
+    opts.UseFluentValidation();
+});
+
+var app = builder.Build();
+
+// Call 2 — resolve them at the HTTP boundary.
+app.MapWolverineEndpoints(opts => opts.UseFluentValidationProblemDetailMiddleware());
+```
+
+**Wiring only call 2 fails silently.** The middleware compiles, weaves, finds no `IValidator<T>` registered, and lets the invalid command through — the endpoint handler runs on it and returns 200. `dotnet build` and a smoke test that never posts invalid input both pass. CI caught it on the repository's first FluentValidation use, through the reject test ([retrospective 006](../../retrospectives/implementations/006-telemetry-skeleton-and-slice-1-config.md)).
+
+### Prove it with a reject test
+
+Every boundary-validated endpoint needs at least one Alba scenario that posts invalid input and asserts the 400. It is the only test that exercises the wiring:
+
+```csharp
+// tests/CritterCab.Telemetry.Tests/TelemetryPolicy/TelemetryPolicyConfiguredTests.cs
+await _fixture.Host.Scenario(s =>
+{
+    s.Post.Json(new ConfigureTelemetryPolicy(
+        H3Resolution: 9,
+        HeartbeatIntervalSeconds: 0,
+        MinPublishIntervalSeconds: 5,
+        OperatorId: "ops-alice",
+        Reason: "Bad config")).ToUrl("/api/telemetry/policy");
+
+    s.StatusCodeShouldBe(400);
+});
+```
+
+The shipped test also asserts that no event was appended — a 400 that still wrote would be a different bug.
+
+### Where it does not apply: client-streaming gRPC
+
+The HTTP middleware weaves for HTTP endpoints only, and Wolverine cannot weave `Before`/`Validate` frames for a client-streaming RPC at all: a before-frame needs a concrete request instance at method entry, and a stream cannot supply one. `ReportLocationsHandler` (`src/CritterCab.Telemetry/ReportLocations/ReportLocationsHandler.cs`) therefore validates each ping inside its handler. Do not add a boundary validator to a client-streaming RPC — see `wolverine-grpc-handlers` § Client-streaming handlers.
+
+---
+
 ## Diagnosing Endpoint Issues
 
 Two commands particularly relevant for HTTP endpoints. Run from the service's directory.
@@ -161,8 +260,9 @@ dotnet run -- wolverine-diagnostics codegen-preview --handler StartTripHandler
 |---|---|
 | Endpoint returns 200 but event not persisted | Bare-event-return on aggregate handler — see § that anti-pattern. Run `codegen-preview --route` and look for `IStartStream` or event-append interception. |
 | Route parameter not binding | `codegen-preview --route` — verify the route attribute and parameter name match. |
+| Invalid input returns 200 instead of 400 | Validators never registered — `opts.UseFluentValidation()` missing from `UseWolverine`. See § FluentValidation at the HTTP Boundary. |
 | OpenAPI shows no response schema | Returning `IResult` instead of a concrete type — see § Concrete Return Types vs IResult. |
-| `[WriteAggregate]` aggregate is null in handler | Identity resolution failed — check the `nameof()` argument or the convention chain (see § Route Binding). |
+| `[WriteAggregate]` aggregate is null in handler | Identity resolution failed — check the `nameof()` argument or the convention chain (see § Aggregate ID — Cab Convention). |
 
 ---
 
@@ -177,13 +277,13 @@ dotnet run -- wolverine-diagnostics codegen-preview --handler StartTripHandler
 **Prerequisites** — Cab-internal skills to load first if unfamiliar:
 
 - `wolverine-handlers` — general handler shape, validation pipeline, `IStartStream` semantics, service registration conventions, logger convention.
-- `csharp-coding-standards` — sealed records, `TimeProvider`, modern guard clauses.
+- `csharp-coding-standards` — sealed records, `TimeProvider`, modern guard clauses, the nested-validator shape (§ FluentValidation).
 
 **Sibling skills:**
 
 - `wolverine-messaging-handlers` — message-bus handler patterns (routing rules, `OutgoingMessages` outbox, scheduled delivery).
-- `wolverine-grpc-handlers` (Phase 3) — gRPC unary and server-streaming.
-- `wolverine-grpc-bidirectional-handlers` (Phase 4) — gRPC client-streaming and bidirectional.
+- `wolverine-grpc-handlers` — gRPC unary, server-streaming, and client-streaming handlers, including why client-streaming validates inside the handler.
+- `wolverine-grpc-bidirectional-handlers` (archived) — bidirectional gRPC.
 
 **Downstream** — natural follow-ups:
 

@@ -195,3 +195,7 @@ Over time, stable learnings from this file migrate into skill files, where they 
 CritterCab's current handoff from design to implementation is the prompt document. Prompt authoring is valuable — it consolidates the narrative references, skill references, and acceptance criteria the agent needs. But the trigger for implementation is implicit: the existence of a prompt document in the right location.
 
 A status field on the narrative or slice itself makes the handoff explicit: when the narrative's given/when/then rules are complete and the referenced skill files exist, the human sets status to `"planned"`. The agent (or the next session's prompt) knows unambiguously what is ready. This could be as simple as a frontmatter field in the narrative document.
+
+---
+
+> **Closing note (2026-10-08).** Superseded in practice for CritterCab by the portfolio decision recorded in [`docs/planning/2026-10-05-crittercab-v2-evaluation.md`](../planning/2026-10-05-crittercab-v2-evaluation.md) and made live in [`docs/vision/README.md`](../vision/README.md) v1.0: the authored surface is a curated `*.emodel.yaml` per service, reviewed in the PR; no slice carries a status field (status is derived from the running application, never asserted); and there is no agent loop or build-kit loop working through slices. The given/when/then-as-contract idea survives, executed as Gherkin. This note stays as the research record of the SDD lineage.

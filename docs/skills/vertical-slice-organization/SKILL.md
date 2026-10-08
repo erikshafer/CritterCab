@@ -88,6 +88,31 @@ Folders are named after **business capabilities**, not technical roles.
 
 For very small services, top-level files at the project root are also acceptable — feature folders are introduced when there are enough files to warrant grouping (rough rule of thumb: 5+ files cluster naturally into folders; 10+ requires it).
 
+### Namespaces follow folders
+
+A file's namespace is its folder path under the project: `src/CritterCab.Telemetry/LastKnownPosition/LastKnownPosition.cs` declares `namespace CritterCab.Telemetry.LastKnownPosition;`, and `src/CritterCab.Dispatch/FareQuoting/FareQuoted.cs` declares `namespace CritterCab.Dispatch.FareQuoting;`. Use file-scoped namespace declarations. The one exception is `Shared/`: its types (`Location`, `VehicleClass` in Dispatch) declare the service root namespace (`namespace CritterCab.Dispatch;`), so every slice sees them without a `using`.
+
+### When a feature folder and its primary type share a name
+
+A feature folder is often named after the slice's central type, and sometimes the names match exactly: Telemetry has `TelemetryPolicy/TelemetryPolicy.cs` and `LastKnownPosition/LastKnownPosition.cs`. Because namespaces follow folders, that produces a namespace `CritterCab.Telemetry.TelemetryPolicy` containing a type `TelemetryPolicy`. Referenced from a **sibling** namespace (`CritterCab.Telemetry.ReportLocations`), the bare name `TelemetryPolicy` resolves to the *namespace* — C# finds `CritterCab.Telemetry.TelemetryPolicy` as a member of the enclosing `CritterCab.Telemetry` namespace before it considers types imported by `using` — and the reference fails to compile.
+
+The remedy is a `using` alias with `global::`, suffixed by the type's **role** so the alias reads as what the type is to the calling slice:
+
+```csharp
+// src/CritterCab.Telemetry/ReportLocations/ReportLocationsHandler.cs
+using LastKnownPositionDocument = global::CritterCab.Telemetry.LastKnownPosition.LastKnownPosition;
+using TelemetryPolicyView = global::CritterCab.Telemetry.TelemetryPolicy.TelemetryPolicy;
+
+namespace CritterCab.Telemetry.ReportLocations;
+```
+
+`LastKnownPosition` is a plain document, hence `...Document`; `TelemetryPolicy` is the live-aggregated config view, hence `...View`. Use the same alias name everywhere the type is referenced from outside its folder — the shipped set is `ReportLocations/ReportLocationsHandler.cs`, `LastKnownPosition/EvictStalePositions.cs`, and five Telemetry test files (both fixtures, `LastKnownPositionTests`, `ReportLocationsTests`, `DriverLocationPublishOrderingTests`).
+
+Scope of the problem:
+
+- **Within the type's own namespace no alias is needed** — inside `CritterCab.Telemetry.LastKnownPosition`, `LastKnownPosition` is the type.
+- **It only happens on an exact match.** `AvailableDrivers/AvailableDriver.cs` and `RideRequesting/RideRequest.cs` do not collide, because the folder and the type differ by a suffix. Don't rename folders or types to avoid the alias; a capability-named folder whose central type carries the same name is a correct layout, and the alias is the cost.
+
 ---
 
 ## File Naming
@@ -112,8 +137,8 @@ For very small services, top-level files at the project root are also acceptable
 The three are **1:1 by design**. The validator validates the command's shape; the handler implements the command's behavior. Splitting them across three files means three opens per feature change, three places to keep in sync, and three files that may get out of order in code review. Colocation makes the unit of change one file, and "what does `AcceptOffer` do" gets answered without navigation.
 
 ```csharp
-// File: AcceptOffer.cs
-namespace CritterCab.Dispatch;
+// File: OfferDispatch/AcceptOffer.cs
+namespace CritterCab.Dispatch.OfferDispatch;
 
 public sealed record AcceptOffer(Guid OfferId, Guid DriverId)
 {
@@ -191,8 +216,8 @@ Reasoning: events are immutable contracts, change less frequently than the comma
 When a domain event has a Marten event-subscription handler (e.g., translating the domain event into an integration event published over ASB), colocate them in the same file:
 
 ```csharp
-// File: TripCompleted.cs
-namespace CritterCab.Trips;
+// File: TripExecution/TripCompleted.cs
+namespace CritterCab.Trips.TripExecution;
 
 // Domain event in the local stream
 public sealed record TripCompleted(
@@ -363,10 +388,11 @@ For services with very few queries (1–2), they can sit at the project root or 
 
 - **Defaulting to `Commands/Events/Handlers/`** because it's the layered-architecture pattern. Wrong for CritterCab; reorganize.
 - **Type-grouped files** like `DispatchCommands.cs` containing 10+ records. Each command gets its own file; the validator and handler colocate in the same file as the command.
-- **Splitting validator into its own file** for Marten-based services. The single-file colocation is the canonical pattern. (The CritterSupply three-file pattern for EF Core BCs does NOT carry over — Cab's primary stores are Marten and Polecat.)
+- **Splitting validator into its own file** for Marten-based services. The single-file colocation is the canonical pattern. (A three-file command/validator/handler split common in EF Core codebases does NOT carry over — Cab's primary stores are Marten and Polecat.)
 - **Preemptively creating `Shared/`** before duplication appears. Wait for 3+ references to the same type before extracting.
 - **Migration-suffixed names** that persist past the migration. Clean up before the milestone closes.
 - **Treating `Integration/` as where to put cross-service "shared" code.** It's only for outbound integration event classes (per `domain-event-conventions`). It is not a synonym for `Shared/`.
+- **Fighting a folder/type name collision by renaming.** When `TelemetryPolicy/TelemetryPolicy.cs` is referenced from a sibling slice, the namespace shadows the type. Add a role-suffixed `global::` alias (`TelemetryPolicyView`); don't rename the folder or the type.
 - **Forgetting to apply the "what does this folder do?" test.** If a folder name doesn't tell you what business capability lives there, the name is wrong.
 
 ---
@@ -387,7 +413,7 @@ For services with very few queries (1–2), they can sit at the project root or 
 
 - `wolverine-handlers` — handler shapes that this organization supports (Phase 2).
 - `marten-aggregates` — the aggregate file referenced in feature folders (Phase 2).
-- `wolverine-sagas` — how saga files fit the convention (Phase 4).
+- `wolverine-sagas` (archived) — how saga files fit the convention.
 
 **External:**
 

@@ -5,6 +5,7 @@
 		<File Path="README.md" />
 	</Folder>
 	<Folder Name="/src/">
+		<Project Path="src/CritterCab.AppHost/CritterCab.AppHost.csproj" />
 		<Project Path="src/CritterCab.Dispatch/CritterCab.Dispatch.csproj" />
 		<Project Path="src/CritterCab.Telemetry/CritterCab.Telemetry.csproj" />
 	</Folder>
