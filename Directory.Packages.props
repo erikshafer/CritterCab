@@ -71,7 +71,7 @@
          reaches WolverineFx.Kafka only transitively (via Confluent.SchemaRegistry.Serdes.*),
          so the test project references it explicitly at the version Wolverine resolves
          rather than depending on transitive flow. -->
-    <PackageVersion Include="Confluent.Kafka" Version="2.14.0" />
+    <PackageVersion Include="Confluent.Kafka" Version="2.16.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
     <PackageVersion Include="Shouldly" Version="4.3.0" />
