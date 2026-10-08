@@ -27,7 +27,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # CI restores/builds/tests CritterCab.slnx explicitly (no glob), so the
       # slnx is the single source of truth for what CI sees. A *.Tests.csproj
@@ -50,13 +50,28 @@ jobs:
           fi
           exit $missing
 
+      # The .proto files are contracts (ADR-009), so protos/buf.yaml's STANDARD lint (with its
+      # one scoped ignore_only) runs on every build rather than only when someone remembers to
+      # run buf locally. Lint only: no BSR push, no PR comment (which would need write
+      # permissions), and no format or breaking check until those are decided on their own.
+      - name: Lint protobuf contracts
+        uses: bufbuild/buf-action@v1
+        with:
+          version: 1.73.0
+          input: protos
+          lint: true
+          format: false
+          breaking: false
+          push: false
+          pr_comment: false
+
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
@@ -82,12 +97,38 @@ jobs:
       # reads like a broken test rather than a saturated network.
       #
       # After this step the images are local and the fixtures' PullPolicy.Missing makes every pull a
-      # no-op. Keep this list in sync with the tags pinned in the fixtures — a tag that drifts out
-      # of sync here does not fail the build, it just quietly restores the old behaviour.
+      # no-op. The step above fails the build if a fixture pins an image this list does not pull.
       #
       # The ryuk tag is NOT ours to choose: Testcontainers pins it internally (4.13.0 → 0.14.0,
       # by digest). Re-read it from the package when Testcontainers is bumped, otherwise this line
       # pre-pulls an image nothing uses and the reaper goes back to racing for its own.
+      # Enforces the list below. A fixture pinning an image this workflow does not pre-pull
+      # passes locally and in review, then reintroduces the pull race in CI, where it fails in
+      # whichever unrelated suite lost. So: every image literal handed to a Testcontainers
+      # *Builder("...") constructor in a fixture must appear as a `docker pull` line in this
+      # file. ryuk is not checked: Testcontainers pins it, no fixture names it.
+      - name: Verify pre-pull list covers fixture images
+        shell: bash
+        run: |
+          missing=0
+          images=$(grep -rhoE --include='*Fixture.cs' '[A-Za-z]+Builder\("[^"]+"\)' tests \
+            | sed -E 's/.*\("([^"]+)"\)/\1/' | sort -u)
+          if [ -z "$images" ]; then
+            echo "::error::No Testcontainers image literals found under tests/ — the guard's pattern no longer matches the fixtures"
+            exit 1
+          fi
+          for image in $images; do
+            if ! grep -qE "^[[:space:]]*docker pull ${image//./\\.}[[:space:]]*$" .github/workflows/dotnet.yml; then
+              echo "::error::Fixture image '$image' is not pre-pulled in .github/workflows/dotnet.yml"
+              missing=1
+            fi
+          done
+          if [ "$missing" -eq 0 ]; then
+            echo "Every fixture image is pre-pulled:"
+            echo "$images"
+          fi
+          exit $missing
+
       - name: Pre-pull Testcontainers images
         run: |
           docker pull postgres:18-alpine
@@ -104,7 +145,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results
           path: ./test-results

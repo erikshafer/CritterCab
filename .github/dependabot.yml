@@ -1,0 +1,24 @@
+version: 2
+updates:
+  # NuGet pins live in one place (Directory.Packages.props, Central Package Management), so one
+  # entry at the root covers every project. Families that must move together are grouped so a
+  # bump arrives as one PR the full suite can gate, not as a dozen that half-move a family.
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      wolverinefx:
+        patterns: ["WolverineFx*"]
+      aspire:
+        patterns: ["Aspire.*"]
+      grpc:
+        patterns: ["Grpc.*", "Google.Protobuf"]
+      testcontainers:
+        patterns: ["Testcontainers.*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
