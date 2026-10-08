@@ -94,6 +94,8 @@ Retros and index entries written before 2026-10-08 used a longer template (frami
 
 - [`critter-stack-package-refresh.md`](./critter-stack-package-refresh.md) — **`tidy: packages` maintenance detour.** Bumped the WolverineFx family **6.8.0 → 6.17.0** (Marten 9.14.0, JasperFx 2.24.1, Weasel 9.16.2 flowing transitively; Alba already latest), discharging the "full-suite 6.x refresh still owed" item tracked since PR #35. Minor-line drop-in: restore + build green with **zero code changes**; **CI full suite 11/11 passing** (PR #41). Local test run was blocked by a wedged Docker Desktop engine (Testcontainers container `start` hangs before any app code runs); pushed to CI as the authoritative test gate rather than fighting local Docker — the same 11 tests passed in 13s in the clean CI environment. Null spec delta (dependency bump amends no canonical spec). No prompt doc — direct user request. Status: complete (2026-07-10).
 
+- [`crittercab-v2-boundary.md`](./crittercab-v2-boundary.md) — First v2 session: closed v1 at the `v1` tag and declared v2 in place; first retro in the five-section template. Triggered by [`prompts/crittercab-v2-boundary.md`](../prompts/crittercab-v2-boundary.md). Status: complete (2026-10-08).
+
 Phase 1–3 retrospectives were not authored at the time those phases ran (the retrospective convention solidified during Phase 4). They may be reconstructed from the working transcripts and skill artifacts if needed; otherwise they remain a known gap in the project record.
 
 ### Per-skill retros (`skills/`)
