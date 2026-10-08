@@ -12,12 +12,12 @@ using Xunit;
 namespace CritterCab.Dispatch.Tests.FareQuoting;
 
 [Collection("Dispatch")]
-public class Slice52FareQuotedFailurePathTests : IDisposable
+public class FareQuotedFailurePathTests : IDisposable
 {
     private readonly DispatchTestFixture _fixture;
     private readonly IAlbaHost _host;
 
-    public Slice52FareQuotedFailurePathTests(DispatchTestFixture fixture)
+    public FareQuotedFailurePathTests(DispatchTestFixture fixture)
     {
         _fixture = fixture;
         _host = fixture.Host;
@@ -154,7 +154,7 @@ public class Slice52FareQuotedFailurePathTests : IDisposable
 
         // 30s rather than the 5s default — and this suite needs it most, because the retry loop
         // under test spends real time in cooldowns before reaching a terminal outcome. See the
-        // same widening in Slice53CandidatesSelectedTests for why the default stopped sufficing.
+        // same widening in CandidatesSelectedTests for why the default stopped sufficing.
         await _host.ExecuteAndWaitAsync(async () =>
         {
             httpResult = await _host.Scenario(s =>

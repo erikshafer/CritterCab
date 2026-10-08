@@ -23,14 +23,14 @@ namespace CritterCab.Telemetry.Tests.ReportLocations;
 // §6.3's second GWT (Dedup) is deliberately absent — it asserts CONSUMER behavior against
 // at-least-once redelivery, and there is no consumer until PR D.
 [Collection("TelemetryKafka")]
-public class Slice3KafkaPublishTests
+public class DriverLocationPublishedTests
 {
     private const string Topic = "telemetry.driver-location-updated";
     private const double LoopLat = 41.8827d, LoopLon = -87.6233d;
 
     private readonly TelemetryKafkaTestFixture _fixture;
 
-    public Slice3KafkaPublishTests(TelemetryKafkaTestFixture fixture) => _fixture = fixture;
+    public DriverLocationPublishedTests(TelemetryKafkaTestFixture fixture) => _fixture = fixture;
 
     [Fact]
     public async Task a_published_position_lands_on_the_topic_keyed_by_driver_id()

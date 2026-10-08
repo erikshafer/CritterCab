@@ -9,11 +9,11 @@ namespace CritterCab.Telemetry.Tests.TelemetryPolicy;
 
 // W006 §6.1 GWTs for the TelemetryPolicyConfigured config-as-events slice.
 [Collection("Telemetry")]
-public class Slice1TelemetryPolicyTests
+public class TelemetryPolicyConfiguredTests
 {
     private readonly TelemetryTestFixture _fixture;
 
-    public Slice1TelemetryPolicyTests(TelemetryTestFixture fixture) => _fixture = fixture;
+    public TelemetryPolicyConfiguredTests(TelemetryTestFixture fixture) => _fixture = fixture;
 
     [Fact]
     public async Task bootstrap_seeds_the_documented_defaults()

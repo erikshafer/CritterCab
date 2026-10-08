@@ -12,12 +12,12 @@ using Xunit;
 namespace CritterCab.Dispatch.Tests.FareQuoting;
 
 [Collection("Dispatch")]
-public class Slice52FareQuotedHappyPathTests
+public class FareQuotedHappyPathTests
 {
     private readonly DispatchTestFixture _fixture;
     private readonly IAlbaHost _host;
 
-    public Slice52FareQuotedHappyPathTests(DispatchTestFixture fixture)
+    public FareQuotedHappyPathTests(DispatchTestFixture fixture)
     {
         _fixture = fixture;
         _host = fixture.Host;
@@ -41,7 +41,7 @@ public class Slice52FareQuotedHappyPathTests
         IScenarioResult httpResult = null!;
 
         // 30s rather than the 5s default. Same reason as the widening in
-        // Slice53CandidatesSelectedTests: the timeout guards against a hung cascade, not slowness,
+        // CandidatesSelectedTests: the timeout guards against a hung cascade, not slowness,
         // and 5s became marginal on CI once slice 5 added a second Postgres and a Kafka broker to
         // this project's fixtures.
         var tracked = await _host.ExecuteAndWaitAsync(async () =>

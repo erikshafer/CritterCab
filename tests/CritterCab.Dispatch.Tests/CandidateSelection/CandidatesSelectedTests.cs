@@ -12,12 +12,12 @@ using Xunit;
 namespace CritterCab.Dispatch.Tests.CandidateSelection;
 
 [Collection("Dispatch")]
-public class Slice53CandidatesSelectedTests : IDisposable
+public class CandidatesSelectedTests : IDisposable
 {
     private readonly DispatchTestFixture _fixture;
     private readonly IAlbaHost _host;
 
-    public Slice53CandidatesSelectedTests(DispatchTestFixture fixture)
+    public CandidatesSelectedTests(DispatchTestFixture fixture)
     {
         _fixture = fixture;
         _host = fixture.Host;

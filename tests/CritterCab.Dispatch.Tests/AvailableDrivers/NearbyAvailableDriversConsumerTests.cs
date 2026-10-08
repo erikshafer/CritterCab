@@ -18,14 +18,14 @@ namespace CritterCab.Dispatch.Tests.AvailableDrivers;
 // fixture produces the same binary-protobuf record Telemetry's publisher produces, and the service's
 // own production listener wiring picks it up. Nothing is stubbed on the transport path.
 [Collection("DispatchKafka")]
-public class Slice5DriverLocationConsumerTests
+public class NearbyAvailableDriversConsumerTests
 {
     private const double LoopLat = 41.8827d, LoopLon = -87.6233d;
     private const int Resolution = 9;
 
     private readonly DispatchKafkaTestFixture _fixture;
 
-    public Slice5DriverLocationConsumerTests(DispatchKafkaTestFixture fixture) => _fixture = fixture;
+    public NearbyAvailableDriversConsumerTests(DispatchKafkaTestFixture fixture) => _fixture = fixture;
 
     [Fact]
     public async Task a_published_position_lands_in_the_available_driver_document()

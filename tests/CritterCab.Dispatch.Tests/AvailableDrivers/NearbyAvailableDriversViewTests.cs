@@ -17,7 +17,7 @@ namespace CritterCab.Dispatch.Tests.AvailableDrivers;
 // stub — resolved from the running host, so the k-ring query, the exact-distance filter and the
 // availability join are all under test as production wires them.
 [Collection("DispatchKafka")]
-public class Slice5NearbyAvailableDriversViewTests
+public class NearbyAvailableDriversViewTests
 {
     // Chicago's Loop, and two points at known distances from it. The near driver sits a few hundred
     // metres away, the far one several kilometres — comfortably either side of a 2km radius, so the
@@ -31,7 +31,7 @@ public class Slice5NearbyAvailableDriversViewTests
 
     private readonly DispatchKafkaTestFixture _fixture;
 
-    public Slice5NearbyAvailableDriversViewTests(DispatchKafkaTestFixture fixture) => _fixture = fixture;
+    public NearbyAvailableDriversViewTests(DispatchKafkaTestFixture fixture) => _fixture = fixture;
 
     [Fact]
     public async Task drivers_in_range_and_capable_are_returned_nearest_first()
