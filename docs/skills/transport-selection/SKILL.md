@@ -7,7 +7,7 @@ tags: [transports, grpc, kafka, asb, event-hubs, wolverine, adr-005, decision-fr
 
 # Transport Selection
 
-A decision framework for choosing the transport for a cross-service flow in CritterCab. CritterCab uses three transports — gRPC, Kafka (against Azure Event Hubs in cloud and the EH Emulator locally), and Azure Service Bus — and ADR-005 fixes which transport handles which kind of flow. This skill makes that decision explicit, so the choice is mechanical at design time rather than ad hoc at implementation time.
+A decision framework for choosing the transport for a cross-service flow in CritterCab. CritterCab uses three transports — gRPC, Kafka (against Azure Event Hubs in cloud and a Kafka container locally), and Azure Service Bus — and ADR-005 fixes which transport handles which kind of flow. This skill makes that decision explicit, so the choice is mechanical at design time rather than ad hoc at implementation time.
 
 The bottom line: **flow shape determines transport.** Do not default to a transport because it is familiar or because it is what's wired up. Identify the shape first, then choose.
 
@@ -30,7 +30,7 @@ CritterCab commits to three transports. Each fits a specific flow shape; none is
 | Transport | Implementation | Flow shape it owns |
 |---|---|---|
 | **gRPC** | Wolverine 5.32+ | Service-to-service calls and streaming interactions where the caller awaits a response or stream from a specific callee. |
-| **Kafka** | Wolverine's Kafka transport, against Azure Event Hubs (cloud) or the EH Emulator (local) | High-volume, append-only streams broadcast to multiple downstream consumers. |
+| **Kafka** | Wolverine's Kafka transport, against Azure Event Hubs (cloud) or a Kafka container (local) | High-volume, append-only streams broadcast to multiple downstream consumers. |
 | **Azure Service Bus** | Wolverine's ASB transport, against ASB (cloud) or the ASB Emulator (local) | Cross-service domain events that need reliable delivery, dead-lettering, session ordering, or topic-based routing. |
 
 RabbitMQ is deliberately excluded. The three transports cover all required flow shapes; adding a fourth would bring cost without new capability. ADR-005 makes this decision explicit.
@@ -51,10 +51,10 @@ Signals: there's a known producer that wants a response (or a stream of response
 |---|---|---|
 | One request, one response | Unary | `RequestRide` → Dispatch; `AcceptOffer` → Dispatch; `CompleteTrip` → Trips; query methods. |
 | One request, stream of responses | Server-streaming | `StreamDriverOffers` (Dispatch fans offers to a candidate driver client); `WatchTripStatus` (Trips streams updates to the rider client); the Operations live map. |
-| Stream of requests, one response | Client-streaming | `PushTelemetry` (mobile client streams GPS pings into the Telemetry service — the GPS ingest path). |
+| Stream of requests, one response | Client-streaming | `ReportLocations` (mobile client streams `LocationPing`s into the Telemetry service — the GPS ingest path; shipped). |
 | Stream of requests, stream of responses | Bidirectional | Real-time driver-rider communication during a trip, where justified. |
 
-Unary and server-streaming patterns live in `wolverine-grpc-handlers` (Phase 3); client-streaming and bidirectional patterns live in `wolverine-grpc-bidirectional-handlers` (Phase 4).
+Unary, server-streaming, and client-streaming patterns live in `wolverine-grpc-handlers`; bidirectional patterns were in `wolverine-grpc-bidirectional-handlers` (archived — no bidirectional RPC exists).
 
 ### 2. Is this a high-volume, append-only stream of records consumed by potentially multiple downstream services?
 
@@ -79,7 +79,6 @@ If none of the three categories fit, the flow probably doesn't actually cross a 
 - **Per-call semantics.** The caller and callee are explicit. The four streaming modes match the interactive flow shapes that ride-sharing produces (`RequestRide` is unary; offer fan-out is server-streaming; GPS ingest is client-streaming).
 - **Low latency.** No broker hop. Direct service-to-service over HTTP/2.
 - **Strongly typed contracts.** Service and message definitions are protobuf, governed by `protobuf-contracts` and ADR-009. The contract is the design.
-- **Cross-language by construction.** The Go service (per the vision doc's polyglot goal) consumes the same protos.
 - **Wolverine integration.** Handlers look like normal Wolverine handlers; the gRPC streaming primitives surface as `IAsyncEnumerable<T>` parameters and return types. See `wolverine-grpc-handlers` (Phase 3).
 
 ### Kafka (against Azure Event Hubs)
@@ -88,7 +87,7 @@ If none of the three categories fit, the flow probably doesn't actually cross a 
 - **High throughput, low per-message overhead.** Designed for millions of messages per second across a partitioned topic.
 - **Multiple consumers, independent offsets.** GPS pings can be consumed by Dispatch (for matching) and Pricing (for surge signals) independently — each consumer group reads the same stream at its own pace.
 - **Replay and time-travel.** Consumers can rewind to a past offset for backfills, debugging, or new-consumer onboarding.
-- **CritterCab-specific:** the broker is Azure Event Hubs in cloud and the EH Emulator (Docker) locally. Wolverine speaks Kafka protocol against both. **Production EH constraint:** the EH Emulator only supports Kafka producer and consumer APIs — admin operations like topic creation use the management API or `az eventhubs`, not Kafka admin protocol. See `wolverine-kafka` (Phase 3).
+- **CritterCab-specific:** the broker is Azure Event Hubs in cloud and a real Kafka container locally (Aspire `AddKafka`). Wolverine speaks Kafka protocol against both, and the services read the broker address by name, so the code is identical. **EH Emulator constraint:** the emulator serves only the Kafka producer and consumer APIs — admin operations like topic creation use the management API or `az eventhubs`, not the Kafka admin protocol — which is why local dev uses a real Kafka container (Telemetry's `AutoProvision()` needs the admin API). Production runs against Event Hubs with pre-provisioned topics. See `wolverine-kafka`.
 
 ### Azure Service Bus
 
@@ -97,7 +96,7 @@ If none of the three categories fit, the flow probably doesn't actually cross a 
 - **Session ordering when needed.** Messages within a session are delivered in order to a single consumer; sessions across the same topic are processed in parallel. Useful for "all `TripCompleted` events for a single trip in order, but trips don't block each other."
 - **Scheduled message delivery.** Native support for "deliver this message at time X." Used by sagas that need delayed message dispatch (e.g., a check-in reminder N minutes after a trip starts).
 - **Operational visibility.** Service Bus Explorer (Windows GUI for cloud namespaces) and `az servicebus` (cross-platform CLI) provide inspection without writing code.
-- **CritterCab-specific:** the broker is Azure Service Bus in cloud and the ASB Emulator (Docker) locally. The ASB Emulator gained management API support in early 2026 — see `wolverine-azure-service-bus` (Phase 3) and `cli-azure-messaging` (Phase 3) for the operational details.
+- **CritterCab-specific:** the broker is Azure Service Bus in cloud and the ASB Emulator (Docker) locally, once ASB is built. The ASB Emulator gained management API support in early 2026 — see `wolverine-azure-service-bus` (archived) and `cli-azure-messaging` (archived) for the operational details.
 
 ---
 
@@ -149,7 +148,7 @@ The recipients determine the transport:
 
 ASB has native scheduled delivery via `ScheduledEnqueueTime`. Kafka does not, and gRPC has no concept of scheduled delivery at all. Use ASB.
 
-If the delay is part of a saga's timeout-and-retry pattern, see `wolverine-sagas` (Phase 4) for the saga-level scheduling primitives.
+If the delay is part of a saga's timeout-and-retry pattern, see `wolverine-sagas` (archived) for the saga-level scheduling primitives.
 
 ### "I want a request-response between services but the response stream is long-lived"
 
@@ -167,9 +166,9 @@ Wolverine's multi-transport support means transport selection is expressed in th
 
 ```csharp
 // In a service's Program.cs or composition root
-opts.PublishMessage<TripCompleted>().ToAzureServiceBusTopic("trips.events");
-opts.PublishMessage<LocationPing>().ToKafkaTopic("telemetry.pings");
-// gRPC services declared via Wolverine's gRPC API (see wolverine-grpc-services)
+opts.PublishMessage<TripCompleted>().ToAzureServiceBusTopic("trips.events");                 // ASB: illustrative
+opts.PublishMessage<DriverLocationUpdated>().ToKafkaTopic("telemetry.driver-location-updated"); // shipped (Telemetry)
+// gRPC services declared via Wolverine's gRPC API (see wolverine-grpc-handlers)
 ```
 
 Handlers do not know or care which transport delivered a message. This means:
@@ -178,21 +177,21 @@ Handlers do not know or care which transport delivered a message. This means:
 - The transport choice is auditable in one place per service (the composition root).
 - Routing reviews can be focused on transport correctness without distractions from handler logic.
 
-The full per-service composition pattern is documented in `service-bootstrap` (Phase 2). The per-transport routing details are in `wolverine-grpc-services`, `wolverine-kafka`, and `wolverine-azure-service-bus` (all Phase 3).
+The full per-service composition pattern is documented in `service-bootstrap` (Phase 2). The per-transport routing details are in `wolverine-grpc-handlers`, `wolverine-kafka`, and `wolverine-azure-service-bus` (archived).
 
 ---
 
 ## Local Development Infrastructure
 
-Each transport has a local-development story. All three are wired into the Aspire AppHost for one-command spin-up.
+Each transport has a local-development story. The Aspire AppHost (`src/CritterCab.AppHost/AppHost.cs`) wires the infrastructure that exists: Postgres and Kafka.
 
 | Transport | Local infrastructure | Notes |
 |---|---|---|
-| gRPC | None — Wolverine handles it in-process | TLS not required locally; HTTP/2 over plaintext is fine for dev. |
-| Kafka | Azure Event Hubs Emulator (Docker, with Azurite) | Producer and consumer APIs only; admin ops use management API on port 5300 or `az eventhubs`. |
-| Azure Service Bus | Azure Service Bus Emulator (Docker, with SQL Server) | Management API support landed in early 2026; `az servicebus` works against the emulator's port 5300 with a special connection string. |
+| gRPC | None — no broker; Kestrel serves it | `ReportLocations` rides the service's HTTPS endpoint over HTTP/2; no separate gRPC port. |
+| Kafka | A real Kafka container: `builder.AddKafka("kafka", port: 5392)`, persistent lifetime | Not the Event Hubs Emulator: Telemetry calls `AutoProvision()` to create its topic at startup, which needs the Kafka admin API the emulator does not serve. Services get the address via `.WithReference(kafka)` under the connection-string name `kafka`. |
+| Azure Service Bus | Not wired. Host port 5393 is reserved for the ASB Emulator (Docker, with SQL Server) in the `aspire` port allocation | 5300–5307 is the Aspire dashboard band; a broker never goes there. |
 
-Connection strings, port mappings, and Aspire wiring details are documented in `aspire` (Phase 2) and `cli-azure-messaging` (Phase 3).
+Connection strings, port mappings, and Aspire wiring details are documented in `aspire` and `cli-kafka-tooling`; ASB emulator operations are in `cli-azure-messaging` (archived).
 
 ---
 
@@ -200,11 +199,11 @@ Connection strings, port mappings, and Aspire wiring details are documented in `
 
 ADR-005 commits all three transports, but rollout is phased so the early development surface stays manageable.
 
-| Transport | Lands when | Rationale |
+| Transport | Status | Where it is, or where it enters |
 |---|---|---|
-| gRPC | First cross-service slice (Phase 3) | Foundational. Cab's reason for existing. |
-| Kafka | When Telemetry is built (Phase 3+) | The most immediate Kafka use case; can be exercised independently. |
-| Azure Service Bus | When Entra integration lands or first cross-service domain event flow needs reliable delivery (Phase 3+) | Tied to identity + business-event work. |
+| gRPC | **Built** | Telemetry's `ReportLocations` client-streaming ingest — `src/CritterCab.Telemetry/ReportLocations/TelemetryGrpcService.cs` (an empty `[WolverineGrpcService]` stub; `ReportLocationsHandler` does the work). |
+| Kafka | **Built** | Telemetry publishes `DriverLocationUpdated` to `telemetry.driver-location-updated` and Dispatch consumes it into the `AvailableDriver` view; a real Kafka container in `src/CritterCab.AppHost/AppHost.cs`. |
+| Azure Service Bus | **Not built** | Enters at the "driver comes online" availability slice: Driver Profile → Dispatch, feeding `AvailableDriver`'s availability side (a local placeholder message until then — `domain-event-conventions` § Forward-Constraint Placeholder Messages). |
 
 Phasing is an *implementation schedule*, not a deferral of the commitment. All three are committed transports. Reversing any of them would require a new ADR superseding ADR-005.
 
@@ -230,14 +229,14 @@ Phasing is an *implementation schedule*, not a deferral of the commitment. All t
 
 **Downstream** — natural follow-ups by transport once selection is made:
 
-- `wolverine-grpc-handlers` — handler patterns for unary and server-streaming RPCs (Phase 3).
-- `wolverine-grpc-bidirectional-handlers` — handler patterns for client-streaming and bidirectional RPCs (Phase 4).
-- `wolverine-kafka` — Wolverine's Kafka transport against Azure Event Hubs and the EH Emulator (Phase 3).
-- `wolverine-azure-service-bus` — Wolverine's ASB transport against ASB and the ASB Emulator (Phase 3).
+- `wolverine-grpc-handlers` — handler patterns for unary, server-streaming, and client-streaming RPCs.
+- `wolverine-grpc-bidirectional-handlers` (archived) — handler patterns for bidirectional RPCs.
+- `wolverine-kafka` — Wolverine's Kafka transport.
+- `wolverine-azure-service-bus` (archived) — Wolverine's ASB transport against ASB and the ASB Emulator.
 - `grpc-vs-other-transports` — finer-grained decision aid for ambiguous gRPC-vs-other cases (Phase 4).
 - `service-bootstrap` — where routing configuration lives in each service (Phase 2).
 - `wolverine-messaging-handlers` — handler patterns for routing rules and `OutgoingMessages` outbox (Phase 2).
-- `cli-azure-messaging` — `az servicebus`, `az eventhubs`, and emulator operational details (Phase 3).
+- `cli-azure-messaging` (archived) — `az servicebus`, `az eventhubs`, and emulator operational details.
 - `aspire` — local infrastructure wiring via the AppHost (Phase 2).
 
 **External:**

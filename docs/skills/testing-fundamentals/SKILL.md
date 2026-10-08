@@ -131,10 +131,10 @@ tests/
     CritterCab.Trips.Tests.csproj
     Trips/
       Lifecycle/
-        start_trip_handler_tests.cs
-        complete_trip_handler_tests.cs
+        TripStartedTests.cs
+        TripCompletedTests.cs
       Pricing/
-        apply_dynamic_pricing_handler_tests.cs
+        DynamicPricingAppliedTests.cs
     Fixtures/
       TripsTestFixture.cs              # Phase 2 → testing-integration
       TripsTestCollection.cs
@@ -146,10 +146,20 @@ The folder structure under `tests/CritterCab.Trips.Tests/Trips/` mirrors `src/Cr
 
 ### Test class naming
 
-Test class names are `<feature>_handler_tests` (snake_case), matching JasperFx core team convention used throughout the Marten and Wolverine test suites. The class file name matches.
+Test **classes** are PascalCase and named by the slice they verify: the slice's event or view name as it appears in the event model, plus `Tests`. When one slice needs two test classes, add a facet suffix between the slice name and `Tests`. The class file name matches the class name.
+
+The point of the rule is traceability: the slice name *is* the class name, so a test class maps to its slice in the model (and can later be bound to it) without a lookup table.
+
+| Kind | Name | Example (shipped) |
+|---|---|---|
+| Slice, event-named | `<Event>Tests` | `TelemetryPolicyConfiguredTests`, `DriverLocationPublishedTests`, `CandidatesSelectedTests` |
+| Slice, view-named | `<View>Tests` | `LastKnownPositionTests`, `NearbyAvailableDriversViewTests` |
+| Slice the model names by its RPC (no event or view name) | `<Rpc>Tests` | `ReportLocationsTests` (W006 slice 2) |
+| Slice split by facet | `<Slice><Facet>Tests` | `FareQuotedHappyPathTests` / `FareQuotedFailurePathTests`, `DriverLocationPublishOrderingTests`, `NearbyAvailableDriversConsumerTests` |
+| Not a slice | named by subject | `H3KRingTests`, `H3CellIndexerTests`, `SubmitRideRequestTests`, `DispatchServiceSmokeTest` |
 
 ```csharp
-public sealed class start_trip_handler_tests
+public sealed class TripStartedTests
 {
     // ...
 }
@@ -157,7 +167,7 @@ public sealed class start_trip_handler_tests
 
 ### Test method naming
 
-Test methods are also snake_case, written as readable sentences:
+Test **methods** are snake_case, written as readable sentences:
 
 ```csharp
 [Fact]
@@ -170,7 +180,7 @@ public void start_trip_with_inactive_driver_returns_problem_details()
 public async Task complete_trip_advances_status_to_completed()
 ```
 
-This is a convention rather than a rule — what matters is consistency within a service's test project. Cab adopts snake_case because it aligns with the upstream Critter Stack test code and reads cleanly in test runner output. PascalCase with underscores (e.g., `Valid_StartTripCommand_ReturnsTripStartedEvent`) is acceptable but not the default.
+Cab adopts snake_case methods because it aligns with the upstream Critter Stack test code and reads cleanly in test runner output: `TripStartedTests.valid_start_trip_command_returns_trip_started_event` names the slice in the class half and the behavior in the method half. The split is the rule — PascalCase classes named by slice, snake_case methods. Do not snake_case a class name, and do not PascalCase a method name (including PascalCase with underscores, e.g. `Valid_StartTripCommand_ReturnsTripStartedEvent`).
 
 ---
 
@@ -183,7 +193,7 @@ xUnit v2 provides three lifecycle hooks worth knowing. The choice between them d
 Implement `IAsyncLifetime` on any test class that needs `await`-able setup or teardown. xUnit calls `InitializeAsync()` before the first test runs and `DisposeAsync()` after the last test completes:
 
 ```csharp
-public sealed class start_trip_handler_tests : IAsyncLifetime
+public sealed class TripStartedTests : IAsyncLifetime
 {
     public Task InitializeAsync() => Task.CompletedTask;
     public Task DisposeAsync() => Task.CompletedTask;
@@ -214,11 +224,11 @@ public sealed class TripFixtureData : IDisposable
     public void Dispose() { /* nothing to clean up */ }
 }
 
-public sealed class trip_state_query_tests : IClassFixture<TripFixtureData>
+public sealed class TripStateTests : IClassFixture<TripFixtureData>
 {
     private readonly TripFixtureData _data;
 
-    public trip_state_query_tests(TripFixtureData data) => _data = data;
+    public TripStateTests(TripFixtureData data) => _data = data;
 
     [Fact]
     public void active_trip_has_started_status()
@@ -242,10 +252,10 @@ public sealed class TripsTestCollection : ICollectionFixture<TripsTestFixture>
 }
 
 [Collection(TripsTestCollection.Name)]
-public sealed class start_trip_endpoint_tests : IAsyncLifetime
+public sealed class TripStartedEndpointTests : IAsyncLifetime
 {
     private readonly TripsTestFixture _fixture;
-    public start_trip_endpoint_tests(TripsTestFixture fixture) => _fixture = fixture;
+    public TripStartedEndpointTests(TripsTestFixture fixture) => _fixture = fixture;
 
     public Task InitializeAsync() => _fixture.CleanAllMartenDataAsync();
     public Task DisposeAsync() => Task.CompletedTask;
@@ -272,7 +282,7 @@ The decider pattern (per `wolverine-handlers`, `wolverine-http-handlers`, `wolve
 A typical Cab handler unit test exercises all three of `Validate`, `Before`, and `Handle` as separate methods:
 
 ```csharp
-public sealed class start_trip_handler_tests
+public sealed class TripStartedTests
 {
     [Fact]
     public void valid_command_passes_validation()
@@ -345,7 +355,7 @@ Three things this pattern gets right:
 Aggregates use the decider pattern too — `Create` for new aggregate state and `Apply` for state transitions. Both are static and pure:
 
 ```csharp
-public sealed class trip_apply_tests
+public sealed class TripTests
 {
     [Fact]
     public void trip_started_event_creates_active_trip()
@@ -387,7 +397,7 @@ When validation logic lives in a `Validate` method on the handler (the dominant 
 When validation lives in a separate `IValidator<T>` (FluentValidation), test the validator directly — no handler involvement:
 
 ```csharp
-public sealed class start_trip_validator_tests
+public sealed class StartTripValidatorTests
 {
     private readonly StartTripValidator _validator = new();
 
@@ -426,7 +436,7 @@ Per `csharp-coding-standards`, every Cab handler that needs the current time rec
 ```csharp
 using Microsoft.Extensions.Time.Testing;
 
-public sealed class trip_timeout_handler_tests
+public sealed class TripTimedOutTests
 {
     [Fact]
     public void trip_idle_for_less_than_timeout_is_unaffected()
@@ -646,7 +656,7 @@ If an assertion feels awkward in Shouldly, the test is usually checking too much
 - **Mocking `TimeProvider` with NSubstitute or Moq.** `FakeTimeProvider` is the supported, deterministic option. Don't roll your own.
 - **Using `DateTimeOffset.UtcNow` in tests to compute "now-relative" expectations.** Wall-clock time in tests is the same antipattern it is in production code. Inject `FakeTimeProvider`, set a fixed start, and compare against deterministic offsets.
 - **Bringing in NSubstitute, Moq, or AutoFixture.** Cab's test stack doesn't include them. Pure handlers and immutable aggregates are constructible with `new`; stubs for ports (`IDriverDirectory`, etc.) are small enough to write by hand. If you find yourself reaching for a mocking library, that's a signal the test should be an integration test instead.
-- **Mixing PascalCase and snake_case test names within one test project.** Pick snake_case (Cab default, JasperFx-aligned) and stay consistent. Inconsistent naming is harder to skim than either convention alone.
+- **Applying one case to both halves of a test name.** Classes are PascalCase and named by slice (`FareQuotedHappyPathTests`); methods are snake_case sentences (`fare_quote_automation_records_fare_quoted_on_stream`). A snake_case class (`fare_quoted_handler_tests`) loses the 1:1 match to the slice name in the model; a PascalCase method loses the readable runner output. A class named for the handler or command instead of the slice's event or view (`FareQuoteAutomationTests`) breaks the same mapping.
 - **Calling `Should.ThrowAsync` on synchronous code.** Use `Should.Throw<T>(() => ...)` for sync. The async variant only matters when there's an actual `await` inside the lambda.
 - **Putting `IAsyncLifetime` on a class that doesn't need async setup.** Empty `Task.CompletedTask` returns are noise. Skip the interface unless you actually `await` something in `InitializeAsync`.
 - **Testing `Validate` and `Handle` together when they're separable.** If `Validate` rejects, `Handle` never runs — the integration is the pipeline's job. Unit tests should exercise each phase independently.
@@ -662,7 +672,7 @@ If an assertion feels awkward in Shouldly, the test is usually checking too much
 - `wolverine-testing-test-parallelization` — xUnit parallelization patterns for the Critter Stack. Relevant when `IClassFixture<T>` and `ICollectionFixture<T>` choices interact with xUnit's parallelization defaults (Cab's testing-integration covers this in detail).
 - `wolverine-testing-integration` — the integration testing counterpart Cab defers to in its scope-bounding statement. Pairs with this skill: stop here for unit tests; cross over there when the test needs the host, transport, or store.
 
-Cab's testing-fundamentals scope is pure-function unit tests of decider-pattern handlers, validators, aggregates, and `FakeTimeProvider`-driven time-dependent code — a project-specific test-stack baseline (xUnit v2.9.3, Shouldly, snake_case naming) outside ai-skills' current scope.
+Cab's testing-fundamentals scope is pure-function unit tests of decider-pattern handlers, validators, aggregates, and `FakeTimeProvider`-driven time-dependent code — a project-specific test-stack baseline (xUnit v2.9.3, Shouldly, slice-named PascalCase classes with snake_case methods) outside ai-skills' current scope.
 
 **Prerequisites** — Cab-internal skills to load first:
 
@@ -680,8 +690,8 @@ Cab's testing-fundamentals scope is pure-function unit tests of decider-pattern 
 
 - `testing-integration` (next, Phase 2) — the TestFixture pattern, Alba composition over `Program.cs`, Testcontainers patterns for Postgres/SQL Server/ASB Emulator/EH Emulator/Kafka, `ExecuteAndWaitAsync`, tracked sessions, async projection waiting (`WaitForNonStaleProjectionDataAsync`, `WaitForConditionAsync`), `IInitialData` seeding, parallelization strategy.
 - `aspire` (Phase 2) — local dev host wiring; integration test fixtures may compose against the same `Program.cs`.
-- `observability-tracing` (Phase 3) — verifying span and metric emission in integration tests.
-- `testing-advanced` (Phase 4) — multi-host scenarios, RabbitMQ vhost isolation, dynamic-database-per-fixture patterns, gRPC streaming test harnesses.
+- `observability-tracing` (archived) — verifying span and metric emission in integration tests.
+- `testing-advanced` (archived) — multi-host scenarios, RabbitMQ vhost isolation, dynamic-database-per-fixture patterns, gRPC streaming test harnesses.
 
 **External:**
 

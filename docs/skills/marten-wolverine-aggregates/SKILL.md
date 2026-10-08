@@ -1,8 +1,8 @@
 ---
 name: marten-wolverine-aggregates
-description: "The handler-side of the Critter Stack decider pattern: [WriteAggregate] for loading, MartenOps.StartStream for first events, optimistic concurrency, and the cascading return shapes that commit events + integration messages atomically. Use when authoring or reviewing any aggregate command handler."
+description: "The handler-side of the Critter Stack decider pattern: [WriteAggregate] for loading, MartenOps.StartStream for first events, optimistic concurrency, and the cascading return shapes that commit events + integration messages atomically. Also covers the two shipped write paths that sit outside the aggregate-handler workflow and call the session directly: the configuration-as-events singleton (IInitialData seed + last-writer-wins reconfigure) and plain non-event-sourced documents (Store, HardDeleteWhere, numeric-revision merges). Use when authoring or reviewing any aggregate command handler, a config-as-events singleton, or a handler that writes a plain Marten document."
 cluster: marten
-tags: [marten, wolverine, handlers, aggregates, decider-pattern, write-aggregate, martenops, optimistic-concurrency]
+tags: [marten, wolverine, handlers, aggregates, decider-pattern, write-aggregate, martenops, optimistic-concurrency, config-as-events, iinitialdata, documents, numeric-revisions]
 ---
 
 # Marten + Wolverine Aggregate Handlers
@@ -20,6 +20,8 @@ Use this skill when:
 - Choosing between optimistic and exclusive concurrency for an aggregate handler.
 - Writing handlers that produce events and integration messages atomically.
 - Designing handlers that span multiple aggregate streams.
+- Adding operator-tunable configuration to a service as a configuration-as-events singleton (seed + reconfigure) — see § Configuration-as-Events Seed (Singleton Stream).
+- Writing a plain Marten document from a handler, including inside an otherwise event-sourced service — see § Plain Documents (Not Event-Sourced).
 
 Do NOT use this skill for:
 
@@ -27,8 +29,8 @@ Do NOT use this skill for:
 - General handler shape, validation pipeline, return-type orientation — see `wolverine-handlers`.
 - HTTP-endpoint patterns layered on top of aggregate handlers — see `wolverine-http-handlers`.
 - Routing rules for outbound integration messages — see `wolverine-messaging-handlers`.
-- Polecat aggregate handlers — see `polecat-event-sourcing` (Phase 4); the API parallels Marten's via `PolecatOps`.
-- Multi-stream DCB writes that don't load a single aggregate — see `dynamic-consistency-boundary` (Phase 2).
+- Polecat aggregate handlers — see `polecat-event-sourcing` (archived); the API parallels Marten's via `PolecatOps`.
+- Multi-stream DCB writes that don't load a single aggregate — see `dynamic-consistency-boundary` (archived).
 
 ---
 
@@ -223,7 +225,7 @@ public static class TransferRiderToDriverHandler
 
 When multiple `[WriteAggregate]` parameters share a single handler, each needs its own version variable for optimistic concurrency. Wolverine looks for a `version` parameter by default; specify `VersionSource` to override.
 
-This pattern is rare and the substantive coverage lives in `dynamic-consistency-boundary` (Phase 2). For Cab's typical aggregate handler, single `[WriteAggregate]` is the shape.
+This pattern is rare and the substantive coverage lives in `dynamic-consistency-boundary` (archived). For Cab's typical aggregate handler, single `[WriteAggregate]` is the shape.
 
 ---
 
@@ -321,7 +323,7 @@ In both, the dangerous branch is the no-op. The append branch is already covered
 
 ### Cross-store: same shape on Polecat
 
-`[ConsistentAggregate]` and `[ConsistentAggregateHandler]` work identically for Polecat-backed handlers (Cab Payments BC). The attribute names, semantics, and `JasperFx.ConcurrencyException` retry pattern transfer unchanged. See `polecat-event-sourcing` § Wolverine integration for the Polecat-side handler shape and ai-skills `polecat-cross-stream-operations` for the canonical scenario set these patterns are drawn from.
+`[ConsistentAggregate]` and `[ConsistentAggregateHandler]` work identically for Polecat-backed handlers (Cab Payments BC). The attribute names, semantics, and `JasperFx.ConcurrencyException` retry pattern transfer unchanged. See `polecat-event-sourcing` (archived) § Wolverine integration for the Polecat-side handler shape and ai-skills `polecat-cross-stream-operations` for the canonical scenario set these patterns are drawn from.
 
 ---
 
@@ -376,7 +378,304 @@ For the UUID v7 vs v5 decision and the broader GUID conventions, see `csharp-cod
 
 ---
 
-## Anti-Pattern: Manual Session Calls Inside the Handler
+## Configuration-as-Events Seed (Singleton Stream)
+
+Operator-tunable parameters live as **configuration-as-events** ([ADR-011](../../decisions/011-configuration-as-events-bootstrap.md), including its 2026-07-10 amendment): one event-sourced singleton stream per bounded context, at a well-known id, carrying full-replacement `<BC>PolicyConfigured` events. Every change is an audited event; the current policy is the fold of the stream. Because the stream is a singleton with no identity on the command, it does **not** use the aggregate-handler workflow — both the seed and the reconfigure write call the session directly. This section is one of the two sanctioned exceptions to § Anti-Pattern: Manual Session Calls Inside an Aggregate Handler.
+
+The reference implementation is Telemetry's throttle policy, `src/CritterCab.Telemetry/TelemetryPolicy/`:
+
+| Piece | File | Role |
+|---|---|---|
+| `TelemetryPolicyStream.Id` | `TelemetryPolicyStream.cs` | The singleton's fixed stream id. |
+| `TelemetryPolicyConfigured` | `TelemetryPolicyConfigured.cs` | The full-replacement event. No aggregate-id field — the stream is well-known. |
+| `TelemetryPolicy` | `TelemetryPolicy.cs` | The aggregate, which is also the view (self-aggregating). |
+| `TelemetryPolicyBootstrap` | `TelemetryPolicyBootstrap.cs` | The `IInitialData` seed. |
+| `ConfigureTelemetryPolicy` + `ConfigureTelemetryPolicyEndpoint` | `ConfigureTelemetryPolicy.cs` | The operator command, its boundary validator, and the reconfigure endpoint. |
+
+### A fixed stream id
+
+```csharp
+// src/CritterCab.Telemetry/TelemetryPolicy/TelemetryPolicyStream.cs
+public static class TelemetryPolicyStream
+{
+    public static readonly Guid Id = Guid.Parse("7e1e3e77-b0b0-4a5a-9c9c-000000000001");
+}
+```
+
+A true singleton needs no lookup and no natural key to hash, so a constant is enough — the seed, the reconfigure endpoint, and every reader resolve the same stream directly. This is the degenerate case of § Deterministic via UUID v5: reach for UUID v5 when there is a key to converge on, a constant when there is exactly one stream.
+
+### The view is the aggregate
+
+```csharp
+// src/CritterCab.Telemetry/Program.cs
+opts.Events.AddEventType<TelemetryPolicyConfigured>();
+opts.Projections.LiveStreamAggregation<TelemetryPolicy>();
+```
+
+`TelemetryPolicy` is a `sealed record` with a static `Create(IEvent<TelemetryPolicyConfigured>)` and a static `Apply` that replaces every field with `with` — full replacement means only the latest event's values survive. It registers as its own live-stream aggregation: no separate projection class, and no `partial` (Marten 9's source generation requires `partial` only for subclassed projections, not self-aggregating aggregates). Live aggregation makes a reconfigure visible read-after-write.
+
+The aggregate carries `public long Version { get; set; }`, populated by Marten's name convention with the stream version. `long`, not `int`, because it travels to the proto's `int64 throttle_policy_version` as the policy version clients see. Readers fold the stream on demand:
+
+```csharp
+var policy = await session.Events.AggregateStreamAsync<TelemetryPolicy>(
+    TelemetryPolicyStream.Id, token: ct);
+```
+
+`ReportLocationsHandler` and `EvictStalePositionsHandler` both read the policy this way, and both treat `null` as "the seed has not run" rather than guessing defaults.
+
+### The seed: `IInitialData` with an idempotent guard
+
+```csharp
+// src/CritterCab.Telemetry/TelemetryPolicy/TelemetryPolicyBootstrap.cs
+public sealed class TelemetryPolicyBootstrap : IInitialData
+{
+    public const int DefaultH3Resolution = 9;
+    public const int DefaultHeartbeatIntervalSeconds = 30;
+    public const int DefaultMinPublishIntervalSeconds = 5;
+
+    public async Task Populate(IDocumentStore store, CancellationToken cancellation)
+    {
+        await using var session = store.LightweightSession();
+
+        var state = await session.Events.FetchStreamStateAsync(TelemetryPolicyStream.Id, cancellation);
+        if (state is not null)
+            return; // already seeded — idempotent no-op
+
+        // Seeders may read the wall clock directly (csharp-coding-standards § TimeProvider).
+        var seed = new TelemetryPolicyConfigured(
+            H3Resolution: DefaultH3Resolution,
+            HeartbeatIntervalSeconds: DefaultHeartbeatIntervalSeconds,
+            MinPublishIntervalSeconds: DefaultMinPublishIntervalSeconds,
+            OperatorId: "system-bootstrap",
+            Reason: "Initial deployment defaults",
+            ConfiguredAt: DateTimeOffset.UtcNow);
+
+        session.Events.StartStream<TelemetryPolicy>(TelemetryPolicyStream.Id, seed);
+        await session.SaveChangesAsync(cancellation);
+    }
+}
+```
+
+```csharp
+// src/CritterCab.Telemetry/Program.cs
+builder.Services.AddMarten(opts => { /* ... */ })
+    .IntegrateWithWolverine()
+    .UseLightweightSessions()
+    .InitializeWith<TelemetryPolicyBootstrap>();
+```
+
+- **`IInitialData` is the Marten realization of ADR-011's preferred option.** It runs at the deploy-time apply step and again, idempotently, at host start as a self-healing safety net.
+- **The guard is `FetchStreamStateAsync` → return if non-null.** A stream that already exists is never re-seeded, so the seed never overwrites an operator's later configuration.
+- **The multi-instance seed race is mitigated, not eliminated.** Two instances that both pass the guard append two identical seeds; full replacement makes them converge to the same policy (an extra version increment, not a divergent state). Running the deploy-time step before scaling out avoids the race.
+- **Audit markers are fixed:** `OperatorId: "system-bootstrap"`, `Reason: "Initial deployment defaults"`. A reader of the stream can tell a seeded policy from an operator's.
+- **Defaults are public constants on the bootstrap class**, so they are documented in one place and tests can assert against them.
+- **The wall clock is read directly.** A seeder runs outside any request and has nothing to inject a `TimeProvider` into; `csharp-coding-standards` § `TimeProvider` for Testable Time permits it for seeders.
+- **`session.Events.StartStream`, not `MartenOps.StartStream`.** No Wolverine handler is involved — `IInitialData` runs against the store outside Wolverine's pipeline — so there is no return value to intercept and the seed commits its own session.
+
+### Reconfigure: manual append, last-writer-wins
+
+```csharp
+// src/CritterCab.Telemetry/TelemetryPolicy/ConfigureTelemetryPolicy.cs
+public static class ConfigureTelemetryPolicyEndpoint
+{
+    [WolverinePost("/api/telemetry/policy")]
+    public static async Task<TelemetryPolicyResponse> Handle(
+        ConfigureTelemetryPolicy command,
+        IDocumentSession session,
+        TimeProvider time,
+        CancellationToken ct)
+    {
+        var @event = new TelemetryPolicyConfigured(
+            H3Resolution: command.H3Resolution,
+            HeartbeatIntervalSeconds: command.HeartbeatIntervalSeconds,
+            MinPublishIntervalSeconds: command.MinPublishIntervalSeconds,
+            OperatorId: command.OperatorId,
+            Reason: command.Reason,
+            ConfiguredAt: time.GetUtcNow());
+
+        session.Events.Append(TelemetryPolicyStream.Id, @event);
+        await session.SaveChangesAsync(ct);
+
+        var policy = await session.Events.AggregateStreamAsync<TelemetryPolicy>(TelemetryPolicyStream.Id, token: ct);
+        return TelemetryPolicyResponse.From(policy!);
+    }
+}
+```
+
+- **No `[WriteAggregate]`.** The aggregate-handler workflow binds stream identity from a command property, route segment, header, or claim. The singleton's id is a constant that appears in none of those, so the workflow does not apply (ADR-011 amendment). The append goes to the well-known id directly.
+- **No expected version — last-writer-wins is the intended semantic.** Each event is a full-replacement record and there is no state-transition invariant to defend: a later configuration always wins. Do not add an expected-version append or a `[ConsistentAggregate]` reflexively; there is no conflict for it to detect.
+- **`ConfiguredAt` is server-stamped from `TimeProvider`**, never supplied by the caller. Unlike the seeder, an endpoint has a `TimeProvider` to inject.
+- **Validation is at the HTTP boundary.** `ConfigureTelemetryPolicy` nests an `AbstractValidator<ConfigureTelemetryPolicy>` holding the cross-parameter rules (resolution range, heartbeat ≥ publish floor); the aggregate stays thin. See `wolverine-http-handlers` § FluentValidation at the HTTP Boundary for the two-call wiring that makes the validator fire.
+- **The endpoint commits its own work and returns the view.** Telemetry does not turn on `AutoApplyTransactions`, so a handler that takes `IDocumentSession` without an aggregate attribute calls `SaveChangesAsync` itself; it then folds the stream to return the new policy and its version.
+
+### Tests: reset to the seed
+
+The policy is a singleton, so every test in the collection shares one stream. Tests isolate by wiping event data and re-running the same `IInitialData` the host runs on startup:
+
+```csharp
+// tests/CritterCab.Telemetry.Tests/TelemetryTestFixture.cs
+public async Task ResetToSeedAsync()
+{
+    var store = Host.Services.GetRequiredService<IDocumentStore>();
+    await store.Advanced.Clean.DeleteAllEventDataAsync();
+    await new TelemetryPolicyBootstrap().Populate(store, CancellationToken.None);
+}
+```
+
+`DeleteAllEventDataAsync` clears events only. Plain documents in the same store (Telemetry's `LastKnownPosition`) survive it and need their own reset — see the next section.
+
+---
+
+## Plain Documents (Not Event-Sourced)
+
+Not every write in a Marten-backed service is an event. A **plain document** — stored whole with `session.Store`, overwritten in place, no history — is the shape for state that defends no invariant and whose history nobody needs: a location-of-record, a local copy of another service's high-volume feed. The handler calls the session directly; this is the second sanctioned exception to § Anti-Pattern: Manual Session Calls Inside an Aggregate Handler.
+
+Two shipped instances:
+
+| Document | Service | Writers | Concurrency |
+|---|---|---|---|
+| `LastKnownPosition` (`src/CritterCab.Telemetry/LastKnownPosition/`) | Telemetry — a stream-processing BC whose only event-sourced stream is the policy singleton | One per document: a driver's own pings | None. Last-writer-wins. |
+| `AvailableDriver` (`src/CritterCab.Dispatch/AvailableDrivers/`) | Dispatch — otherwise fully event-sourced | Two per document: the location side and the availability side | Numeric revision as a concurrency token, plus a Wolverine retry policy. |
+
+### Choosing a document over a stream or a projection
+
+`AvailableDriver` is the instructive case, because it sits inside CritterCab's most event-sourced service and is deliberately none of it — not a stream, not a projection. Dispatch receives driver positions from Telemetry's Kafka feed. Event-sourcing that inbound feed would reimport onto Dispatch's event store exactly the per-ping volume Telemetry's throttle exists to suppress (W006 §6.5; the reasoning is recorded at `src/CritterCab.Dispatch/Program.cs:49-52`). It is not a projection either: there is no Dispatch event stream behind it to project from. The stream-processing shape crosses the bounded-context boundary along with the data.
+
+Reach for a plain document when all of these hold: the state defends no business invariant, its history has no audit or replay value, and the write rate would make an event stream a liability. If any fails, the state belongs in an aggregate (`marten-aggregates`) or a projection (`marten-projections`).
+
+### Shape
+
+```csharp
+// src/CritterCab.Telemetry/LastKnownPosition/LastKnownPosition.cs
+public sealed record LastKnownPosition
+{
+    public required Guid Id { get; init; }   // driverId — document identity by convention
+    public required double Lat { get; init; }
+    public required double Lon { get; init; }
+    public required string H3Cell { get; init; }
+    public required DateTimeOffset ServerReceivedAt { get; init; }
+}
+```
+
+- **`sealed record` with `required` init properties.** Every write replaces the whole row, so nothing is mutated in place and immutability costs nothing.
+- **`Id` by convention.** Marten takes the `Id` property as document identity; "one document per driver" falls out of the shape. The id is an external key that arrives with the request, so it is never minted — no `Guid.CreateVersion7()`.
+- **No `partial`.** Nothing about a plain document is source-generated.
+- **No schema registration** unless the document needs one. `LastKnownPosition` has none; `AvailableDriver` registers duplicated columns and numeric revisions (below).
+
+### One writer: `Store` and last-writer-wins
+
+```csharp
+// src/CritterCab.Telemetry/ReportLocations/ReportLocationsHandler.cs
+baseline = new LastKnownPositionDocument
+{
+    Id = driverId,
+    Lat = ping.Lat,
+    Lon = ping.Lon,
+    H3Cell = h3Cell,
+    ServerReceivedAt = serverReceivedAt
+};
+
+session.Store(baseline);
+await session.SaveChangesAsync(ct);
+```
+
+`session.Store` is an upsert of the whole document. There is no concurrency control, and none is needed: a driver's own pings are the sole writer of that driver's document, so last-writer-wins *is* the concurrency story.
+
+### Deleting: `HardDeleteWhere`
+
+```csharp
+// src/CritterCab.Telemetry/LastKnownPosition/EvictStalePositions.cs
+session.HardDeleteWhere<LastKnownPosition>(x => x.ServerReceivedAt < threshold);
+await session.SaveChangesAsync(ct);
+```
+
+Prefer `HardDeleteWhere` whenever the domain requires the row to be **gone**. `DeleteWhere` is conditional: if the type is ever configured for soft deletes, it silently switches to setting `mt_deleted` and the row survives. Here the domain needs an evicted driver to find no baseline and republish at once, so a future soft-delete configuration must not be able to change the outcome.
+
+### Two writers: business ordering and write concurrency are separate guards
+
+`AvailableDriver` has two sides with two writers on two clocks: the **location** side from Kafka (`DriverLocationUpdatedHandler`) and the **availability** side (`DriverAvailabilityChangedHandler`). Each handler loads the document, merges its own side, carries the other side forward, and writes the whole document back. That needs two different guards, and conflating them was a real bug.
+
+**Registration:**
+
+```csharp
+// src/CritterCab.Dispatch/Program.cs
+opts.Schema.For<AvailableDriver>()
+    .Duplicate(x => x.H3Cell)
+    .Duplicate(x => x.VehicleClass)
+    .Duplicate(x => x.AvailabilityState)
+    .Duplicate(x => x.ServerReceivedAt)
+    .UseNumericRevisions(true);
+```
+
+- **Duplicated columns, not computed JSONB indexes.** The nearby-drivers query filters `H3Cell = ANY(...)` together with the availability predicates, and `= ANY` over a real indexed column is what makes a thousand-cell k-ring affordable in one round trip. `ServerReceivedAt` is duplicated because the read side sorts on it.
+- **`UseNumericRevisions(true)` is load-bearing and silent if omitted.** Without it the revision guard degrades to an unguarded upsert, and the two writers can lost-update each other with no error anywhere.
+- **The document implements `ILongVersioned`** (`public long Version { get; set; }`, a `bigint` revision column) — not `IRevisioned`, which is `int`.
+
+**The location writer:**
+
+```csharp
+// src/CritterCab.Dispatch/AvailableDrivers/DriverLocationUpdatedHandler.cs
+var existing = await session.LoadAsync<AvailableDriver>(driverId, ct);
+
+// Business ordering: this side's own clock. Equality is the dedup no-op.
+if (existing is not null && serverReceivedAt <= existing.ServerReceivedAt)
+    return;
+
+var updated = new AvailableDriver
+{
+    Id = driverId,
+    H3Cell = message.H3Cell,
+    H3Resolution = message.H3Resolution,
+    Lat = message.Lat,
+    Lon = message.Lon,
+    ServerReceivedAt = serverReceivedAt,
+
+    // Carried forward untouched.
+    AvailabilityState = existing?.AvailabilityState,
+    VehicleClass = existing?.VehicleClass,
+    AvailabilityUpdatedAt = existing?.AvailabilityUpdatedAt
+};
+
+// Write concurrency: closes the window between LoadAsync and this write.
+session.UpdateRevision(updated, (existing?.Version ?? 0) + 1);
+
+await session.SaveChangesAsync(ct);
+```
+
+The availability writer (`DriverAvailabilityChanged.cs`) is the mirror image: it compares `AvailabilityUpdatedAt` against the stored value, builds `existing with { AvailabilityState = ..., VehicleClass = ..., AvailabilityUpdatedAt = ... }`, and calls `session.UpdateRevision(updated, existing.Version + 1)`.
+
+| Guard | Problem it solves | Mechanism |
+|---|---|---|
+| Business ordering | A stale or duplicate message for one side (Kafka redelivers uncommitted offsets on a consumer-group rebalance) | Compare the incoming timestamp against **that side's own** stored timestamp; `<=` returns without writing. |
+| Write concurrency | The other writer committing its side between this handler's `LoadAsync` and its write | `UpdateRevision(updated, existing.Version + 1)` — the revision is a plain incrementing token; a losing race throws `ConcurrencyException`. |
+
+**Do not use a business timestamp as the revision.** An earlier cut used the location side's `ServerReceivedAt` as the Marten revision, which collapsed both sides onto one ordering key: a driver going Offline at 12:00:05 could have that write discarded by a heartbeat position stamped 12:00:07 that had already raised the revision — leaving an offline driver dispatchable, with no error anywhere. The account is in the comment at `DriverLocationUpdatedHandler.cs:49-63` and in [retrospective 009](../../retrospectives/implementations/009-dispatch-w006-slice-5-nearby-available-drivers.md).
+
+**The retry policy is the other half of the concurrency guard.** The revision turns a losing race into a `ConcurrencyException` instead of a silent lost update; the policy turns that exception into a re-run, so the handler reloads, re-evaluates its ordering guard, and re-merges against the winner's state:
+
+```csharp
+// src/CritterCab.Dispatch/Program.cs
+// usings: Marten.Exceptions (ConcurrencyException), JasperFx.Core (.Milliseconds()),
+//         Wolverine.ErrorHandling (OnException / RetryWithCooldown)
+opts.Policies.OnException<ConcurrencyException>()
+    .RetryWithCooldown(50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds());
+```
+
+Three short pauses, because the contention window is a single round trip; a conflict that survives three retries is a symptom of something else.
+
+### Read side
+
+Writers load through their `IDocumentSession`; a read-only consumer takes `IQuerySession`. `NearbyAvailableDriversView(IQuerySession session)` implements Dispatch's `INearbyAvailableDriversSource` port and is registered **scoped** (it depends on a scoped session) when a connection string is present. Its k-ring query uses `cells.Contains(d.H3Cell)`, which Marten translates to a single `= ANY(:param)` array parameter against the duplicated column. See `marten-querying` for the query shapes.
+
+### Tests
+
+A plain document is not event data, so `DeleteAllEventDataAsync` does not clear it. Telemetry's fixture resets it separately with `store.Advanced.Clean.DeleteDocumentsByTypeAsync(typeof(LastKnownPosition))` (`tests/CritterCab.Telemetry.Tests/TelemetryTestFixture.cs`).
+
+---
+
+## Anti-Pattern: Manual Session Calls Inside an Aggregate Handler
+
+**Scope:** this applies to handlers in the aggregate-handler workflow — a `[WriteAggregate]`, `[ConsistentAggregate]`, or `[ReadAggregate]` parameter, `[AggregateHandler]`/`[ConsistentAggregateHandler]` on the class, or a handler that starts a stream by returning `IStartStream`. In those handlers Wolverine owns loading and persistence. It does **not** apply to the two shipped write paths that sit outside the workflow and call the session by design: § Configuration-as-Events Seed (Singleton Stream) and § Plain Documents (Not Event-Sourced).
 
 Calling `session.Events.Append(...)` or `session.SaveChangesAsync(...)` directly inside an aggregate handler does not work — Wolverine's code generation intercepts persistence based on the handler's *return value*, and manual session calls bypass interception entirely. Same root cause as the "Starting a new stream without IStartStream" anti-pattern from `wolverine-handlers`.
 
@@ -398,7 +697,7 @@ public static TripCompleted Handle(
     new TripCompleted(/* ... */);
 ```
 
-If a handler genuinely needs `IDocumentSession` for a query that can't be expressed via `[ReadAggregate]` or LINQ helpers, the session is still injectable — just don't try to write to it. See ai-skills `marten-aggregate-handler-workflow` § Common anti-patterns for the parallel "Manually calling FetchForWriting when Wolverine does it for you" framing.
+If an aggregate handler genuinely needs `IDocumentSession` for a query that can't be expressed via `[ReadAggregate]` or LINQ helpers, the session is still injectable — just don't try to write the aggregate's stream through it. See ai-skills `marten-aggregate-handler-workflow` § Common anti-patterns for the parallel "Manually calling FetchForWriting when Wolverine does it for you" framing.
 
 ---
 
@@ -539,7 +838,7 @@ What this handler illustrates:
 
 ## Common Pitfalls
 
-- **Calling `session.Events.Append` or `session.SaveChangesAsync` directly.** Bypasses Wolverine's persistence interception. Return events from the handler instead.
+- **Calling `session.Events.Append` or `session.SaveChangesAsync` directly in an aggregate-workflow handler.** Bypasses Wolverine's persistence interception. Return events from the handler instead. Out of scope: the config-as-events seed and reconfigure, and plain-document writers, which call the session by design — see § Configuration-as-Events Seed (Singleton Stream) and § Plain Documents (Not Event-Sourced).
 - **Generating UUID v7 manually for new streams.** Unnecessary noise. Let Wolverine assign. Reserve manual generation for UUID v5 deterministic IDs.
 - **Using `[WriteAggregate]` on a query handler.** Carries concurrency-check overhead with no benefit. Use `[ReadAggregate]` for read-only access.
 - **Forgetting the routing rule for the integration event.** Most consequential silent failure in CritterCab — see `wolverine-messaging-handlers` § The Routing Rule Pre-Flight. Every `OutgoingMessages.Add(new SomeIntegrationEvent(...))` must have a matching `opts.PublishMessage<SomeIntegrationEvent>()` rule in the publishing service's `Program.cs`.
@@ -547,7 +846,11 @@ What this handler illustrates:
 - **MD5-based deterministic stream IDs.** Cryptographically weak; doesn't produce a valid UUID v5 per RFC 9562. Use UUIDNext's `Uuid.NewNameBased(namespace, name)`.
 - **Setting `AlwaysEnforceConsistency = true` reflexively.** Adds a write-time round-trip even when the handler emitted no events. Use only when the handler's decision depends on the aggregate not having advanced.
 - **Trying to throw a domain exception from `Apply`.** Wrong layer. Validation lives in the handler's `Validate`; `Apply` is pure evolution. See `marten-aggregates` § Apply Method Conventions.
-- **Loading the aggregate manually via `IDocumentSession` to side-step `[WriteAggregate]`.** Loses the optimistic-concurrency guarantee and complicates testing. Use the attribute.
+- **Loading the aggregate manually via `IDocumentSession` to side-step `[WriteAggregate]`.** Loses the optimistic-concurrency guarantee and complicates testing. Use the attribute whenever the stream id comes from the command, route, header, or claim. The config-as-events singleton is the exception (a constant id the workflow cannot bind, and last-writer-wins by design); plain documents are not aggregates and load with `session.LoadAsync<T>` (§ Plain Documents).
+- **Adding an expected version to the config-singleton reconfigure.** Full-replacement events defend no invariant, so there is no conflict to detect; last-writer-wins is the intended semantic (ADR-011 amendment).
+- **Using a business timestamp as a document's numeric revision.** With two writers on two clocks it lets one side's newer timestamp silently discard the other side's write. Order by each side's own timestamp; use the revision as a plain `existing.Version + 1` concurrency token, backed by a `ConcurrencyException` retry policy.
+- **Registering a revision-guarded document without `UseNumericRevisions(true)`.** The guard degrades to an unguarded upsert with no error.
+- **`DeleteWhere` when the row must be gone.** It silently becomes a soft delete if the type is ever configured for soft deletes. Use `HardDeleteWhere`.
 
 ---
 
@@ -558,6 +861,7 @@ What this handler illustrates:
 - `marten-aggregate-handler-workflow` — the full Marten + Wolverine aggregate handler workflow: FetchForWriting automation, `[WriteAggregate]` vs `[AggregateHandler]`, return types, optimistic concurrency via Version property + VersionSource override, multi-stream patterns, missing-aggregate handling (Required/OnMissing/MissingMessage), HTTP `[Aggregate]` integration, ProblemDetails validation, testing patterns (StubEventStream).
 - `wolverine-handlers-declarative-persistence` — broader `[Entity]`/`[WriteAggregate]`/`[ReadAggregate]` declarative-persistence surface.
 - `wolverine-handlers-fundamentals` — generic handler shape, return-types overview, IoC patterns.
+- `marten-migration-v8-to-v9` — the `IRevisioned` (`int`) vs `ILongVersioned` (`long`) versioning model behind `AvailableDriver`'s revision column.
 
 **Prerequisites** — Cab-internal skills to load first if unfamiliar:
 
@@ -570,15 +874,17 @@ What this handler illustrates:
 
 - `wolverine-http-handlers` — HTTP-specific patterns layered on aggregate handlers (`[EmptyResponse]`, IResult-first tuple order).
 - `wolverine-messaging-handlers` — routing rules, `OutgoingMessages` outbox semantics — load alongside this skill when authoring any handler that publishes integration events.
-- `dynamic-consistency-boundary` — multi-stream DCB writes that span aggregate boundaries (Phase 2).
+- `dynamic-consistency-boundary` (archived) — multi-stream DCB writes that span aggregate boundaries.
+- `wolverine-kafka` — the Kafka listener that feeds `AvailableDriver`'s location side.
+- `wolverine-marten-automation` — § Recurring Work (Timer-Driven), the timer that raises the `LastKnownPosition` eviction sweep.
 
 **Downstream** — natural follow-ups:
 
 - `marten-projections` — inline projections that snapshot aggregates; how the snapshot enum landed in `service-bootstrap` connects (Phase 2).
 - `marten-querying` — querying aggregates via LINQ (Phase 2).
-- `marten-async-daemon` — async-daemon configuration (Phase 2).
-- `wolverine-sagas` — saga state machines using a similar concurrency model (Phase 4).
-- `polecat-event-sourcing` — `PolecatOps.StartStream` and the parallel API surface (Phase 4).
+- `marten-async-daemon` (archived) — async-daemon configuration.
+- `wolverine-sagas` (archived) — saga state machines using a similar concurrency model.
+- `polecat-event-sourcing` (archived) — `PolecatOps.StartStream` and the parallel API surface.
 - `cli-jasperfx` — `db-apply`, `codegen-preview`, the diagnostic CLI (Phase 2).
 
 **External:**

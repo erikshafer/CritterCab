@@ -1,6 +1,6 @@
 ---
 name: protobuf-contracts
-description: "Conventions for hand-authored .proto files in CritterCab: file layout, naming, field numbering, versioning, breaking-vs-non-breaking classification, and the buf CI enforcement gate. Use when designing, modifying, or reviewing a cross-service contract."
+description: "Conventions for hand-authored .proto files in CritterCab: file layout, naming, field numbering, versioning, breaking-vs-non-breaking classification, the published-event-contract vs. shared-value-type distinction, and the buf lint CI gate. Use when designing, modifying, or reviewing a cross-service contract."
 cluster: grpc
 tags: [protobuf, grpc, contracts, adr-009, buf, versioning, governance]
 ---
@@ -9,7 +9,7 @@ tags: [protobuf, grpc, contracts, adr-009, buf, versioning, governance]
 
 Conventions for hand-authored `.proto` files in CritterCab. This skill operationalizes ADR-009: protobuf service and message definitions are first-class design artifacts, authored before the code that implements or consumes them.
 
-The contract is the design. The C# stubs and Go stubs are build outputs. Reviews and PR governance focus on the `.proto` file; generated code is excluded from source control.
+The contract is the design. The C# stubs are build outputs. Reviews and PR governance focus on the `.proto` file; generated code is excluded from source control.
 
 ## When to apply this skill
 
@@ -20,7 +20,7 @@ Use this skill when:
 - Reviewing a PR that touches `.proto` files.
 - Classifying a proto change as breaking or non-breaking for the PR description.
 - Designing a service's gRPC surface during or after Event Modeling.
-- Setting up `buf.yaml` or the CI breaking-change check.
+- Setting up `buf.yaml` or the CI lint step.
 
 Do NOT use this skill for:
 
@@ -38,7 +38,7 @@ The order is fixed: contract, review, generate, implement.
 1. **Author the `.proto` file by hand.** Do not derive it from C# types. Tools that derive proto from code (e.g., `protobuf-net.Grpc`'s code-first mode) are not used in CritterCab.
 2. **Review the `.proto` change as an API contract**, not as implementation code. The review bar is "what does this commit consumers to over time?", not "does this compile?"
 3. **Run `buf breaking` against `main`** before requesting review. If it flags changes, classify them in the PR description (breaking vs non-breaking, with migration plan if breaking).
-4. **Generate stubs at build time.** Generated C# and Go code is not checked in.
+4. **Generate stubs at build time.** Generated C# code is not checked in.
 5. **Implement handlers and consumers** against the generated stubs.
 
 **The PR that adds a new `.proto` file may be merged before the PR that consumes it.** Splitting contract and implementation across PRs is encouraged when it makes the review bar visible. The contract review and the implementation review have different concerns.
@@ -53,34 +53,39 @@ Per ADR-009 and `structural-constraints.md`: proto files reside in a dedicated `
 
 ```
 /protos/
-├── buf.yaml                     # buf workspace configuration
-├── buf.gen.yaml                 # buf code generation configuration
+├── buf.yaml                                # buf module config: STANDARD lint + one scoped ignore_only, FILE breaking
+├── buf.gen.yaml                            # buf generate: the two C# plugins (protocolbuffers/csharp, grpc/csharp)
 └── crittercab/
     ├── common/
     │   └── v1/
-    │       └── geo.proto            # shared types (GeoLocation, Money, etc.)
+    │       └── location.proto              # shared value type: Location
     ├── dispatch/
     │   └── v1/
-    │       └── dispatch.proto       # the Dispatch service contract
-    ├── trips/
+    │       ├── ride_assigned.proto         # Dispatch business-event contracts (ASB)
+    │       ├── ride_request_abandoned.proto
+    │       └── ride_request_cancelled.proto
+    ├── pricing/
     │   └── v1/
-    │       └── trips.proto          # the Trips service contract
+    │       └── get_fare_quote.proto        # PricingService.GetFareQuote
     └── telemetry/
         └── v1/
-            └── telemetry.proto      # the Telemetry service contract
+            ├── report_locations.proto      # TelemetryService.ReportLocations (client-streaming)
+            └── driver_location_updated.proto  # Telemetry's published Kafka event contract
 ```
 
-Convention: `/protos/crittercab/<service-or-package>/v<major-version>/<file>.proto`. The directory path mirrors the protobuf package name (`crittercab.<service>.v<major>`) because buf's `PACKAGE_DIRECTORY_MATCH` lint rule requires them to match. The version directory is part of the path so that v2 introduces `/protos/crittercab/dispatch/v2/dispatch.proto` alongside the v1 file rather than overwriting it.
+One file per RPC or per message contract, named for it in `snake_case`.
+
+Convention: `/protos/crittercab/<service-or-package>/v<major-version>/<file>.proto`. The directory path mirrors the protobuf package name (`crittercab.<service>.v<major>`) because buf's `PACKAGE_DIRECTORY_MATCH` lint rule requires them to match. The version directory is part of the path so that a new major version introduces `/protos/crittercab/dispatch/v2/...` alongside the v1 files rather than overwriting them.
 
 ### Package naming
 
 Pattern: `crittercab.<service-or-package>.v<major>`.
 
 ```protobuf
-// In crittercab/dispatch/v1/dispatch.proto:
+// In crittercab/dispatch/v1/ride_assigned.proto:
 package crittercab.dispatch.v1;
 
-// In crittercab/common/v1/geo.proto:
+// In crittercab/common/v1/location.proto:
 package crittercab.common.v1;
 ```
 
@@ -112,8 +117,8 @@ service DispatchService {
   // Server-streaming: typically "Stream<Plural>" or "Watch<Plural>"
   rpc StreamDriverOffers(StreamDriverOffersRequest) returns (stream DriverOffer);
 
-  // Client-streaming: typically "Send<Plural>" or "Push<Plural>"
-  rpc PushTelemetry(stream LocationPing) returns (PushTelemetryResponse);
+  // Client-streaming: verb + plural of what is streamed
+  rpc ReportLocations(stream LocationPing) returns (LocationIngestAck);
 
   // Bidirectional: typically "Subscribe", "Connect", or domain-specific
   rpc SubscribeTripUpdates(stream TripUpdateRequest) returns (stream TripUpdate);
@@ -122,7 +127,7 @@ service DispatchService {
 
 - **Service name:** `<Domain>Service`, PascalCase. `DispatchService`, `TripsService`, `TelemetryService`.
 - **Method name:** PascalCase verb phrase. Match the command name from Event Modeling where applicable (`RequestRide`, `AcceptOffer`).
-- **Request/response message names:** `<Method>Request` and `<Method>Response`. Use this pattern even for trivial methods — it makes adding fields later non-breaking. Don't pass scalars or unwrapped messages directly.
+- **Request/response message names:** `<Method>Request` and `<Method>Response`. Use this pattern even for trivial methods — it makes adding fields later non-breaking. Don't pass scalars or unwrapped messages directly. The one shipped exception is `TelemetryService.ReportLocations(stream LocationPing) returns (LocationIngestAck)`, which keeps its ubiquitous-language message names from Workshop 006; `protos/buf.yaml` excepts `RPC_REQUEST_STANDARD_NAME` and `RPC_RESPONSE_STANDARD_NAME` for `crittercab/telemetry/v1/report_locations.proto` only, via `lint.ignore_only`. A new exception gets the same treatment: scoped to one file, with the rationale in a comment.
 
 ### Messages
 
@@ -142,8 +147,8 @@ message LocationPing { ... }
 message RequestRideRequest {
   string ride_request_id = 1;          // → C# RideRequestId
   string rider_id = 2;                 // → C# RiderId
-  crittercab.common.v1.GeoLocation pickup = 3;
-  crittercab.common.v1.GeoLocation dropoff = 4;
+  crittercab.common.v1.Location pickup = 3;
+  crittercab.common.v1.Location dropoff = 4;
   google.protobuf.Timestamp requested_at = 5;
 }
 ```
@@ -174,8 +179,8 @@ The `_UNSPECIFIED = 0` value is required by proto3 semantics — proto3 has no w
 | Identifier (UUID v7) | `string` | Stringified UUID. Stored as the canonical UUID string format. |
 | Timestamp | `google.protobuf.Timestamp` | Maps to `DateTimeOffset` via protoc-gen-csharp helpers. |
 | Duration | `google.protobuf.Duration` | Maps to `TimeSpan` via helpers. |
-| Money amount | Custom `Money` message (in `common/v1/money.proto`) | Never use `float`/`double` for money. See `csharp-coding-standards` § Decimal Calculations. |
-| Geographic coordinate | Custom `GeoLocation` (in `common/v1/geo.proto`) | Two `double` fields; validation lives in the consumer's value object. |
+| Money amount | Integer minor units + currency (`int64 fare_amount_minor_units`, `string currency` in `pricing/v1/get_fare_quote.proto`); a shared `Money` message is not yet authored (see below) | Never use `float`/`double` for money. See `csharp-coding-standards` § Decimal Calculations. |
+| Geographic coordinate | `crittercab.common.v1.Location` (in `common/v1/location.proto`) | `double lat`, `double lon`, `optional string street_address`; validation lives in the consumer's value object. |
 | Free-text string | `string` | UTF-8. |
 | Binary blob | `bytes` | Avoid for primary identifiers. |
 | Boolean | `bool` | |
@@ -183,40 +188,55 @@ The `_UNSPECIFIED = 0` value is required by proto3 semantics — proto3 has no w
 
 `google.protobuf.Timestamp` and `google.protobuf.Duration` are imported from `google/protobuf/timestamp.proto` and `google/protobuf/duration.proto` respectively. Both ship with the protoc compiler.
 
-### Shared types
+### Shared value types vs. published event contracts
 
-Types used by more than one service live in a shared package under `/protos/crittercab/common/v<version>/`. The canonical example is `GeoLocation`:
+Two different relationships put one service's types in front of another. Keep them apart.
+
+**A shared value type** is a building block more than one service's contracts embed — a location, a money amount. It lives in a neutral package under `/protos/crittercab/common/v<version>/`, owned by no bounded context. The shipped example is `Location`:
 
 ```protobuf
-// /protos/crittercab/common/v1/geo.proto
+// /protos/crittercab/common/v1/location.proto
 syntax = "proto3";
 
 package crittercab.common.v1;
 
 option csharp_namespace = "CritterCab.Common.V1";
 
-message GeoLocation {
-  double latitude  = 1;
-  double longitude = 2;
+// A geographic location with optional street address.
+// Used across services wherever pickup/dropoff or position is represented.
+message Location {
+  double lat = 1;
+  double lon = 2;
+  optional string street_address = 3;
 }
 ```
 
-Consumers import:
+Consumers import it (`pricing/v1/get_fare_quote.proto` and `dispatch/v1/ride_assigned.proto` both do):
 
 ```protobuf
-import "crittercab/common/v1/geo.proto";
+import "crittercab/common/v1/location.proto";
 
-message RequestRideRequest {
-  crittercab.common.v1.GeoLocation pickup  = 3;
-  crittercab.common.v1.GeoLocation dropoff = 4;
+message GetFareQuoteRequest {
+  crittercab.common.v1.Location pickup  = 2;
+  crittercab.common.v1.Location dropoff = 3;
 }
 ```
 
-Shared messages are governed exactly as service-specific ones — every change classified as breaking or non-breaking. A breaking change to a shared message has more consumers, not fewer; the bar is higher, not lower.
+The anti-pattern is **borrowing a value type out of another bounded context's package** — a location type defined in `crittercab.dispatch.v1` and pulled into `crittercab.trips.v1`. That couples Trips to Dispatch through a type neither service owns as a contract: a Dispatch-internal change to it ripples into Trips. Value types used by more than one service go in `common`.
+
+**A published event contract** is different: one bounded context owns it and publishes it, and others subscribe. Telemetry publishes `DriverLocationUpdated` (`protos/crittercab/telemetry/v1/driver_location_updated.proto`) as its outbound event on the Kafka topic `telemetry.driver-location-updated` (ADR-009, ADR-018), and Dispatch consumes it. The message stays in the publisher's package, `crittercab.telemetry.v1` — subscribers consuming the publisher's contract is what published language means, and moving it to `common` would erase who owns it.
+
+How a published event contract is consumed in the repo:
+
+- **Each service compiles the same `.proto` into its own assembly.** Both `src/CritterCab.Telemetry/CritterCab.Telemetry.csproj` and `src/CritterCab.Dispatch/CritterCab.Dispatch.csproj` (lines 44–49) include `..\..\protos\crittercab\telemetry\v1\driver_location_updated.proto` as a `<Protobuf>` item with `ProtoRoot="..\..\protos"`, a `Link`, and `GrpcServices="None"` (the file has messages only). There is no shared contracts assembly and no project reference across the boundary.
+- **`option csharp_namespace` is the real coupling.** Wolverine's message identity is `Type.FullName`-based and assembly-agnostic, so both copies resolve to `CritterCab.Telemetry.V1.DriverLocationUpdated` and agree on the wire. The namespace option must stay identical for every compiling service, and the message must stay **top-level** — a nested type gets a `DeclaringType_` prefix in its Wolverine message-type name, so the two sides could stop matching.
+- **The wire format is binary protobuf, scoped to the endpoint.** The publisher's topic endpoint calls `.UseProtobufSerialization()` (Telemetry `Program.cs`), and so does the subscriber's listener, which also declares `.DefaultIncomingMessage<DriverLocationUpdated>()` so the type resolves even without a `message-type` header (Dispatch `Program.cs`). Each service's HTTP surface stays JSON.
+
+Both kinds are governed exactly as service-specific contracts — every change classified as breaking or non-breaking. A breaking change to either has more consumers, not fewer; the bar is higher, not lower.
 
 ### Money as a canonical shared type
 
-Monetary values appear across Pricing, Payments, and Trips. Modeling them as primitives invites the `float`/`double` mistake at every reference site, and propagates rounding errors across calculation chains. Use a custom `Money` message in the shared package:
+Monetary values appear across Pricing, Payments, and Trips. Modeling them as floating-point primitives invites rounding errors across calculation chains. The shipped contracts carry money as integer minor units plus a currency string (`int64 fare_amount_minor_units` and `string currency` in both `pricing/v1/get_fare_quote.proto` and `dispatch/v1/ride_assigned.proto`). **No `common/v1/money.proto` exists.** If a shared `Money` message is authored, it takes this shape in the `common` package:
 
 ```protobuf
 // /protos/crittercab/common/v1/money.proto
@@ -242,7 +262,7 @@ message Money {
 }
 ```
 
-This shape mirrors `google.type.Money` from googleapis. Cab's version lives in the project's own `common/v1` package rather than importing googleapis, so the shared-type governance stays inside the project's `buf breaking` scope.
+This shape mirrors `google.type.Money` from googleapis. Cab's version would live in the project's own `common/v1` package rather than importing googleapis, so the shared-type governance stays inside the project's `buf` scope.
 
 ### Optional fields
 
@@ -280,7 +300,7 @@ message DriverOffer {
   string offer_id     = 1;
   string driver_id    = 2;
   string trip_id      = 3;
-  GeoLocation pickup  = 4;
+  crittercab.common.v1.Location pickup = 4;
   // 5 was once `int32 deprecated_eta_seconds` — never reuse the number
   google.protobuf.Duration eta = 6;
   // ...
@@ -303,7 +323,7 @@ rpc RequestRide(RequestRideRequest) returns (RequestRideResponse);
 rpc StreamDriverOffers(StreamDriverOffersRequest) returns (stream DriverOffer);
 
 // Client-streaming (stream of requests, one response)
-rpc PushTelemetry(stream LocationPing) returns (PushTelemetryResponse);
+rpc ReportLocations(stream LocationPing) returns (LocationIngestAck);
 
 // Bidirectional (stream of requests, stream of responses)
 rpc SubscribeTripUpdates(stream TripUpdateRequest) returns (stream TripUpdate);
@@ -313,12 +333,12 @@ Naming guidance:
 
 - **Unary:** verb phrase matching the command. `RequestRide`, `AcceptOffer`, `CompleteTrip`.
 - **Server-streaming:** `Stream<Plural>` (continuous) or `Watch<Plural>` (events). `StreamDriverOffers`, `WatchTripStatus`.
-- **Client-streaming:** `Push<Plural>` or `Send<Plural>`. `PushTelemetry`, `SendBreadcrumbs`.
+- **Client-streaming:** verb + plural of what is streamed. `ReportLocations` (shipped: Telemetry's GPS ingest).
 - **Bidirectional:** `Subscribe<X>`, `Connect<X>`, or domain-specific. `SubscribeTripUpdates`.
 
-Implementation patterns and backpressure considerations are covered by `wolverine-grpc-handlers` (Phase 3, unary + server-streaming) and `wolverine-grpc-bidirectional-handlers` (Phase 4, client-streaming + bidirectional). The proto file declares the shape; the C# handler implements it.
+Implementation patterns are covered by `wolverine-grpc-handlers` (unary, server-streaming, and the client-streaming shape `ReportLocations` uses); bidirectional handlers were covered by `wolverine-grpc-bidirectional-handlers` (archived — no bidirectional RPC exists). The proto file declares the shape; the C# handler implements it.
 
-**Note on buf lint defaults.** Buf provides an opt-in lint category called `UNARY_RPC` containing `RPC_NO_CLIENT_STREAMING` and `RPC_NO_SERVER_STREAMING`, intended for projects whose RPC framework can't ferry streaming calls (e.g., Twirp). CritterCab uses streaming RPCs deliberately — the project exists in part to exercise Wolverine 5.32's streaming support — so the `UNARY_RPC` category is **not** added to `lint.use` in `buf.yaml`. (It isn't enabled by default; `STANDARD` doesn't include it.) The actual `buf.yaml` configuration lives in `cli-grpc-tooling` (Phase 3); the streaming methods themselves are a deliberate design choice, fully compatible with the buf rules Cab does enforce.
+**Note on buf lint defaults.** Buf provides an opt-in lint category called `UNARY_RPC` containing `RPC_NO_CLIENT_STREAMING` and `RPC_NO_SERVER_STREAMING`, intended for projects whose RPC framework can't ferry streaming calls (e.g., Twirp). CritterCab uses streaming RPCs deliberately — the project exists in part to exercise Wolverine 5.32's streaming support — so the `UNARY_RPC` category is **not** added to `lint.use` in `buf.yaml`. (It isn't enabled by default; `STANDARD` doesn't include it.) The actual configuration is `protos/buf.yaml` (`lint.use: [STANDARD]`); the streaming methods themselves are a deliberate design choice, fully compatible with the buf rules Cab does enforce.
 
 ---
 
@@ -336,7 +356,7 @@ When a `.proto` change is reviewed, classify it against this table. When in doub
 | Add a new service to a package | Non-breaking | |
 | Add an enum value (proto3) | Non-breaking, but flag | Consumers must handle unknown values gracefully. |
 | Remove a field | **Breaking** | Reserve the number and name; do not reuse. |
-| Rename a field | **Breaking** at code level | Wire is by number, but C#/Go generated names change. Consumers must regenerate. |
+| Rename a field | **Breaking** at code level | Wire is by number, but generated C# names change. Consumers must regenerate. |
 | Change a field type | **Breaking** | Wire format changes. Even compatible-on-paper changes (e.g., `int32` ↔ `int64`) can break consumers. |
 | Reassign a field number | **Breaking** (catastrophic) | Old data is interpreted as the new field type. Never do this. |
 | Remove an enum value | **Breaking** | Consumers may have switch statements that no longer cover the removed case. |
@@ -373,13 +393,13 @@ The PR template (or the PR description, if no template) includes an explicit dec
 
 For breaking changes, the migration plan names the affected consumers and the order of deployment.
 
-### 2. Passes the `buf breaking` CI check
+### 2. Passes `buf lint` in CI, and `buf breaking` before review
 
-A required CI status check runs `buf breaking --against '.git#branch=main'` on every PR. The check fails if the PR introduces a breaking change as defined by buf's default rules. This is the mechanical enforcement of ADR-009; the PR description is the human-readable justification.
+CI (`.github/workflows/dotnet.yml`, step "Lint protobuf contracts") runs `bufbuild/buf-action@v1` with buf `1.73.0` against the `protos` input, **lint only**: `lint: true`, and `format`, `breaking`, `push`, and `pr_comment` all `false`. It enforces `protos/buf.yaml`'s `STANDARD` rules with their one scoped `ignore_only` on every build, and fails the build on a lint violation.
 
-When `buf breaking` flags a change that the author believes is intentional and acceptable, the PR description must call it out and the migration plan must be in place. The CI gate exists to prevent *accidental* breakage; deliberate breakage with a migration plan can override it (typically by adding a buf-ignore line with a comment, reviewed at PR time).
+`buf breaking` is **not** a CI gate. `protos/buf.yaml` configures it (`breaking.use: [FILE]`), and the author runs it locally against `main` before requesting review (Contract-First Workflow, step 3). When it flags a change the author believes is intentional, the PR description calls it out and the migration plan must be in place; the classification in step 1 is the governance record.
 
-The `buf.yaml` configuration and the GitHub Actions workflow that runs the check are documented in `cli-grpc-tooling` (Phase 3).
+The `buf.yaml` configuration and CLI usage are documented in `cli-grpc-tooling`.
 
 ---
 
@@ -388,26 +408,24 @@ The `buf.yaml` configuration and the GitHub Actions workflow that runs the check
 Generated stubs are build artifacts. They are not checked in.
 
 ```
-.gitignore additions:
-**/obj/Grpc/**
-**/obj/Generated/**
-*.pb.go
-*_grpc.pb.go
+.gitignore (relevant lines):
+obj/
+protos/gen/
 ```
 
-Each service's `.csproj` references the relevant `.proto` files via `<Protobuf Include="..." />` items, and protoc generates the stubs into the `obj/` directory at build time. The Go service uses `protoc-gen-go` and `protoc-gen-go-grpc` against the same proto files.
+Each service's `.csproj` references the `.proto` files it needs via `<Protobuf Include="..\..\protos\..." ProtoRoot="..\..\protos" Link="..." GrpcServices="..." />` items, and Grpc.Tools generates the stubs into `obj/` at build time. `GrpcServices` is `Both` for a file that declares a service the project serves (`report_locations.proto` in Telemetry) and `None` for a message-only file (`driver_location_updated.proto`, in both Telemetry and Dispatch). `protos/buf.gen.yaml` configures `buf generate` with the two C# plugins (`buf.build/protocolbuffers/csharp`, `buf.build/grpc/csharp`) writing to `protos/gen/csharp`; the service builds do not use it.
 
-If a contributor modifies a generated `.cs` or `.go` file by hand, the change is lost on the next build. This is the intended behavior — the contract is the proto file, not the generated code.
+If a contributor modifies a generated `.cs` file by hand, the change is lost on the next build. This is the intended behavior — the contract is the proto file, not the generated code.
 
 ---
 
-## Forward-Looking Note: Protobuf as Unified Schema Language
+## Protobuf Beyond gRPC
 
-ADR-009's Future Consideration section notes Erik's interest in extending protobuf beyond gRPC — to Kafka messages, ASB messages, Marten-persisted events, and Polecat-persisted events. The motivation: a single schema language across every boundary where data crosses a process or service edge.
+ADR-009's Future Consideration section raises extending protobuf beyond gRPC — to Kafka messages, ASB messages, Marten-persisted events, and Polecat-persisted events — so one schema language covers every boundary where data crosses a process or service edge.
 
-This is **not a current commitment.** It is a future experiment that would, if pursued, produce its own ADR. This skill governs gRPC contract conventions; if the experiment proceeds, those new boundaries inherit the same conventions (file location, package naming, breaking-change classification, buf governance) by extension.
+The Kafka part of that is real. `DriverLocationUpdated` crosses the Telemetry → Dispatch boundary as **binary protobuf** on `telemetry.driver-location-updated`: Telemetry's topic endpoint calls `.UseProtobufSerialization()` (`src/CritterCab.Telemetry/Program.cs`), and Dispatch's listener does the same. The `.proto` governs the wire, not only the C# type — so a Kafka event contract follows every convention in this skill (location under `/protos`, package naming, field numbering, breaking-change classification, `buf lint`) exactly as an RPC does. The `dispatch/v1` business-event protos are likewise authored for Azure Service Bus.
 
-When designing a new proto today, optimize for gRPC use. If the unified-schema experiment lands later, the same proto files become the source of truth for additional transports without requiring rewrites.
+What is not a commitment: Marten-persisted events. Domain events stay C# records (per `domain-event-conventions`); extending protobuf to the event store would need its own ADR.
 
 ---
 
@@ -415,9 +433,10 @@ When designing a new proto today, optimize for gRPC use. If the unified-schema e
 
 - **Authoring C# types first and deriving the proto.** This is exactly the workflow ADR-009 rules out. Author the `.proto` first; generate the C# stubs; then implement.
 - **Reusing a removed field number.** Catastrophic. Always `reserved`. `buf breaking` catches this; reading buf's output is part of the workflow.
-- **Defining a shared type inside a service's package.** `GeoLocation` defined in `crittercab.dispatch.v1` and imported by `crittercab.trips.v1` puts Trips in a position where a Dispatch contract change affects it. Shared types live in `crittercab.common.v<n>`.
+- **Borrowing a value type out of another bounded context's package.** A location type defined in `crittercab.dispatch.v1` and imported by `crittercab.trips.v1` couples Trips to a Dispatch-internal type neither owns as a contract. Shared value types live in `crittercab.common.v<n>` (`common/v1/location.proto`). This is not the same as subscribing to a **published event contract**: Dispatch compiling Telemetry's `driver_location_updated.proto` to consume `DriverLocationUpdated` is published language, and the message stays in `crittercab.telemetry.v1` (§ Shared value types vs. published event contracts).
+- **Diverging `csharp_namespace` or nesting a published message.** Each subscriber compiles its own copy, and Wolverine matches by `Type.FullName`. Change the namespace option on one side, or nest the message, and the two services stop agreeing on the message type.
 - **Skipping `_UNSPECIFIED = 0` on enums.** proto3 requires the zero value to be unspecified. Without it, a default-valued enum field is indistinguishable from one explicitly set to the first real value.
-- **Using `float` or `double` for money.** Use the custom `Money` message in `common/v1/money.proto`. See `csharp-coding-standards` § Decimal Calculations.
+- **Using `float` or `double` for money.** Use integer minor units plus a currency, as `get_fare_quote.proto` and `ride_assigned.proto` do, or a shared `Money` message if one is authored in `common/v1` (none exists yet). See `csharp-coding-standards` § Decimal Calculations.
 - **Importing `google.protobuf.Empty` for empty requests or responses.** Even when an RPC has no fields today, define a custom `<Method>Request` and `<Method>Response`. Adding fields to a custom message later is non-breaking; replacing `Empty` with a custom message is breaking. The buf style guide flags this and `buf lint` will catch it unless explicitly relaxed.
 - **Treating proto changes as implementation changes in PR descriptions.** A renamed field is not a "small refactor" at the wire level. The PR description classifies it explicitly.
 - **Modifying generated code by hand.** Lost on next build. Modify the `.proto` and regenerate.
@@ -435,10 +454,10 @@ When designing a new proto today, optimize for gRPC use. If the unified-schema e
 **Downstream** — natural follow-ups when proto contracts are in hand:
 
 - `cli-grpc-tooling` — `grpcurl`, `buf` (lint, breaking, format, generate), `Evans` (Phase 3).
-- `wolverine-grpc-handlers` — handler patterns for unary and server-streaming RPCs (Phase 3).
-- `wolverine-grpc-bidirectional-handlers` — handler patterns for client-streaming and bidirectional RPCs (Phase 4).
+- `wolverine-grpc-handlers` — handler patterns for unary, server-streaming, and client-streaming RPCs.
+- `wolverine-grpc-bidirectional-handlers` (archived) — bidirectional RPC handlers; no bidirectional RPC exists.
+- `wolverine-kafka` — the Kafka transport that carries `DriverLocationUpdated` as binary protobuf.
 - `transport-selection` — when to choose gRPC vs Kafka or ASB for a given flow (Phase 1).
-- `polyglot-go-service` — the Go service consumes the same protos (Phase 4).
 
 **External:**
 

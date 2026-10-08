@@ -1,17 +1,17 @@
 ---
 name: testing-integration
-description: "Integration testing for CritterCab services — the per-service Alba+Testcontainers TestFixture pattern, ExecuteAndWaitAsync, tracked-session configuration (Timeout, IncludeExternalTransports, AlsoTrack, DoNotAssertOnExceptionsDetected), event-sourcing race conditions, async projection waiting (WaitForNonStaleProjectionDataAsync, WaitForConditionAsync, PauseThenCatchUpOnMartenDaemonActivity), HTTP scenarios via Alba, scheduled message testing (PlayScheduledMessagesAsync), Testcontainers for Postgres/SQL Server/Kafka/ServiceBus, IInitialData seeding, and parallelization strategy. Use when authoring any test that needs the Wolverine pipeline, real Marten/Polecat, an HTTP scenario, or real broker infrastructure."
+description: "Integration testing for CritterCab services — the per-service Alba+Testcontainers TestFixture pattern, ExecuteAndWaitAsync, tracked-session configuration (Timeout, IncludeExternalTransports, AlsoTrack, DoNotAssertOnExceptionsDetected), event-sourcing race conditions, async projection waiting (WaitForNonStaleProjectionDataAsync, WaitForConditionAsync, PauseThenCatchUpOnMartenDaemonActivity), HTTP scenarios via Alba, scheduled message testing (PlayScheduledMessagesAsync), Testcontainers for Postgres and Kafka, CI image pre-pull, IInitialData seeding, inline per-test reset, and parallelization strategy. Use when authoring any test that needs the Wolverine pipeline, real Marten, an HTTP scenario, or real broker infrastructure."
 cluster: testing
-tags: [testing, integration, alba, testcontainers, wolverine-tracking, async-projections, race-conditions, scheduled-messages, postgres, sqlserver, kafka, servicebus]
+tags: [testing, integration, alba, testcontainers, wolverine-tracking, async-projections, race-conditions, scheduled-messages, postgres, kafka, ci]
 ---
 
 # Testing Integration
 
-Integration tests in Cab boot the real service host, register real Marten or Polecat against a real database in Docker, and exercise full request flows through Wolverine's pipeline. They cost more than unit tests but earn it: they catch handler-discovery bugs, projection-shape bugs, race conditions, and routing mistakes that no amount of mocking can surface.
+Integration tests in Cab boot the real service host, register real Marten against a real database in Docker, and exercise full request flows through Wolverine's pipeline. They cost more than unit tests but earn it: they catch handler-discovery bugs, projection-shape bugs, race conditions, and routing mistakes that no amount of mocking can surface.
 
 This skill picks up where `testing-fundamentals` left off. If a test only exercises pure handlers, validators, or aggregate `Apply` methods — that's fundamentals territory. If a test needs the Wolverine pipeline, real Marten, the async daemon, an HTTP scenario, or a real broker — you're in the right place.
 
-The core pattern is **per-service `TestFixture` + Alba composition over `Program.cs` + Testcontainers for storage and brokers**. The fixture boots the same `Program.cs` the service runs in production, with surgical overrides for connection strings and disabled external transports. Tests never construct a parallel DI container; they always exercise the real one.
+The core pattern is **per-service `TestFixture` + Alba composition over `Program.cs` + Testcontainers for storage and brokers**. The fixture boots the same `Program.cs` the service runs in production, with connection strings supplied through `UseSetting` and surgical service replacements in `ConfigureTestServices`. Tests never construct a parallel DI container; they always exercise the real one.
 
 ---
 
@@ -30,7 +30,7 @@ Use this skill when:
 Do NOT use this skill for:
 
 - Pure-handler unit tests, validator tests, or aggregate `Apply` tests — `testing-fundamentals`.
-- Multi-host or multi-tenant fixture orchestration, gRPC streaming test harnesses, RabbitMQ vhost isolation — `testing-advanced` (Phase 4).
+- Multi-host or multi-tenant fixture orchestration, gRPC streaming test harnesses, RabbitMQ vhost isolation — `testing-advanced` (archived).
 - Aspire-orchestrated local dev composition — `aspire` (Phase 2).
 - Running Cab CLI commands in tests — `cli-jasperfx` (Phase 2).
 
@@ -40,9 +40,9 @@ Do NOT use this skill for:
 
 Three things distinguish a good Cab integration test from a flaky one.
 
-**Compose against `Program.cs`, not a parallel container.** Per Jeremy Miller's "use the actual application bootstrapping" guidance, the fixture builds the real service host via `AlbaHost.For<Program>(b => b.ConfigureServices(...))`. Overrides go in `ConfigureServices` because `Program.cs` reads connection strings inline (`builder.Configuration.GetConnectionString("postgres")`) before the test factory's `ConfigureAppConfiguration` callbacks have a chance to apply. `ConfigureServices` runs after `Program.cs` and wins by last-registration semantics.
+**Compose against `Program.cs`, not a parallel container.** Per Jeremy Miller's "use the actual application bootstrapping" guidance, the fixture builds the real service host via `AlbaHost.For<Program>(...)`. The container's connection string goes in through `builder.UseSetting("ConnectionStrings:<name>", ...)` under the same key Aspire injects, so `Program.cs`'s own guarded `GetConnectionString(...)` branch registers Marten (and, when the `kafka` key is supplied, the Kafka transport) exactly as it does in local dev. Service replacements and removals go in `ConfigureTestServices`, which runs after the entry point's own registrations — the only ordering in which removing or replacing them works.
 
-**Real infrastructure via Testcontainers.** Cab's test stack (per `testing-fundamentals`) commits Testcontainers for Postgres, SQL Server, Kafka, and Azure Service Bus — all four. Tests run against a real Postgres container, not an in-memory fake. The cost is ~3–5 seconds per fixture cold-start; the gain is catching schema drift, projection bugs, and SQL generation issues before production.
+**Real infrastructure via Testcontainers.** The repo pins `Testcontainers.PostgreSql` and `Testcontainers.Kafka` (4.13.0). Tests run against a real Postgres container, not an in-memory fake, and the Kafka fixtures against a real broker. The cost is a few seconds per fixture cold-start; the gain is catching schema drift, projection bugs, SQL generation issues, and wire-format mistakes before production.
 
 **Wait for work to complete; never `Task.Delay`.** Wolverine commits transactions asynchronously after handlers return. Marten's async daemon catches up after `SaveChangesAsync`. Both produce the same failure mode: an HTTP POST returns 200, the test queries the result, and the data isn't there yet because the transaction or projection hasn't committed. The `ExecuteAndWaitAsync` and `WaitForNonStaleProjectionDataAsync` APIs exist precisely for this — `Task.Delay` is never the right answer.
 
@@ -50,148 +50,130 @@ Three things distinguish a good Cab integration test from a flaky one.
 
 ## The per-service TestFixture pattern
 
-Every Cab service has one paired test project containing one `TestFixture` per storage backend. For Marten services this is `<Service>TestFixture` provisioning a Postgres container; for Polecat services it's the same shape with a SQL Server container.
+Every Cab service has one paired test project. It holds one default `<Service>TestFixture` (Postgres only) and, when the service has a transport worth asserting on the wire, a second, heavier `<Service>KafkaTestFixture` (Postgres + Kafka). The split is deliberate: suites that have no interest in a broker should not wait on a Kafka container, and the two hosts answer different questions — the default fixture swaps a seam for a recorder or stub to test the *decision*; the Kafka fixture leaves the production wiring intact to test the *transport*. The shipped set is `TelemetryTestFixture`, `TelemetryKafkaTestFixture`, `DispatchTestFixture`, and `DispatchKafkaTestFixture`, each at the root of its test project.
 
 ```csharp
-// tests/CritterCab.Trips.Tests/Fixtures/TripsTestFixture.cs
+// tests/CritterCab.Telemetry.Tests/TelemetryTestFixture.cs (abridged)
 using Alba;
-using JasperFx.CommandLine;
-using JasperFx.Events;
+using DotNet.Testcontainers.Images;          // PullPolicy
 using Marten;
+using Microsoft.AspNetCore.TestHost;         // ConfigureTestServices
 using Microsoft.Extensions.DependencyInjection;
 using Testcontainers.PostgreSql;
-using Wolverine;
-using Wolverine.Marten;
+using Xunit;
 
-namespace CritterCab.Trips.Tests.Fixtures;
+namespace CritterCab.Telemetry.Tests;
 
-public sealed class TripsTestFixture : IAsyncLifetime
+public class TelemetryTestFixture : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder()
-        .WithImage("postgres:18-alpine")
-        .WithName($"trips-test-{Guid.NewGuid():N}")
-        .WithCleanUp(true)
+    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18-alpine")
+        .WithName($"telemetry-test-{Guid.NewGuid():N}")
+        .WithImagePullPolicy(PullPolicy.Missing)
         .Build();
 
     public IAlbaHost Host { get; private set; } = null!;
+
+    public RecordingDriverLocationPublisher Publisher { get; } = new();
 
     public async Task InitializeAsync()
     {
         await _postgres.StartAsync();
 
-        // Required when the service uses RunJasperFxCommands for CLI dispatch.
-        // Without this, the host won't start in test factory scenarios.
-        JasperFxEnvironment.AutoStartHost = true;
-
         Host = await AlbaHost.For<Program>(builder =>
         {
-            builder.ConfigureServices(services =>
+            // Same key Aspire injects — Program.cs's own guarded branch registers Marten.
+            builder.UseSetting("ConnectionStrings:crittercab_telemetry", _postgres.GetConnectionString());
+
+            builder.ConfigureTestServices(services =>
             {
-                // Register Marten with the Testcontainers connection string.
-                // Program.cs's AddMarten(...) is null-guarded on the Aspire connection string,
-                // which is absent in tests. ConfigureServices runs after Program.cs, so this
-                // registration always wins for IDocumentStore resolution.
-                services.AddMarten(opts =>
-                {
-                    opts.Connection(_postgres.GetConnectionString());
-                    opts.DatabaseSchemaName = "public";
-                    opts.Events.AppendMode = EventAppendMode.Quick;
-                    opts.DisableNpgsqlLogging = true;
-                })
-                .UseLightweightSessions()
-                .ApplyAllDatabaseChangesOnStartup()
-                .IntegrateWithWolverine();
+                // Remove a hosted service whose background work would race the tests.
+                var timer = services.FirstOrDefault(
+                    d => d.ImplementationType == typeof(LastKnownPositionEvictionService));
+                if (timer is not null)
+                    services.Remove(timer);
 
-                // Critter Stack testing posture: solo mode, no external transports.
-                services.RunWolverineInSoloMode();
-                services.DisableAllExternalWolverineTransports();
-
-                // Force daemon to Solo regardless of production HotCold/Wolverine-managed
-                // configuration — faster startup, no leader election in tests.
-                services.MartenDaemonModeIsSolo();
+                // Replace a seam with a recorder the tests can assert against.
+                services.AddSingleton<IDriverLocationPublisher>(Publisher);
             });
         });
     }
 
     public async Task DisposeAsync()
     {
-        if (Host is not null)
-        {
-            try
-            {
-                await Host.StopAsync();
-                await Host.DisposeAsync();
-            }
-            catch (ObjectDisposedException) { }
-            catch (TaskCanceledException) { }
-            catch (AggregateException ex) when (ex.InnerExceptions.All(e =>
-                e is OperationCanceledException or ObjectDisposedException)) { }
-        }
-
+        await Host.DisposeAsync();
         await _postgres.DisposeAsync();
     }
 
-    // Convenience helpers used by every test class.
-    public IDocumentSession LightweightSession() =>
-        Host.DocumentStore().LightweightSession();
-
-    public Task CleanAllMartenDataAsync() => Host.CleanAllMartenDataAsync();
-    public Task ResetAllMartenDataAsync() => Host.ResetAllMartenDataAsync();
+    // Per-test reset helpers — see § Test class lifecycle.
+    public async Task ResetToSeedAsync() { /* DeleteAllEventDataAsync + re-run the IInitialData seed */ }
+    public async Task ResetPositionsAsync() { /* DeleteDocumentsByTypeAsync(typeof(...)) */ }
 }
 ```
 
 ### Why every line is there
 
-- `PostgreSqlBuilder().WithImage("postgres:18-alpine").WithName($"trips-test-{Guid.NewGuid():N}")` — pinning a specific image avoids surprise upgrades; the unique name prevents container-name collisions when two fixtures happen to start in parallel.
-- `JasperFxEnvironment.AutoStartHost = true` — required because Cab service `Program.cs` files use `RunJasperFxCommands` for CLI dispatch. Without this static toggle, the host doesn't start when Alba composes against `Program`.
-- `services.AddMarten(...).IntegrateWithWolverine()` in `ConfigureServices` — overrides Program.cs's inline `GetConnectionString` registration. The connection string from Aspire is null in tests; without this override, Marten doesn't get registered at all.
-- `RunWolverineInSoloMode()` — disables Wolverine's leader election. One node, one set of agents. Faster startup; no Postgres advisory lock contention.
-- `DisableAllExternalWolverineTransports()` — prevents Wolverine from connecting to RabbitMQ, Kafka, ASB. External-transport messages are dispatched into Wolverine's tracking system without leaving the test process.
-- `MartenDaemonModeIsSolo()` — forces `DaemonMode.Solo` even if Program.cs configures HotCold or Wolverine-managed distribution (per `marten-async-daemon`). Solo is correct for tests; the production mode would either spin up election infrastructure unnecessarily or fight with the test's single-node assumption.
-- The `DisposeAsync` exception swallows are pragmatic — Alba and Wolverine occasionally race on shutdown; suppressing `ObjectDisposedException`/`TaskCanceledException` in the dispose path avoids spurious test-suite teardown failures.
+- `new PostgreSqlBuilder("postgres:18-alpine")` — on Testcontainers 4.13.0 the image is a **constructor argument**; the parameterless builders are deprecated. Pinning the image avoids surprise upgrades, and the literal is what CI's pre-pull guard reads (§ "CI pre-pull").
+- `.WithName($"telemetry-test-{Guid.NewGuid():N}")` — a test project that starts two Postgres containers (default fixture + Kafka fixture) runs their collections in parallel, so a fixed name collides. Name a container with a `Guid.NewGuid():N` suffix, or leave it unnamed and let Testcontainers generate one (`DispatchTestFixture` does); never give it a fixed name.
+- `.WithImagePullPolicy(PullPolicy.Missing)` — use the local image when present (§ "`PullPolicy.Missing`").
+- `builder.UseSetting("ConnectionStrings:...", ...)` — feeds the container into the same guarded `GetConnectionString` branch `Program.cs` uses under Aspire, so the test host's Marten registration is the production one. The Kafka fixtures do the same with `ConnectionStrings:kafka`, which is what flips `Program.cs` from "no transport" to the real Kafka wiring.
+- `ConfigureTestServices` — runs after the entry point's registrations, so `services.Remove(...)` and replacement registrations take effect. Use it whenever the fixture removes or replaces something `Program.cs` registered. (`DispatchTestFixture` uses `ConfigureServices` because it only adds forwarding singletons whose registrations win by last-registration semantics.)
+- Removing a hosted service — Telemetry's eviction timer is the deliberately untested half of its slice; left running, a background sweep would race the tests' own explicit invocations.
 
-### Collection definition
+The shipped fixtures do not call `RunWolverineInSoloMode()`, `DisableAllExternalWolverineTransports()`, `MartenDaemonModeIsSolo()`, or set `JasperFxEnvironment.AutoStartHost`. Transports are already off unless the fixture supplies the `kafka` connection string, and every projection in the repo is inline or live, so there is no async daemon to pin. Reach for those calls if a service ever configures a transport unconditionally or registers an async projection.
+
+### Collection definitions
+
+Each fixture has exactly one collection, named by a bare string literal:
 
 ```csharp
-// tests/CritterCab.Trips.Tests/Fixtures/TripsTestCollection.cs
-[CollectionDefinition(Name)]
-public sealed class TripsTestCollection : ICollectionFixture<TripsTestFixture>
-{
-    public const string Name = "Trips Tests";
-}
+// Bottom of tests/CritterCab.Telemetry.Tests/TelemetryTestFixture.cs
+[CollectionDefinition("Telemetry")]
+public class TelemetryCollection : ICollectionFixture<TelemetryTestFixture>;
 ```
 
-One collection per fixture. Every test class in the service's test project belongs to this collection (`[Collection(TripsTestCollection.Name)]`), sharing one host for the entire test run. The fixture is constructed once at collection start, disposed at collection end.
+| Collection | Fixture | Defined at |
+|---|---|---|
+| `"Dispatch"` | `DispatchTestFixture` | `tests/CritterCab.Dispatch.Tests/DispatchTestFixture.cs` |
+| `"DispatchKafka"` | `DispatchKafkaTestFixture` | `tests/CritterCab.Dispatch.Tests/DispatchKafkaTestFixture.cs` |
+| `"Telemetry"` | `TelemetryTestFixture` | `tests/CritterCab.Telemetry.Tests/TelemetryTestFixture.cs` |
+| `"TelemetryKafka"` | `TelemetryKafkaTestFixture` | `tests/CritterCab.Telemetry.Tests/TelemetryKafkaTestFixture.cs` |
+
+Test classes opt in with `[Collection("Telemetry")]` and take the fixture through their constructor. There is no `const Name`, no `DisableParallelization`, and the collection definition lives in the fixture's file. The fixture is constructed once per collection and disposed when the collection finishes. How the collections run relative to each other is § "Parallelization strategy".
 
 ### Test class lifecycle
 
+Test classes do not implement `IAsyncLifetime` — only fixtures do. Per-test reset is **inline**: the first statement of each `[Fact]` is the fixture's reset call (or a private arrange helper whose first act is that call, as in `ReportLocationsTests`).
+
 ```csharp
-[Collection(TripsTestCollection.Name)]
-public sealed class start_trip_endpoint_tests : IAsyncLifetime
+[Collection("Telemetry")]
+public class TelemetryPolicyConfiguredTests
 {
-    private readonly TripsTestFixture _fixture;
+    private readonly TelemetryTestFixture _fixture;
 
-    public start_trip_endpoint_tests(TripsTestFixture fixture) => _fixture = fixture;
-
-    public Task InitializeAsync() => _fixture.CleanAllMartenDataAsync();
-    public Task DisposeAsync() => Task.CompletedTask;
+    public TelemetryPolicyConfiguredTests(TelemetryTestFixture fixture) => _fixture = fixture;
 
     [Fact]
-    public async Task starts_trip_and_persists_event_stream()
+    public async Task reconfigure_full_replaces_and_advances_the_version()
     {
+        await _fixture.ResetToSeedAsync();   // first statement, every test
+
         // ...
     }
 }
 ```
 
-`CleanAllMartenDataAsync()` runs in `InitializeAsync`, never `DisposeAsync`. xUnit doesn't guarantee class execution order; cleaning on exit doesn't protect the next class from inherited state. Cleaning on entry is the correct invariant.
+Resetting per test rather than per class means no test inherits another's state, whichever order xUnit runs them in. The reset helpers live on the fixture and are scoped to what the slice actually writes:
 
-When the service registers async projections, swap to `ResetAllMartenDataAsync()` — it pauses the daemon, clears data, and resumes. Skipping the pause means the daemon keeps processing stale events while cleanup happens, producing intermittent "phantom" projections.
+| Fixture helper | What it does | Used by |
+|---|---|---|
+| `ResetToSeedAsync()` | `store.Advanced.Clean.DeleteAllEventDataAsync()`, then re-runs the service's `IInitialData` seeder (`TelemetryPolicyBootstrap.Populate`) to restore the bootstrap stream. | Telemetry tests that touch the policy stream. |
+| `ResetPositionsAsync()` | `store.Advanced.Clean.DeleteDocumentsByTypeAsync(typeof(LastKnownPositionDocument))` — plain documents survive an event-data wipe. | Telemetry tests that touch `LastKnownPosition`. |
+| `ResetDriversAsync()` | `DeleteDocumentsByTypeAsync(typeof(AvailableDriver))`. | `"DispatchKafka"` tests. |
+| *(none)* | The `"Dispatch"` collection does no data reset; every test creates its own stream with `Guid.CreateVersion7()` ids, so tests never read each other's data. Tests that depend on the fixture's swappable stubs (`PricingClient`, `NearbyDriversSource`) assign them in their arrange step, and classes that swap them restore the default in `IDisposable.Dispose()` (`CandidatesSelectedTests`, `FareQuotedFailurePathTests`). | `"Dispatch"` tests. |
 
-| Method | When to use |
-|---|---|
-| `CleanAllMartenDataAsync()` | Standard cleanup — services with no async projections. |
-| `ResetAllMartenDataAsync()` | Services with async projections registered. |
+Targeted deletes are preferred over `CleanAllMartenDataAsync()` because they say what the test depends on and leave seeded data alone. If a service ever registers async projections, its reset must pause the daemon first (`ResetAllMartenDataAsync()`), or the daemon keeps projecting stale events mid-cleanup.
+
+**Alternative, when tests must share state.** A class whose tests deliberately build on shared setup can implement `IAsyncLifetime` and reset once in `InitializeAsync` — never in `DisposeAsync`, since xUnit does not guarantee class order and cleaning on exit does not protect the next class. Nothing in the repo needs this today; the Cab default is the inline per-test reset above.
 
 ---
 
@@ -299,7 +281,7 @@ var session = await Host.TrackActivity()
 
 ### `IncludeExternalTransports()`
 
-By default, tracked sessions ignore messages routed to external transports (Kafka, ASB, RabbitMQ-style). Cab's test fixture disables external transports entirely via `DisableAllExternalWolverineTransports()` — but the tracked-session default still excludes their `Sent` records. Enable explicitly when asserting on integration messages destined for external transports:
+By default, tracked sessions ignore messages routed to external transports (Kafka, ASB, RabbitMQ-style). Cab's default fixtures run with no external transport configured at all (they never supply the `kafka` connection string), and a fixture that disables transports with `DisableAllExternalWolverineTransports()` gets the same exclusion — the tracked-session default leaves their `Sent` records out. Enable explicitly when asserting on integration messages destined for external transports:
 
 ```csharp
 var session = await Host.TrackActivity()
@@ -395,7 +377,7 @@ This is the canonical pattern for testing trip-cleanup timeouts, dispatch retry 
 
 ## Testing async projections
 
-Async projections run on the projection daemon after `SaveChangesAsync` returns — they are NOT updated inline (per `marten-async-daemon`). Tests that append events and immediately query projected documents will see empty results unless they wait for the daemon to catch up.
+Async projections run on the projection daemon after `SaveChangesAsync` returns — they are NOT updated inline (per `marten-async-daemon`, archived). No shipped projection is async — every one is inline or live — so this section applies once one is added. Tests that append events and immediately query projected documents will see empty results unless they wait for the daemon to catch up.
 
 ### `WaitForNonStaleProjectionDataAsync` — the blanket wait
 
@@ -523,97 +505,83 @@ trip!.Status.ShouldBe(TripStatus.Active);
 
 ## Testcontainers patterns
 
-Cab's stack commits four Testcontainers libraries. The fixture pattern adapts cleanly across all four.
+The repo pins two Testcontainers libraries, `Testcontainers.PostgreSql` and `Testcontainers.Kafka`, both at 4.13.0. Every builder takes its image as a constructor argument.
 
 ### Postgres (Marten services — the canonical case)
 
-Shown in the `TripsTestFixture` example above. Image pin to `postgres:18-alpine` for fast cold start.
+Shown in the `TelemetryTestFixture` example above: `new PostgreSqlBuilder("postgres:18-alpine")`, uniquely named, `PullPolicy.Missing`.
 
-### SQL Server (Polecat services)
+### Kafka fixtures
 
 ```csharp
-private readonly MsSqlContainer _sqlServer = new MsSqlBuilder()
-    .WithImage("mcr.microsoft.com/mssql/server:2025-CU1-ubuntu-24.04")
-    .WithPassword("CritterCab#Test2025!")
-    .WithName($"telemetry-test-{Guid.NewGuid():N}")
-    .WithCleanUp(true)
+// tests/CritterCab.Telemetry.Tests/TelemetryKafkaTestFixture.cs (abridged)
+private readonly KafkaContainer _kafka = new KafkaBuilder("confluentinc/cp-kafka:7.6.1")
+    .WithName($"telemetry-kafka-{Guid.NewGuid():N}")
+    .WithImagePullPolicy(PullPolicy.Missing)
     .Build();
 
-// In ConfigureServices:
-services.AddPolecat(opts =>
-{
-    opts.Connection(_sqlServer.GetConnectionString());
-    // ...
-}).IntegrateWithWolverine();
-```
-
-The shape mirrors the Marten case exactly; only the container builder and the `AddPolecat` registration differ. `RunWolverineInSoloMode()`, `DisableAllExternalWolverineTransports()`, and the daemon-mode override apply identically. See `polecat-event-sourcing` (Phase 4) for Polecat-specific test concerns.
-
-### Kafka (Telemetry-style services)
-
-```csharp
-private readonly KafkaContainer _kafka = new KafkaBuilder()
-    .WithImage("confluentinc/cp-kafka:7.6.1")
-    .Build();
-
-// In ConfigureServices — DON'T call DisableAllExternalWolverineTransports for this fixture:
-services.AddWolverine(opts =>
-{
-    opts.UseKafka(_kafka.GetBootstrapAddress())
-        .AutoProvision();
-
-    opts.PublishMessage<TelemetryReceived>().ToKafkaTopic("trip-telemetry");
-});
-```
-
-When the test specifically exercises Kafka routing — not the default for most tests — disable the blanket transport suppression and let Wolverine connect to the real (containerized) Kafka. Tests that just need to assert "the handler emitted the message" should stay on the disabled-transports path with `IncludeExternalTransports()` on the tracked session.
-
-### Azure Service Bus emulator
-
-```csharp
-private readonly ServiceBusContainer _serviceBus = new ServiceBusBuilder()
-    .WithAcceptLicenseAgreement(true)
-    .Build();
-
-// In ConfigureServices:
-services.AddWolverine(opts =>
-{
-    opts.UseAzureServiceBus(_serviceBus.GetConnectionString())
-        .AutoProvision();
-});
-```
-
-The emulator is licensed; `WithAcceptLicenseAgreement(true)` is required and signals Microsoft EULA acceptance. The emulator supports queues, topics, and subscriptions — sufficient for routing-rule tests. Production-fidelity edge cases (dead-lettering with extreme volume, per-message TTL races) are not perfectly emulated; production-only validation is appropriate for those.
-
-### Parallel container startup
-
-When a single fixture needs multiple containers (Postgres + Kafka, for example), start them in parallel:
-
-```csharp
 public async Task InitializeAsync()
 {
-    await Task.WhenAll(
-        _postgres.StartAsync(),
-        _kafka.StartAsync()
-    );
-    // ... boot host
+    await Task.WhenAll(_postgres.StartAsync(), _kafka.StartAsync());
+
+    // Testcontainers reports PLAINTEXT://host:port; Confluent's configs want bare host:port.
+    BootstrapServers = _kafka.GetBootstrapAddress().Replace("PLAINTEXT://", string.Empty);
+
+    Host = await AlbaHost.For<Program>(builder =>
+    {
+        builder.UseSetting("ConnectionStrings:crittercab_telemetry", _postgres.GetConnectionString());
+        builder.UseSetting("ConnectionStrings:kafka", BootstrapServers);   // flips Program.cs to real Kafka
+        builder.ConfigureTestServices(services => { /* remove the eviction timer */ });
+    });
 }
 ```
 
-Saves ~3–5 seconds per additional container on cold runs. Sequential startup is acceptable but avoidable.
+The Kafka fixtures exercise the production transport wiring end to end — no transport is registered in the fixture itself. The shipped material that makes them reliable:
 
-### `PullPolicy.Missing` for CI
+- **cp-kafka, not confluent-local.** `KafkaBuilder` injects a startup script built around cp-kafka's entrypoint; confluent-local runs KRaft and expects a formatted log directory, and the combination exits at startup.
+- **Strip the `PLAINTEXT://` prefix** from `GetBootstrapAddress()` before handing it to `ConnectionStrings:kafka` or a Confluent `ProducerConfig`/`ConsumerConfig` (`TelemetryKafkaTestFixture.cs`, `DispatchKafkaTestFixture.cs`).
+- **Pre-create the topic on the consumer side.** Dispatch does not `AutoProvision()` — the producer owns the topic — so `DispatchKafkaTestFixture` creates `telemetry.driver-location-updated` through the Confluent `AdminClient` before booting the host, standing in for the Telemetry host that would have provisioned it. Without it the listener subscribes to a topic that does not exist and waits.
+- **Warm up a `BeginAtLatest()` listener before producing.** Dispatch's listener starts at the tail on a cold start, so a record produced before the consumer group finishes joining is legitimately missed. `DispatchKafkaTestFixture.WarmUpListenerAsync()` produces throwaway records inside a tracked session (`WaitForMessageToBeReceivedAt<DriverLocationUpdated>(Host)` with a 10s timeout), retrying until one is observably handled (60s deadline), then deletes the warm-up driver. Retry, don't sleep: group-join time varies.
+- **Unique verifier consumer group per run.** A test that reads the topic directly (`DriverLocationPublishedTests`) builds its own Confluent consumer with `GroupId = "slice3-verifier-" + Guid.NewGuid().ToString("N")` and `AutoOffsetReset.Earliest`, so a re-run never resumes a committed offset and finds nothing. Subscribe before producing.
+- **Remove hosted services that would race the tests** in `ConfigureTestServices` (`services.Remove(...)` on the descriptor whose `ImplementationType` matches), as the default fixture does.
 
-Always set `WithPullPolicy(PullPolicy.Missing)` in CI configurations. Without it, Testcontainers re-pulls the image on every test run, adding 10–30 seconds per fixture:
+Tests that only need to assert "the handler decided to publish" stay on the default fixture and assert against the recorder seam (`RecordingDriverLocationPublisher`), not the broker.
+
+### SQL Server and the Azure Service Bus emulator
+
+Not used in the repo: no Polecat service and no ASB transport exists, so there is no SQL Server or Service Bus fixture and neither Testcontainers package is pinned. When one enters, follow the same shape — image as constructor argument, unique name, `PullPolicy.Missing`, `UseSetting` for the connection string, and the image added to CI's pre-pull list. The ASB emulator additionally requires `WithAcceptLicenseAgreement(true)`.
+
+### Parallel container startup
+
+A fixture with more than one container starts them together:
 
 ```csharp
-private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder()
-    .WithImage("postgres:18-alpine")
-    .WithPullPolicy(PullPolicy.Missing)  // Use cached image when present
+await Task.WhenAll(_postgres.StartAsync(), _kafka.StartAsync());
+```
+
+Both Kafka fixtures do this, and dispose the same way (`Task.WhenAll(_postgres.DisposeAsync().AsTask(), _kafka.DisposeAsync().AsTask())`).
+
+### `PullPolicy.Missing`
+
+Every shipped fixture container except `DispatchTestFixture`'s sets `WithImagePullPolicy(PullPolicy.Missing)` — use the cached image when present. `PullPolicy` lives in `DotNet.Testcontainers.Images`:
+
+```csharp
+using DotNet.Testcontainers.Images;
+
+private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18-alpine")
+    .WithName($"dispatch-kafka-pg-{Guid.NewGuid():N}")
+    .WithImagePullPolicy(PullPolicy.Missing)
     .Build();
 ```
 
-Local dev runs benefit too, though Docker's layer cache covers most cases. CI is where the difference is dramatic.
+### CI pre-pull
+
+`.github/workflows/dotnet.yml` pre-pulls every fixture image **serially, before `dotnet test`**. The two test assemblies run in parallel, each with its own Testcontainers session (a Ryuk reaper plus its fixtures' containers); pulling all of them at once from Docker Hub timed out mid-pull and surfaced as a misleading `DockerApiException` inside `ResourceReaper.GetAndStartNewAsync` in whichever suite lost the race. After the pre-pull step the images are local and `PullPolicy.Missing` makes every fixture pull a no-op.
+
+Two rules follow:
+
+1. **A new fixture image goes into the `docker pull` list in the same PR.** A guard step (`Verify pre-pull list covers fixture images`) greps every `*Fixture.cs` under `tests/` for image literals passed to a `*Builder("...")` constructor or to `.WithImage("...")`, and fails the build if any is missing from the list. Keep image literals in that form so the guard can see them.
+2. **Re-read the Ryuk tag on every Testcontainers bump.** The list also pulls `testcontainers/ryuk:0.14.0`, which is Testcontainers' own internal pin for 4.13.0, not a choice the repo makes — the guard does not check it because no fixture names it. If the package moves and the line does not, CI pre-pulls an image nothing uses and the reaper goes back to racing for its own.
 
 ---
 
@@ -637,78 +605,59 @@ public sealed class CanonicalRiders : IInitialData
     }
 }
 
-// In the fixture's AddMarten lambda:
-services.AddMarten(opts =>
-{
-    opts.Connection(_postgres.GetConnectionString());
-    opts.InitialData.Add(new CanonicalRiders());
-})
-.UseLightweightSessions()
-.ApplyAllDatabaseChangesOnStartup();
+// In the service's Program.cs, on the AddMarten chain:
+builder.Services.AddMarten(opts => { /* ... */ })
+    .UseLightweightSessions()
+    .InitializeWith<CanonicalRiders>();
 ```
 
-Seed data survives `CleanAllMartenDataAsync` only if the fixture re-runs `Populate` afterward. The clean-and-reseed helper:
+In the shipped code the seeder is registered by the service itself, not the fixture — Telemetry's `Program.cs` chains `.InitializeWith<TelemetryPolicyBootstrap>()` onto `AddMarten(...)`, so a fresh test container already carries the seed when the host starts, exactly as a deployment does.
+
+Seed data does not survive a wipe unless the reset re-runs `Populate`. The shipped clean-and-reseed helper:
 
 ```csharp
-public async Task CleanAndReseedAsync()
+// tests/CritterCab.Telemetry.Tests/TelemetryTestFixture.cs
+public async Task ResetToSeedAsync()
 {
-    await Host.CleanAllMartenDataAsync();
-    await new CanonicalRiders().Populate(Host.DocumentStore(), CancellationToken.None);
+    var store = Host.Services.GetRequiredService<IDocumentStore>();
+    await store.Advanced.Clean.DeleteAllEventDataAsync();
+    await new TelemetryPolicyBootstrap().Populate(store, CancellationToken.None);
 }
 ```
 
-Test classes that depend on the seed data call `CleanAndReseedAsync()` in `InitializeAsync` rather than the bare `CleanAllMartenDataAsync()`.
+Tests that depend on the seed call it as the first statement of each `[Fact]` (§ "Test class lifecycle"). Write the seeder idempotently (`TelemetryPolicyBootstrap` checks `FetchStreamStateAsync` and returns if the stream exists) so host start and test reset can both run it.
 
-When seed data must survive every cleanup operation across the full test suite — rare — register a custom `IDocumentStore.Advanced.Clean.IgnoredDocumentTypes` policy. Most Cab services don't need this; inline test seeding is the dominant pattern.
+When seed data must survive every cleanup operation across the full test suite — rare — register a custom `IDocumentStore.Advanced.Clean.IgnoredDocumentTypes` policy. No Cab service needs this today.
 
 ---
 
 ## Parallelization strategy
 
-Cab integration tests share a Postgres container per fixture. Two safe strategies for handling parallelism:
+Cab runs on xUnit's defaults — no `CollectionBehavior` attribute, no `xunit.runner.json`, no `DisableParallelization` on any collection. What that means for the shipped suites:
 
-### Strategy 1 — Sequential within a collection (Cab default)
+| Scope | Behavior |
+|---|---|
+| Collections within one test assembly | Run **in parallel** (`"Telemetry"` alongside `"TelemetryKafka"`, `"Dispatch"` alongside `"DispatchKafka"`). |
+| Test classes within one collection | Run **serially**, sharing the collection's fixture. |
+| Test methods within one class | Run serially (xUnit v2 never parallelizes within a class). |
+| The two test assemblies | Run **in parallel** under `dotnet test CritterCab.slnx`. |
 
-```csharp
-[CollectionDefinition(Name, DisableParallelization = true)]
-public sealed class TripsTestCollection : ICollectionFixture<TripsTestFixture>
-{
-    public const string Name = "Trips Tests";
-}
-```
+Parallel collections are safe because of **per-fixture container isolation**: each fixture owns its own Postgres (and, for the Kafka fixtures, its own Kafka broker) and its own Alba host. Two collections never share a database, a topic, or a host, so nothing one does is visible to the other. Within a collection, safety comes from the inline per-test reset or, in `"Dispatch"`, from every test using fresh `Guid.CreateVersion7()` ids.
 
-Every test class in the collection runs sequentially, sharing one fixture and one container. Simple to reason about; no test-method interference. The cost is wall-clock test runtime — but Cab service test projects are small enough (per-service scope) that this is acceptable.
+The rules that keep this safe:
 
-### Strategy 2 — Unique IDs per test, allow parallelism
+- **A new fixture owns its containers.** Never point a second fixture at another fixture's container. Name containers uniquely (or leave them unnamed) so parallel fixtures do not collide.
+- **A new test class joins exactly one existing collection**, or brings its own fixture and collection. A class with no `[Collection]` gets an implicit per-class collection and no fixture.
+- **Shared mutable fixture state is reset at the top of the test that uses it** — data via the reset helpers, swappable stubs by reassignment.
+- **Generate ids with `Guid.CreateVersion7()`** in every test; reserve well-known ids for seed data.
 
-When Cab service test projects grow large enough that sequential runs become a bottleneck, drop `DisableParallelization` and use `Guid.CreateVersion7()` for every aggregate ID:
+### Alternative: serial collections, when tests must share state
 
-```csharp
-[Fact]
-public async Task starts_trip_with_unique_id()
-{
-    var tripId = Guid.CreateVersion7();   // Unique per invocation — no collision
-    await _fixture.Host.InvokeMessageAndWaitAsync(new StartTrip(tripId, ...));
-    // ...
-}
-```
-
-xUnit then runs test methods within a class in parallel. The fixture's host is shared (`ICollectionFixture` semantics); tests don't step on each other because they don't share state.
-
-### Project-wide baseline
-
-For services where Strategy 2 isn't fully verified, set a project-level baseline:
-
-```csharp
-// AssemblyInfo.cs
-[assembly: CollectionBehavior(DisableTestParallelization = true)]
-```
-
-Sequential collection execution at the project level. Opt in to parallelism once unique-ID discipline is verified across the test suite.
+If two fixtures ever had to share a resource (one database, one topic), parallel collections would interfere. The xUnit levers are `[CollectionDefinition("...", DisableParallelization = true)]` on a collection, or `[assembly: CollectionBehavior(DisableTestParallelization = true)]` for the whole assembly. The repo uses neither; prefer giving the fixture its own container.
 
 ### Tracked-session timeouts under parallel load
 
-Parallel tests contend for Testcontainer resources and daemon catch-up. The default 5-second tracked-session timeout will expire mid-test under load. Bump per-test:
+Parallel collections and assemblies contend for CPU and Docker. The default 5-second tracked-session timeout can expire under load. Bump per-test where the flow needs it:
 
 ```csharp
 var session = await Host.TrackActivity()
@@ -721,14 +670,15 @@ var session = await Host.TrackActivity()
 ## Common pitfalls
 
 - **`Task.Delay` to "fix" race conditions.** Never the right answer. The right APIs are `InvokeMessageAndWaitAsync`, `WaitForNonStaleProjectionDataAsync`, `WaitForConditionAsync`, and `PlayScheduledMessagesAsync`.
-- **Cleaning data in `DisposeAsync`.** xUnit doesn't guarantee class execution order. Clean in `InitializeAsync` so the class starts with a known state.
+- **Resetting anywhere but the top of the test.** Cleaning in a class's `DisposeAsync` doesn't protect the next class (xUnit doesn't guarantee class order), and a once-per-class reset lets one test's writes leak into the next. Call the fixture's reset helper as the first statement of each `[Fact]`.
 - **Forgetting `ResetAllMartenDataAsync` for services with async projections.** `CleanAllMartenDataAsync` doesn't pause the daemon; the daemon may keep processing events from the prior test mid-cleanup. Use `ResetAllMartenDataAsync` whenever async projections are registered.
 - **Asserting on `tracked.Sent` for cascaded events with no routing rule.** Those land in `tracked.NoRoutes`. Check both buckets when in doubt; use `dotnet run -- describe-routing` to verify routing.
-- **Forgetting `JasperFxEnvironment.AutoStartHost = true`.** Without it, the host doesn't start in WebApplicationFactory/Alba scenarios because Cab Program.cs files use `RunJasperFxCommands` for CLI dispatch.
-- **Using `ConfigureAppConfiguration` to override connection strings.** Doesn't work — Program.cs reads connection strings inline before `ConfigureAppConfiguration` callbacks apply. Use `ConfigureServices` with `services.AddMarten(opts => opts.Connection(...))` instead.
-- **Sharing a Testcontainer name across fixtures without `Guid.NewGuid()`.** Container-name collisions when multiple test runs overlap. Always include a unique suffix.
-- **Skipping `RunWolverineInSoloMode()`.** Without it, Wolverine attempts leader election on every test startup. Slower; sometimes flaky on CI.
-- **Skipping `DisableAllExternalWolverineTransports()` when tests don't actually exercise the transports.** Wolverine will try to connect to RabbitMQ/Kafka/ASB during host startup and fail. Always disable unless the test explicitly provisions a real broker container.
+- **Registering Marten (or a transport) in the fixture instead of feeding `Program.cs` its connection string.** A parallel registration tests the fixture's wiring, not the service's. Supply `builder.UseSetting("ConnectionStrings:<name>", ...)` under the key Aspire injects and let `Program.cs`'s own guarded branch register it.
+- **Removing or replacing a registration in `ConfigureServices`.** Use `ConfigureTestServices`, which runs after the entry point's registrations; removal only works from there.
+- **A fixed Testcontainer name.** Collections run in parallel and a project may start two Postgres containers; a fixed name collides. Suffix with `Guid.NewGuid():N` or leave the container unnamed.
+- **Old Testcontainers builder forms.** On 4.13.0 the image is a constructor argument (`new PostgreSqlBuilder("postgres:18-alpine")`), and the pull-policy method is `WithImagePullPolicy(PullPolicy.Missing)` with `PullPolicy` from `DotNet.Testcontainers.Images`.
+- **Adding a fixture image without adding it to CI's pre-pull list.** The `Verify pre-pull list covers fixture images` step fails the build. Add the `docker pull` line in the same PR, and re-read the Ryuk tag whenever Testcontainers is bumped.
+- **Producing to a `BeginAtLatest()` listener before its consumer group has joined.** The record is legitimately skipped and the test waits forever. Warm the listener up first (`DispatchKafkaTestFixture.WarmUpListenerAsync`).
 - **Treating the default 5-second timeout as universal.** It's too tight for flows that traverse async daemon catch-up, scheduled-message playback, or multi-host AlsoTrack scenarios. Bump per-test where it matters.
 - **Hard-coded GUIDs that collide under parallelism.** Use `Guid.CreateVersion7()` per test invocation; reserve well-known IDs for `IInitialData` reference data only.
 - **Using `WaitForNonStaleProjectionDataAsync` when the test only cares about one specific projection.** The blanket wait blocks on every running projection. `WaitForConditionAsync` is more surgical when other projections are slow or unrelated.
@@ -739,17 +689,17 @@ var session = await Host.TrackActivity()
 
 **Upstream** — generic Wolverine + Marten integration testing fundamentals this skill builds on. ai-skills (license required, install via `npx skills add`):
 
-- `wolverine-testing-integration` (primary) — baseline integration testing patterns: `IAlbaHost.For<Program>`, `ExecuteAndWaitAsync`/`InvokeMessageAndWaitAsync`, tracked-session API, `RunWolverineInSoloMode`, `DisableAllExternalWolverineTransports`. Cab's skill applies these with project-specific framing (per-service TestFixture pattern with Testcontainer-per-fixture, the `JasperFxEnvironment.AutoStartHost` requirement, `ConfigureServices`-not-`ConfigureAppConfiguration` connection-string override rule, `MartenDaemonModeIsSolo()` for solo daemon, dispose-path exception swallows for Alba/Wolverine shutdown races).
+- `wolverine-testing-integration` (primary) — baseline integration testing patterns: `IAlbaHost.For<Program>`, `ExecuteAndWaitAsync`/`InvokeMessageAndWaitAsync`, tracked-session API, `RunWolverineInSoloMode`, `DisableAllExternalWolverineTransports`. Cab's skill applies these with project-specific framing (per-service TestFixture pattern with Testcontainer-per-fixture, `UseSetting` connection strings feeding `Program.cs`'s own guarded registration, `ConfigureTestServices` for removals and replacements, inline per-test reset, CI image pre-pull).
 - `wolverine-testing-integration-marten` — Marten-specific integration testing: `CleanAllMartenDataAsync` vs `ResetAllMartenDataAsync` (when async projections are registered), `WaitForNonStaleProjectionDataAsync` for projection catch-up, `IInitialData` seeding patterns, the race condition between Wolverine's transactional middleware and the HTTP response.
 - `wolverine-testing-with-testcontainers` — Testcontainers-driven integration testing: Postgres/SQL Server/Kafka/ServiceBus container builders, image pinning, unique container naming for parallel test runs, the lifecycle integration with `IAsyncLifetime`.
 - `wolverine-testing-with-aspire` — Aspire-orchestrated integration testing: composing tests against an Aspire AppHost rather than per-service Testcontainers, when each strategy is appropriate.
-- `wolverine-testing-test-parallelization` — xUnit parallelization strategies: `[CollectionDefinition(DisableParallelization = true)]` for sequential-within-collection, unique-ID discipline for cross-test parallelism, project-level `CollectionBehavior` baseline, tracked-session timeout adjustments under parallel load. Cab's skill calls out both Strategy 1 (sequential, default) and Strategy 2 (parallel with unique IDs) explicitly.
+- `wolverine-testing-test-parallelization` — xUnit parallelization strategies: `[CollectionDefinition(DisableParallelization = true)]` for sequential-within-collection, unique-ID discipline for cross-test parallelism, project-level `CollectionBehavior` baseline, tracked-session timeout adjustments under parallel load. Cab runs on xUnit's defaults (parallel collections, per-fixture container isolation) and keeps the serial levers only as a labelled alternative.
 
 **Prerequisites** — Cab-internal skills to load first:
 
 - `testing-fundamentals` — committed test stack, xUnit lifecycle, unit testing pure handlers, Shouldly conventions, `FakeTimeProvider`. Read first.
 - `service-bootstrap` — `AddMarten`, `IntegrateWithWolverine`, `AddAsyncDaemon`, `DurabilityMode`; the Program.cs surface fixtures compose against.
-- `marten-async-daemon` — daemon modes (Solo, HotCold, Wolverine-managed); error handling; rebuild patterns. Critical for understanding why `MartenDaemonModeIsSolo()` matters in fixtures.
+- `marten-async-daemon` (archived) — daemon modes (Solo, HotCold, Wolverine-managed); error handling; rebuild patterns. Relevant once a service registers an async projection and its fixture needs `MartenDaemonModeIsSolo()`.
 - `wolverine-handlers`, `wolverine-http-handlers`, `wolverine-messaging-handlers` — handler shapes being exercised end-to-end.
 - `marten-projections` — projection lifecycles; what async projections need waiting on.
 
@@ -757,17 +707,17 @@ var session = await Host.TrackActivity()
 
 - `marten-querying` — read-side consequences of eventual consistency; `WaitForNonStaleProjectionDataAsync` rationale.
 - `marten-wolverine-aggregates` — `[WriteAggregate]`/`[Aggregate]` handler shapes and the `EmptyResponse` / 204 status convention.
-- `dynamic-consistency-boundary` — DCB write-path tests; `[BoundaryModel]` setup uses the same fixture pattern.
+- `dynamic-consistency-boundary` (archived) — DCB write-path tests; `[BoundaryModel]` setup uses the same fixture pattern.
 
 **Downstream:**
 
 - `aspire` (Phase 2) — local dev wiring; integration test fixtures may compose against the same Aspire-orchestrated `Program.cs`.
 - `cli-jasperfx` (Phase 2) — `describe-routing`, `codegen-preview` for diagnosing failing tests; same CLI surface that test fixtures verify by working at all.
 - `wolverine-grpc-handlers` (Phase 3) — gRPC-streaming integration tests need extensions to this skill's HTTP-scenario patterns.
-- `wolverine-kafka` (Phase 3) — Kafka transport tests; `Testcontainers.Kafka` setup beyond the brief example here.
-- `wolverine-azure-service-bus` (Phase 3) — ASB emulator tests; same.
-- `wolverine-sagas` (Phase 4) — saga timeout tests via `PlayScheduledMessagesAsync`.
-- `testing-advanced` (Phase 4) — multi-host scenarios, RabbitMQ vhost isolation, dynamic-database-per-fixture patterns, gRPC streaming test harnesses.
+- `wolverine-kafka` — the Kafka transport wiring the Kafka fixtures exercise end to end.
+- `wolverine-azure-service-bus` (archived) — ASB emulator tests, when ASB enters.
+- `wolverine-sagas` (archived) — saga timeout tests via `PlayScheduledMessagesAsync`.
+- `testing-advanced` (archived) — multi-host scenarios, RabbitMQ vhost isolation, dynamic-database-per-fixture patterns, gRPC streaming test harnesses.
 
 **External:**
 
@@ -778,4 +728,4 @@ var session = await Host.TrackActivity()
 - [Working and Testing Against Scheduled Messages with Wolverine (Jeremy Miller, September 15, 2025)](https://jeremydmiller.com/2025/09/15/working-and-testing-against-scheduled-messages-with-wolverine/) — `PlayScheduledMessagesAsync` (Wolverine 4.12+).
 - [Marten Async Projection Testing Documentation](https://martendb.io/events/projections/async-daemon.html#testing-asynchronous-projections) — `WaitForNonStaleProjectionDataAsync` reference.
 - [Alba Documentation](https://jasperfx.github.io/alba/) — HTTP scenario testing API.
-- [Testcontainers .NET Documentation](https://dotnet.testcontainers.org/) — container builder reference for Postgres, SQL Server, Kafka, ServiceBus.
+- [Testcontainers .NET Documentation](https://dotnet.testcontainers.org/) — container builder reference for Postgres and Kafka.

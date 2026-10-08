@@ -1,303 +1,193 @@
 ---
 name: event-modeling
-description: "Facilitate an Event Modeling workshop. Use when running, simulating, planning, or guiding any phase — brain dump, timeline, slicing, scenario writing — or when multi-persona facilitation is needed for system design."
+description: "Run and record Event Modeling the way Adam Dymitruk defined it: the seven steps, the four slice patterns (Command, View, Automation, Translation) with Klefter's and Bruun's refinements, the field-level information-completeness check, and a slice definition of done. Use when planning, facilitating or simulating a modelling session, cutting slices, writing Given/When/Then scenarios, reviewing a model or its minutes, or naming a slice's pattern."
 cluster: core
 tags: [event-modeling, design, workshops, methodology, slices, ddd]
 ---
 
-# Event Modeling Workshop
+# Event Modeling
 
-Event Modeling is a collaborative workshop technique created by Adam Dymitruk (Adaptech Group) for designing information systems. It produces a visual, timeline-based blueprint showing how data flows through a system — from user intent through state changes to read-side projections. It works for any information system, not just event-sourced ones, but maps naturally onto CQRS and event sourcing patterns.
+Event Modeling is a method created by **Adam Dymitruk** (Adaptech Group; first published as "What is Event Modeling?", eventmodeling.org, June 2019) for describing an information system as a timeline of state changes, told as a story. The result is a blueprint that reads left to right like a storyboard: screens or automations along the top, commands and events through the middle, views that inform the next step, all connected by the fields that flow between them.
 
-CritterCab's vision (per ADR-004) commits to "Event Modeling first, code second." Workshop output flows into narratives (`docs/narratives/`), narratives flow into prompts (`docs/prompts/`), and prompts drive implementation. This skill covers the workshop technique itself.
+It is not specific to event sourcing. Any system whose state changes can be told as discrete facts on a timeline can be modelled this way; event sourcing, CQRS and message-driven systems simply map onto it with very little translation.
+
+Everything below the "In this repository" heading is project-neutral and can be copied between repositories as is.
 
 ## When to apply this skill
 
-Use this skill when:
+- Planning, running, simulating or facilitating a modelling session.
+- Cutting a model into slices, or checking that an existing slice is one slice.
+- Writing Given/When/Then scenarios for a slice.
+- Reviewing a model, its export, or the minutes of a session.
+- Deciding which pattern a slice is, or naming a slice.
 
-- Running, simulating, or facilitating an Event Modeling session.
-- Planning a workshop scope (which BCs, which journey).
-- Defining slices from a complete event model.
-- Writing Given/When/Then scenarios from slice definitions.
-- Verifying or extending the event vocabulary against a user journey.
-- Using multi-persona facilitation to surface conflicts and edge cases.
+It is a methodology skill. Implementation skills consume its output; they are not activated by it.
 
-This skill is a methodology skill. The implementation skills downstream (`marten-aggregates`, `wolverine-message-handlers`, etc.) consume its outputs but are not themselves activated by it.
+---
 
-## The Four Building Blocks
+## Building blocks
 
-| Block | Color | Meaning |
+Dymitruk counts **three** building blocks, drawn against a backdrop of wireframes:
+
+| Block | Colour | What it is |
 |---|---|---|
-| **Events** | Orange | Facts that occurred — past tense, immutable |
-| **Commands** | Blue | User intentions or system requests that cause events |
-| **Views / Read Models** | Green | Projections of event data back to the UI |
-| **UI Wireframes / Screens** | White | What the user actually sees and interacts with |
+| **Event** | Orange | A fact that happened, named in the past tense, immutable. The only durable content of the system's history. |
+| **Command** | Blue | An intention to change the system, carrying the fields the change needs. |
+| **View** (read model) | Green | State derived from events, shown to a person or read by a process. |
 
-Arrange these in chronological order on a horizontal timeline, in swim lanes:
-`UI → Command → Event Stream → View → UI`
+**Wireframes** (screens) sit above the timeline and show where each command's fields come from and where each view's fields go. Dymitruk's phrasing is "three types of building blocks as well as traditional wireframes": they are not counted as a block, but the method does not work without them. Where no person is involved, the top lane shows an **automation** (a gear) or an **external system** instead. **Swim lanes** separate the actors and systems; once Conway's Law is applied (step 6) they mark who owns which events.
 
----
-
-## Workshop Phases
-
-### Phase 1 — Brain Dump
-
-Everyone writes events as fast as possible — no ordering, no judgment. Events are facts: past tense, concrete, meaningful to the domain.
-
-**Input:** A domain or feature area to explore (e.g., "rider requests a ride during surge", "Trips BC internals from acceptance through completion").
-**Process:** Each persona calls out events. No filtering, no sequencing — volume over accuracy.
-**Output:** Unordered list of candidate events (expect 15–60 for a single bounded context).
-
-> When CritterCab develops an established event vocabulary (in `docs/vision/` or a dedicated event-vocabulary doc), Phase 1 of journey workshops becomes a **verification pass** — walk the journey and confirm the vocabulary accounts for everything. Add missing events as discovered.
-
-### Phase 2 — Storytelling
-
-Arrange events into a coherent narrative on the timeline. Ask: *"What happened first? What does this enable next?"* Gaps in the story reveal missing events.
-
-**Input:** Unordered event list from Phase 1 (or verified vocabulary for journey workshops).
-**Process:** Place events left-to-right on the timeline. Fill gaps: "What happened between X and Y?"
-**Output:** Chronologically ordered event timeline with gap markers resolved.
-
-### Phase 3 — Storyboarding
-
-Add UI wireframes above the timeline and views below. Connect them to their triggering commands and resulting events. This makes the full user journey visible.
-
-**Input:** Ordered event timeline from Phase 2.
-**Process:** For each event, ask "What UI triggered this?" (add screen above) and "What does the user see after?" (add view below). Connect with commands.
-**Output:** Full storyboard: `UI → Command → Event(s) → View → UI` for the entire flow.
-
-### Phase 4 — Identify Slices
-
-Draw vertical cuts through the model — each slice is one complete feature: `UI → Command → Event(s) → View`. Slices become work units (narratives, prompts, PRs).
-
-**Input:** Complete storyboard from Phase 3.
-**Process:** Draw vertical lines. Each slice must be independently deliverable and testable.
-**Output:** Slice table (see Structured Output Format below).
-
-### Phase 5 — Scenarios (Given/When/Then)
-
-For each slice, write acceptance scenarios:
-- **Given**: the events already in the stream (preconditions).
-- **When**: the command issued.
-- **Then**: the new events produced and/or the view state.
-
-**Input:** Slice definitions from Phase 4.
-**Process:** Write happy path first, then edge cases and failure modes per slice.
-**Output:** Given/When/Then scenarios per slice.
+Later writers count the blocks differently (some promote screens to a fourth block). This skill keeps Dymitruk's count because nothing in the method depends on the count; what matters is that every slice says what its screen is, or says that it has none.
 
 ---
 
-## Two Workshop Types
+## The four patterns
 
-CritterCab uses two complementary workshop formats.
+Every slice is exactly one of Dymitruk's four patterns. They are the shapes a vertical slice of the timeline can take.
 
-### User Journey Workshop
+| Pattern | Shape | A slice of this pattern answers |
+|---|---|---|
+| **Command** | Screen (or automation) → command → event(s) | "How does this state change get into the system, and when is it refused?" |
+| **View** | Event(s) → view → screen (or automation) | "What does someone need to see, and which events produce it?" |
+| **Automation** | View (a to-do list) → automation → command → event(s) | "What does the system do on its own, triggered by state it can see?" |
+| **Translation** | External system's data ↔ internal events | "How does a fact cross the system's edge, in either direction, into or out of our vocabulary?" |
 
-Walks a cross-cutting scenario (e.g., a rider requesting a ride, a driver completing onboarding) end-to-end. Touches multiple BCs. Produces horizontal coverage — the sequence of handoffs and integration events across the system.
+A slice that appears to need two patterns is two slices. A command handler that also reacts to its own event by issuing another command is a Command slice followed by an Automation slice, even when the implementation commits both in one transaction: the model describes behaviour, and the transaction boundary is an implementation choice that comes later.
 
-**Best for:** Validating the integration topology, defining narrative scope, confirming the event vocabulary covers a complete user scenario.
+### Refinements (not additions)
 
-**Tradeoff:** Does not produce aggregate internals, saga state machine details, or deep failure/compensation paths within a single BC.
+Later contributions refine Dymitruk's Translation and Automation. They are named so they can be cited, but they are not new patterns and never take the pattern slot.
 
-### BC-Focused Workshop
-
-Deep-dives into a single bounded context. Produces vertical depth — aggregate design, saga state transitions, DCB boundary model details, compensation events, and edge cases.
-
-**Best for:** Implementation-ready designs for a specific BC. Produces the Given/When/Then scenarios that become test cases.
-
-**Tradeoff:** Does not validate cross-BC integration or end-to-end user experience.
-
-**Recommended sequence:** Run one or two user journey workshops first to establish the horizontal map, then run BC-focused workshops to fill in vertical depth before implementation.
-
----
-
-## Structured Output Format for Slices
-
-| # | Slice Name | Command | Events | View | BC | Priority |
-|---|-----------|---------|--------|------|----|----------|
-| 1 | Rider requests a ride | `RequestRide` | `RideRequested` | `RideRequestStatusView` (searching for drivers) | Dispatch | P0 |
-| 2 | Driver accepts an offer | `AcceptOffer` | `OfferAccepted`, `TripStarted` | `ActiveTripView` (rider sees driver en route) | Dispatch → Trips | P0 |
-| 3 | Trip completes | `CompleteTrip` | `TripCompleted`, `FareCalculated` | `TripSummaryView` (fare, route, receipt) | Trips → Pricing | P0 |
-| 4 | Driver background check | *(scheduled / external)* | `BackgroundCheckCompleted` | `OnboardingStatusView` | Onboarding | P1 |
-
-**Column definitions:**
-- **Slice Name**: Human-readable feature name.
-- **Command**: The command that enters the system (user or system-initiated). Use *(scheduled)* for time-triggered slices and *(external)* for slices triggered by an upstream provider event.
-- **Events**: Domain events produced (comma-separated if multiple). Cross-service events show the producer-consumer chain with `→` (e.g., `Dispatch → Trips`).
-- **View**: The read model or UI state updated after the event.
-- **BC**: Bounded context that owns this slice. Verify against the BC list in [`docs/vision/README.md`](../../vision/README.md). For slices that span BCs, list the producer-then-consumer chain.
-- **Priority**: P0 = must-have for first vertical demo, P1 = should-have, P2 = nice-to-have.
+- **Translation-decision events** (Marc Klefter, 2026), a refinement of **Translation**. When a slice asks an external system something and then decides locally on the answer, the decision is recorded as a first-class local event ("we asked X, got Y, decided Z"). The external response is not re-read later; the local event is the audit trail and what downstream slices consume.
+- **Agents as automations** (Marc Klefter, 2026), a refinement of **Automation**. A language-model agent is drawn as an automation like any other process: it reads a view, issues commands, and its decisions land as events on the same timeline.
+- **Temporal automations** (Jake Bruun, 2026), a refinement of **Automation**. When the trigger is the passage of time, the automation reads a to-do-list view whose rows carry a due time and remove themselves when the work is done. The board marks this with a clock glyph on the automation and an asterisk on the view's name (`ItemsAwaitingExpiry*`). A single capability often decomposes into several slices: configure, act, schedule, expire.
+- **Configuration as events**, shown in Bruun's temporal-automation board, where the lockout policy is itself an event (`AccountLockoutConfigured`) that later views and automations read. Operator-tunable policy is a Command slice that appends to a single policy stream; the current policy is the latest event, which gives history and audit for free and lets automations react to a change instead of polling a settings table. This refines how **Automation** (and Command) slices obtain their parameters.
 
 ---
 
-## Adjunct Patterns
+## The seven steps
 
-Beyond the four core building blocks, three named event-modeling patterns recur across event-sourced systems. Naming them here lets workshop prose, narrative authoring, and ADRs refer to each by its published-literature name rather than re-deriving the shape each time.
+Dymitruk's workshop runs in seven steps. Run all seven for every new chapter of the model; skipping the storyboard or the completeness check is how models end up with slices nobody can build.
 
-Sources: Adam Dymitruk (Adaptech Group, the core method), Filip Klefter (translation-decision events), and Anders Bruun Olsen (temporal-automation slice pattern, configuration-as-events).
+1. **Brainstorming.** Everyone writes events, past tense, as fast as possible. No order, no filtering. Output: an unordered pile of candidate events.
+2. **The Plot.** Arrange the events into one plausible story along the timeline. Gaps ("what happened between these two?") become new events. Output: an ordered timeline.
+3. **The Story Board.** Add the wireframes above the timeline, one per step a person takes, with the actual fields on them. For steps no person takes, place an automation or an external system instead and say so. Output: the story told screen by screen.
+4. **Identify Inputs.** Add the commands that carry each screen's fields into the events. Every field on a command must come from the screen or from a view the actor could see. Output: command → event links.
+5. **Identify Outputs.** Add the views that carry event fields back to the screens. Every field on a view must come from an event on the timeline. Output: event → view → screen links.
+6. **Apply Conway's Law.** Split the events into swim lanes by the system or team that owns them. The lanes are the candidate boundaries between services; a slice that crosses a lane is usually a Translation. Output: ownership.
+7. **Elaborate Scenarios.** For every slice, write Given/When/Then scenarios: the happy path first, then each refusal and edge case. Output: the specification each slice is built and tested against.
 
-### Klefter Translation-Decision Events
+### Given/When/Then
 
-When a slice coordinates with an external system AND a decision is made locally based on the external input, the local decision is captured as a first-class event in the BC's stream. Names the BC's authority over the decision even though the input came from outside; the event is the audit trail of "I asked X, got Y, decided Z."
+| Pattern | Given | When | Then |
+|---|---|---|---|
+| Command | Prior events on the stream | The command, with its fields | New events, or a refusal |
+| View | Events | (nothing) | The view's state |
+| Automation | The to-do view's state (and, for temporal automations, the time) | The automation runs | The command it issues and the resulting events |
+| Translation | The external input (or the internal events, outbound) | It is translated | The internal events (or the outbound message) |
 
-**Pattern signal:** an outbound query whose result the BC commits as a local event before any further processing.
-
-**CritterCab example:** the Onboarding BC's background-check decision. When a driver application enters the vetting workflow, Onboarding sends the applicant's information to an external background-check provider. The provider responds with a decision and supporting data. Onboarding commits the decision as a local event — `BackgroundCheckCompleted` carrying the provider's reference, the determination (`Pass`/`Fail`/`NeedsReview`), and a reason code if applicable. Downstream Onboarding logic (approve, reject, request more documents) consumes the local event. The provider's response is never read again outside Onboarding.
-
-A second candidate: Payments' authorization decision. At trip start, Payments calls the payment provider for an auth hold. The result lands as `PaymentAuthorized` (with provider auth code) or `PaymentAuthFailed` (with reason). The Trips service consumes the decision via integration event without ever touching the payment provider directly. The decision is Payments' authority; the audit trail is the local event.
-
-### Bruun Temporal-Automation Slice Pattern
-
-A slice whose trigger is the passage of time, not an incoming domain event. The slice fires when a clock condition is met (`now() >= scheduledFor`) on a row in a todo-list read model. Boards render the pattern with two distinguishing marks: a clock-rewind glyph on the gear (automation) sticky, and an asterisk suffix on the read model's name (e.g., `OffersAwaitingAcceptance*`).
-
-**Pattern signal:** an automation whose trigger is clock state, consuming a todo-list read model whose rows self-remove when the work completes.
-
-**CritterCab example:** the Dispatch offer-timeout. When an offer is dispatched to a candidate driver, the dispatch saga schedules a timeout (e.g., 15 seconds for a flash offer). If the driver doesn't respond before the timer fires, the saga commits `OfferExpired` and re-dispatches to the next candidate. The todo-list projection `OffersAwaitingAcceptance*` carries rows added on `OfferDispatched` and removed on either `OfferAccepted` or `OfferExpired`. The asterisk convention marks it as a temporal-automation source.
-
-A second candidate: Trips' arrival-timeout. When a trip transitions to `EnRoute`, a saga can schedule a check at the projected arrival time. If `DriverArrived` hasn't fired by then, the saga commits a domain-meaningful event (`TripArrivalDelayed` or similar) that triggers downstream logic — rider notification, support escalation, etc.
-
-### Configuration-as-Events (Bruun)
-
-Operator-tunable policy parameters represented as events on a singleton stream rather than rows in a settings table. Each configuration change is an event; the current policy is the latest event's payload. Provides audit trail, version history, and natural integration with event-driven downstream consumers.
-
-**Pattern signal:** policy that needs an audit trail and version history, where downstream consumers should react to changes rather than periodically re-read a settings table.
-
-**CritterCab candidate:** Pricing's surge-policy parameters — base multiplier, max multiplier, geographic zone definitions, demand thresholds — could land as `SurgePolicyConfigured` events on a singleton stream. The Pricing BC's `SurgeActivated` payload would carry the policy version governing the activation, so a mid-period policy change does not retroactively affect in-flight surge windows.
-
-A second candidate: Onboarding's vetting-policy parameters — acceptable background-check providers, required document types, expiration windows. As configuration-as-events, these provide the audit trail required for compliance review and let downstream logic react to policy changes (e.g., re-vetting drivers whose previous check used a now-deprecated provider).
-
-This section names patterns; it does not commit CritterCab to implement any of them. Naming makes the model legible when the project encounters these patterns during workshops or when a future ADR proposes adopting one for a specific BC.
+Scenarios state domain facts. "The message was delivered" is not a scenario.
 
 ---
 
-## Output Artifacts
+## Information completeness
 
-- **The Event Model** — the full visual blueprint (primary deliverable, captured in `docs/workshops/`).
-- **Slice definitions** — vertical feature cuts, each independently deliverable.
-- **Given/When/Then scenarios** — acceptance criteria per slice.
-- **Narrative drafts** — slices group into journey-scoped narratives in `docs/narratives/` (per ADR-003).
-- **API contracts** — command shapes, read model schemas, and proto-message candidates emerge naturally.
-- **Aggregate / projection sketches** — implementation starting points for the Phase 2 skills.
+Dymitruk's completeness check: **every field has an origin and a destination.** At the end of step 5 every field in the model is accounted for.
+
+Run it field by field, not slice by slice:
+
+- For each **command field**: which screen field, or which field of a view the actor could see, supplies it? If none, a screen is missing a field or a view is missing.
+- For each **event field**: which command or translated input supplies it? If none, the event invents data.
+- For each **view field**: which event field does it come from? If none, an event is missing (or a Translation that brings the data in).
+- For each **screen field** that is displayed: which view supplies it? For each field the user enters: which command carries it?
+- A field with an origin but **no destination** is either unneeded or a sign that a view or downstream slice is missing.
+
+Discrepancies between a slice's listed reads and the fields it actually uses are exactly what this check exists to catch. Record each fix in the minutes.
+
+## Slice definition of done
+
+A slice is ready to build when all of these hold:
+
+1. It is **one pattern**: Command, View, Automation or Translation, named in the slice.
+2. It has a **wireframe**, or an explicit statement **"no screen: machine actor"** naming the automation or external system that drives it.
+3. It passes the **field-level completeness check** above.
+4. It has **Given/When/Then scenarios**: the happy path and each refusal.
+5. It has a **name**, taken from its event or view in the ubiquitous language. The name is the slice's identity; renaming a slice is a refactor of everything that refers to it, so names are chosen once, deliberately.
+
+A slice never carries a status (planned, in progress, done). Whether it is built is derived from the running system and its tests, not asserted in the model.
 
 ---
 
-## Multi-Persona Facilitation
+## Vocabulary discipline
 
-When facilitating a workshop, invoke distinct personas to represent different stakeholder perspectives. This surfaces conflicts, blind spots, and richer domain understanding than a single voice would produce.
+- **The pattern slot holds only the four pattern names.** Framework vocabulary describes how a slice is implemented, not what it is: "aggregate handler", "start handler", "continue handler", "saga", "consumer", "overwrite-in-place document", "projection" and transport names never stand in for a pattern. Write "Command" and, separately if useful, "implemented as …".
+- **Use the domain's words**, from the people who do the work, for events, commands, views and slices. Where a framework convention and the workshop's vocabulary disagree, the workshop wins.
+- **Martin Dilger's State Change / State View vocabulary is not used here.** It is a different count of the same building blocks; the correspondence between the vocabularies is kept at portfolio level, as a crosswalk rather than as synonyms.
 
-### Persona Roles
+### Mapping to the Critter Stack
 
-The persona roster typically includes the roles below. Specific persona profiles for CritterCab will be authored in `docs/personas/` as workshops begin; the roles themselves are project-agnostic.
+JasperFx describes a running system's slices with the same four words (`JasperFx.Events.EventModeling.SlicePattern`: `Command`, `View`, `Automation`, `Translation`; verified at JasperFx 2.69.3). A slice's pattern there is derived from the running application, never declared by hand. The usual realization on Wolverine and Marten:
 
-| Role | Voice in Workshop |
+| Dymitruk pattern | `SlicePattern` | Typical realization |
+|---|---|---|
+| Command | `Command` | An HTTP endpoint or message handler deciding against an aggregate and appending events (the aggregate handler workflow). |
+| View | `View` | A projection (inline, live or async) or a queried document; the read side a screen or automation reads. |
+| Automation | `Automation` | A handler triggered by a forwarded event or a schedule, issuing a command; a timer-driven loop for temporal automations. |
+| Translation | `Translation` | A transport listener or outbound publisher at the service edge, mapping between a contract and internal events. |
+
+The right-hand column is a starting point, not a rule. A slice is classified by what it does in the model, and the implementation follows.
+
+---
+
+## Common mistakes
+
+- **Events named as commands** (`RequestRide` as an event) or with an `Event` suffix (`TripCompletedEvent`).
+- **A view with a field no event supplies.** An event or a Translation is missing.
+- **A command with no screen and no automation.** The trigger is missing; add the wireframe or say "no screen: machine actor".
+- **Two patterns in one slice**, usually a Command that quietly includes an Automation. Cut it in two.
+- **Handler-shaped slices**, cut where a framework's transaction boundary falls ("atomic triple-emit") instead of where the behaviour changes.
+- **A framework or transport word in the pattern slot.**
+- **Mechanical events confused with decisions.** "The offer expired" (a clock fired) and "the driver declined" (a person decided) are both events, with different authority and different consequences.
+- **A downstream context modelled as the origin of upstream data.**
+- **Scenarios that test infrastructure** instead of domain facts.
+- **Status written into the model.**
+
+## Facilitating with personas
+
+When one person (or one person and an AI) runs a session, rotate through distinct voices so the model gets challenged:
+
+| Voice | Leans on |
 |---|---|
-| **Facilitator** | Leads the workshop, maintains flow, keeps slices small, synthesizes output. |
-| **Domain Expert** | Owns the business language; corrects names, validates against ride-sharing conventions and operator-side reality. |
-| **Architect** | Flags BC boundaries, aggregate design, projection feasibility, transport choices, Critter Stack patterns. |
-| **Backend Developer** | Asks "how would we build that?", flags implementation concerns, validates handler/saga shapes. |
-| **Frontend Developer** | Grounds the model in the rider/driver UI; asks what users see at each step. |
-| **QA** | Stress-tests the model; asks about failures, edge cases, race conditions, timing windows. |
-| **Product Owner** | Guards scope, prioritizes slices, enforces demo-first constraints. |
-| **UX** | Advocates for rider, driver, and operator experience; read model legibility. |
+| Facilitator | Pace, small slices, one pattern per slice, the next step. |
+| Domain expert | The words people actually use; what really happens. |
+| Architect | Swim lanes, ownership, which slice is a Translation. |
+| Developer | "How would we build that?"; what a field's source really is. |
+| Skeptic (QA) | Failures, races, timing, refusals; the completeness check. |
+| UX | What each screen needs to show, field by field. |
 
-### Which Personas Lead Each Phase
+The storyboard (step 3) and the completeness check (after step 5) are where the Skeptic and UX voices earn their keep. If every proposal is accepted without a redirect, say so in the minutes: a session that only ratified is a finding.
 
-| Phase | Primary Voices | Why |
-|---|---|---|
-| **Brain Dump** | Facilitator + Domain Expert + Architect | Facilitator keeps pace; Domain Expert knows business events; Architect knows technical/integration events. |
-| **Storytelling** | All eight — QA earns their keep here | QA finds gaps; UX maps events to user moments; everyone contributes to sequencing. |
-| **Storyboarding** | Frontend Developer + UX + Backend Developer | Frontend designs screens; UX validates experience; Backend confirms view feasibility. |
-| **Slicing** | Facilitator + Product Owner + Backend Developer | Facilitator keeps slices crisp; PO prioritizes; Backend validates deliverability. |
-| **Scenarios** | Facilitator + QA + Backend Developer + Domain Expert | QA writes edge cases; Backend validates feasibility; Domain Expert validates accuracy. |
+## See also (external)
 
-### How to Run Multi-Persona Mode
-
-```
-[@Facilitator] Let's verify the brain dump. Walk me through what happens
-  from the moment a rider taps "Request Ride" in the app.
-
-[@DomainExpert] The rider has an active session — they're authenticated.
-  The tap produces a RequestRide command. Dispatch picks it up. That's
-  RideRequested. Dispatch then needs to find candidate drivers.
-
-[@Architect] RideRequested is a Dispatch BC event. Telemetry has the
-  driver-locations read model that Dispatch queries — that's a gRPC call
-  in Cab, not a shared database read. Worth flagging on the timeline as
-  a cross-service interaction.
-
-[@QA] What if there are no candidate drivers in range? Do we fail the
-  request immediately, or does Dispatch keep searching with an expanding
-  radius? What's the timeout?
-
-[@Facilitator] Good question. Park it as a candidate slice — "no drivers
-  available" is its own scenario with its own command/event/view. Continue
-  with the happy path.
-
-[@FrontendDeveloper] After RequestRide, the rider sees a "Searching for
-  drivers..." view. That's a read model — RideRequestStatusView or similar.
-  Updates as candidates respond.
-```
-
-Personas may agree, disagree, and build on each other. The goal is productive tension — not consensus for its own sake.
+- Adam Dymitruk, ["What is Event Modeling?"](https://eventmodeling.org/posts/what-is-event-modeling/), eventmodeling.org, 2019: the primary source for the blocks, the four patterns, the seven steps and the completeness check.
+- Marc Klefter and Jake Bruun's 2026 posts on translation decisions, agents as automations and temporal automation slicing.
 
 ---
 
-## CritterCab Integration
+## In this repository
 
-### How Workshop Outputs Connect to CritterCab Artifacts
+Everything above copies between repositories unchanged. This section is CritterCab's.
 
-| Workshop Output | CritterCab Artifact | Location |
-|---|---|---|
-| **Workshop session record** | Markdown capture of the session | [`docs/workshops/`](../../workshops/) |
-| **Slices** | Narrative drafts (journey-scoped); prompts (task-scoped) | [`docs/narratives/`](../../narratives/), [`docs/prompts/`](../../prompts/) |
-| **Scenarios (Given/When/Then)** | Test specifications | `tests/` per service |
-| **BC boundary changes** | Update or verify | [`docs/vision/README.md`](../../vision/README.md) § Tentative Bounded Contexts |
-| **Event vocabulary changes** | Update or verify | [`docs/vision/README.md`](../../vision/README.md) (or future event-vocabulary doc) |
-| **Architectural decisions** | ADR markdown files | [`docs/decisions/`](../../decisions/) |
-| **Command / event shapes** | C# records in service projects | `src/CritterCab.<ServiceName>/` |
-| **View / read model designs** | Marten or Polecat projections per service | `src/CritterCab.<ServiceName>/` |
-| **Cross-service contracts** | `.proto` files (per ADR-009) | `/protos/` (repo root) |
+**Where the model lives.** The authored model will be a curated `*.emodel.yaml` per service beside its `Program.cs` (none exists yet). New chapters are modelled on the EventModelers.AI canvas and the export is committed. The markdown files in [`docs/workshops/`](../../workshops/) are the **minutes** of modelling sessions, not the record ([`docs/workshops/README.md`](../../workshops/README.md)). Test classes are named by slice so they line up with slice names.
 
-### Existing Documents to Load
+**Examples from the minutes** ([Workshop 001 — Dispatch](../../workshops/001-dispatch-event-model.md), [Workshop 004 — Onboarding](../../workshops/004-onboarding-event-model.md)):
 
-| Document | When to load |
-|---|---|
-| [`docs/vision/README.md`](../../vision/README.md) | Always — verify BC ownership, technology choices, design principles. |
-| [`docs/rules/structural-constraints.md`](../../rules/structural-constraints.md) | Always — service-boundary rules, transport selection, identity ACL. |
-| [`docs/narratives/`](../../narratives/) | Journey workshops — load relevant narratives if the journey extends an existing one. |
-| [`docs/decisions/`](../../decisions/) | When the workshop touches a topic an ADR governs (transport, contracts, identity). |
-| [`docs/personas/README.md`](../../personas/) | When persona files exist; the multi-persona technique is the same regardless. |
+- **Command with a wireframe:** W001 §5.1 `RideRequested`, triggered from the rider app's "Request a Ride" screen. It is the only slice in the minutes with a drawn wireframe; every slice modelled from now on carries one or a "no screen" statement.
+- **Translation with a Klefter decision event:** W001 §5.2 `FareQuoted`. Dispatch asks Pricing for a fare and records the quote as its own event, rather than re-reading Pricing later.
+- **Temporal automation (Bruun):** W001 §5.7 `OfferExpired`. The `OfferExpirer` automation reads the to-do view `OffersAwaitingExpiry*` and issues `ExpireOffer` when an offer's `expiresAt` passes.
+- **Configuration as events:** W001 §5.11 `ConfigureDispatchPolicy` and W004 §6.10 `OnboardingPolicyConfigured`, each a Command slice appending to a single policy stream that earlier slices read.
+- **Two patterns in one slice, to be re-cut:** W001 §5.5 (`OfferAccepted` with a sibling-revocation cascade "that subsumes what would otherwise be a separate Automation") and W001 §5.9 (two automations reaching one terminal event).
+- **Framework words in the pattern slot:** W004 writes slice patterns as "Command (continue handler)" and "Translation-in (Klefter) + start-handler", and cuts §6.8 as an "atomic quadruple-emit". Those are Wolverine process-manager terms and a transaction boundary, not patterns; a re-model states the pattern alone.
+- **What the completeness check would have caught:** W001 §5.2's reads list, which disagrees with the fields the slice uses (carried as an open inconsistency since the slice was built).
 
----
-
-## Quick Reference: Common Mistakes to Catch
-
-- **Events named as commands.** "RequestRide" is wrong as an event — "RideRequested" is correct.
-- **"Event" suffix.** "TripCompletedEvent" is wrong — "TripCompleted" is correct. See `domain-event-conventions`.
-- **Missing the "why" behind a command.** Add a UI wireframe to show the trigger.
-- **Views that can't be derived from the events on the board.** You're missing events.
-- **Slices too large to deliver independently.** Keep slicing. A slice that takes more than one prompt to implement is too large.
-- **Scenarios that test infrastructure instead of behavior.** Focus on domain facts, not on whether ASB delivers messages.
-- **Assigning a slice to the wrong BC.** Verify against [`docs/vision/README.md`](../../vision/README.md) § Tentative Bounded Contexts.
-- **Skipping the QA voice.** Edge cases found late are expensive to fix.
-- **Conflating mechanical events with business decisions.** `OfferExpired` (clock fired) is mechanical; `OfferRejected` (driver said no) is a business decision. Both are events; they have different authority and different downstream consequences.
-- **Treating a downstream BC as the originator of upstream data.** Operations doesn't originate trip data — it consumes it. Pricing doesn't originate trip facts — it consumes them and emits pricing facts.
-
----
-
-## See also
-
-**Downstream** — natural follow-ups when workshop output is in hand:
-
-- `domain-event-conventions` — naming and shape rules for the events identified in workshops.
-- `marten-aggregates` — implementing event-sourced aggregates from workshop output (Phase 2).
-- `marten-wolverine-aggregates` — implementing handlers that produce workshop-identified events (Phase 2).
-- `wolverine-sagas` — implementing the temporal-automation slices identified by the Bruun pattern (Phase 4).
-- `protobuf-contracts` — implementing the cross-service contracts implied by cross-BC slices (Phase 1).
-
-**External:**
-
-- [Adam Dymitruk's Event Modeling site](https://eventmodeling.org/) — the canonical reference for the technique.
-- [`docs/vision/README.md`](../../vision/README.md) § Methodology — CritterCab's commitment to Event Modeling and Domain Storytelling.
-- ADR-003 in [`docs/decisions/`](../../decisions/) — capture intent in durable, structured form.
-- ADR-004 in [`docs/decisions/`](../../decisions/) — Event Modeling first, code second.
+**Related:** [`domain-event-conventions`](../domain-event-conventions/SKILL.md) (naming events), [`marten-wolverine-aggregates`](../marten-wolverine-aggregates/SKILL.md) (Command slices), [`marten-projections`](../marten-projections/SKILL.md) (View slices), [`wolverine-marten-automation`](../wolverine-marten-automation/SKILL.md) (Automation slices), [`protobuf-contracts`](../protobuf-contracts/SKILL.md) (Translation contracts). Background reading: [`docs/research/event-modeling-canonical-sources.md`](../../research/event-modeling-canonical-sources.md), [`docs/research/agents-in-event-models.md`](../../research/agents-in-event-models.md), [`docs/research/event-modeling-workshop-guide.md`](../../research/event-modeling-workshop-guide.md).
