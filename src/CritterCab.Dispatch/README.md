@@ -14,7 +14,7 @@ The Dispatch bounded context: a rider's ride request, from submission through fa
 
 ## Wiring (`Program.cs`)
 
-- **Marten** when the `crittercab_dispatch` connection string is present: mandatory stream-type declaration, inline projections, `AvailableDriver` registered with numeric revisions so `TryUpdateRevision` can discard stale redeliveries, and Wolverine integration with fast event forwarding, which is what triggers the `*Automation` handlers. Handler discovery adds the `Automation` suffix to Wolverine's defaults.
+- **Marten** when the `crittercab_dispatch` connection string is present: mandatory stream-type declaration, inline projections, `AvailableDriver` registered with numeric revisions so its writers' `UpdateRevision(doc, existing.Version + 1)` fails on a concurrent write instead of overwriting it (stale positions are discarded separately, by comparing `ServerReceivedAt`), and Wolverine integration with fast event forwarding, which is what triggers the `*Automation` handlers. Handler discovery adds the `Automation` suffix to Wolverine's defaults.
 - **Kafka** when the `kafka` connection string is present: listens on `telemetry.driver-location-updated` as consumer group `dispatch`, starting at the latest offset on a cold start, with protobuf deserialization of `DriverLocationUpdated`. Dispatch does not create the topic; Telemetry owns it.
 - A `ConcurrencyException` (two writers racing on one `AvailableDriver`) retries the handler with a short cooldown, so it reloads and re-merges.
 - **Without a database**, `NearbyAvailableDriversStub` stands in for the view so a bare `dotnet run` boots.

@@ -105,13 +105,13 @@ jobs:
       # Enforces the list below. A fixture pinning an image this workflow does not pre-pull
       # passes locally and in review, then reintroduces the pull race in CI, where it fails in
       # whichever unrelated suite lost. So: every image literal handed to a Testcontainers
-      # *Builder("...") constructor in a fixture must appear as a `docker pull` line in this
-      # file. ryuk is not checked: Testcontainers pins it, no fixture names it.
+      # *Builder("...") constructor or to .WithImage("...") in a fixture must appear as a
+      # `docker pull` line in this file. ryuk is not checked: Testcontainers pins it, no fixture names it.
       - name: Verify pre-pull list covers fixture images
         shell: bash
         run: |
           missing=0
-          images=$(grep -rhoE --include='*Fixture.cs' '[A-Za-z]+Builder\("[^"]+"\)' tests \
+          images=$(grep -rhoE --include='*Fixture.cs' '([A-Za-z]+Builder|WithImage)\("[^"]+"\)' tests \
             | sed -E 's/.*\("([^"]+)"\)/\1/' | sort -u)
           if [ -z "$images" ]; then
             echo "::error::No Testcontainers image literals found under tests/ — the guard's pattern no longer matches the fixtures"
