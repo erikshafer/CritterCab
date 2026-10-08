@@ -12,19 +12,19 @@
   </ItemGroup>
   <!-- Wolverine -->
   <ItemGroup>
-    <PackageVersion Include="WolverineFx" Version="6.38.0" />
-    <PackageVersion Include="WolverineFx.Http" Version="6.38.0" />
-    <PackageVersion Include="WolverineFx.Http.FluentValidation" Version="6.38.0" />
-    <PackageVersion Include="WolverineFx.FluentValidation" Version="6.38.0" />
-    <PackageVersion Include="WolverineFx.Grpc" Version="6.38.0" />
-    <PackageVersion Include="WolverineFx.Marten" Version="6.38.0" />
-    <PackageVersion Include="WolverineFx.Kafka" Version="6.38.0" />
-    <PackageVersion Include="WolverineFx.RuntimeCompilation" Version="6.38.0" />
+    <PackageVersion Include="WolverineFx" Version="6.48.1" />
+    <PackageVersion Include="WolverineFx.Http" Version="6.48.1" />
+    <PackageVersion Include="WolverineFx.Http.FluentValidation" Version="6.48.1" />
+    <PackageVersion Include="WolverineFx.FluentValidation" Version="6.48.1" />
+    <PackageVersion Include="WolverineFx.Grpc" Version="6.48.1" />
+    <PackageVersion Include="WolverineFx.Marten" Version="6.48.1" />
+    <PackageVersion Include="WolverineFx.Kafka" Version="6.48.1" />
+    <PackageVersion Include="WolverineFx.RuntimeCompilation" Version="6.48.1" />
     <!-- Endpoint-scoped binary-protobuf serializer for the Kafka publishing rule
          (W006 §6.3). Separate package from WolverineFx.Kafka; it pins the same
          Google.Protobuf 3.31.1 the Grpc.Tools codegen above already uses, so
          there is no version reconciliation between the two protobuf paths. -->
-    <PackageVersion Include="WolverineFx.Protobuf" Version="6.38.0" />
+    <PackageVersion Include="WolverineFx.Protobuf" Version="6.48.1" />
   </ItemGroup>
   <!-- gRPC proto-first codegen (Telemetry ReportLocations).
        Grpc.Tools runs protoc + the C# gRPC plugin at build time over the
