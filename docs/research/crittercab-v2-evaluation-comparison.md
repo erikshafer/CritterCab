@@ -153,5 +153,6 @@ These survive regardless of which recommendation wins and should enter the bound
 
 ## Document history
 
+- **v0.3** (2026-10-08): Residual questions 4 to 10 closed by the owner in the grill session; recorded in `docs/planning/2026-10-05-crittercab-v2-evaluation.md` § Decision, 2026-10-08 addendum (Onboarding parked with trigger; Identity a host per ADR-006; Go dropped; CritterWatch after the first slice; five-section retro template; tag `v1` with "v2" in the vision only; substrate home deferred to the portfolio).
 - **v0.2** (2026-10-05): §5 Decision recorded; residual questions 1 to 3 closed, 4 to 10 parked.
 - **v0.1** (2026-10-05): Authored after both evaluations completed. No decision recorded.

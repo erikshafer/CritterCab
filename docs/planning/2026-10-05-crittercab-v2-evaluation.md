@@ -283,9 +283,24 @@ Whether Bobcat, Stoat and CritterWatch 1.1 have shipped as of 2026-10-05 (public
 
 *Downstream artifacts cite this section. Later changes land as dated addenda below.*
 
+### Addendum (Erik Shafer, 2026-10-08): the seven parked owner calls
+
+Resolved in the grill-and-freeze session for the boundary prompt; each was put as one question with a lean, and each lean was taken.
+
+1. **Tag and public use of "v2".** The tag is `v1`, annotated, at `4d8bde4`, with a message pointing at this evaluation. "v2" appears in the vision's text and the tag message and nowhere else; the README headline, badges, CLAUDE.md and AGENTS.md carry no version banner, because a banner is a status claim.
+2. **Onboarding.** Parked with a named trigger, not dropped: it returns after the Identity arc ships `identity.driver-registered`, as a new canvas chapter with W003 and W004 as input, and stays off the five-deployable ceiling until then. The portfolio otherwise lacks a vendor-coordinating process-manager example (CritterMart's Order-as-process-manager is a different shape), which is why park rather than drop.
+3. **Identity's form.** A separately deployed host, ADR-006 Option C, third arc, Rider Profile folded in. The per-service ACL idea is ADR-006's rejected Option B; ADR-006 is re-affirmed, not amended.
+4. **Go.** Dropped. The lens ranks Event Modeling first and the Critter Stack second, and a Go consumer showcases neither; the protobuf contracts remain the door if polyglot ever matters.
+5. **CritterWatch.** Not wired in the boundary. Only the ADR-017 carve-out lands in `docs/rules/structural-constraints.md`; RabbitMQ and the console enter after the "driver comes online" slice, when the aggregated picture has a second feeder to show, licence settled on the JasperFx side meanwhile.
+6. **Retro template.** Five required sections (metadata; what landed; spec delta landed; what disconfirmed; next-session inputs); cross-cutting lessons to the methodology log, skill gaps to DEBT; new index entries one line each. Existing retros are not rewritten.
+7. **Methodology substrate's home.** Deferred to a portfolio session. The boundary adds nothing new to the substrate; `.agents/skills/` plus `skills-lock.json` is the vendoring vehicle if a shared home is created; the corrected `event-modeling` skill is written to copy verbatim between repos meanwhile.
+
+The boundary prompt ([`docs/prompts/crittercab-v2-boundary.md`](../prompts/crittercab-v2-boundary.md)) is frozen at Ready with these answers applied, fourteen verification gates closed against Wolverine `V6.38.0` (`3d0e043`), and the session-runner decisions (slice-name mapping, `testing-advanced` disposition, Codex agent paths, pre-pull guard shape, branch protection, dependabot, AppHost location, routing-file collapse, DEBT disposition) recorded in the prompt so the session asks no question. The vision draft's brackets are resolved from the same answers. Correction to Pass 2.4 found while verifying: five skill names are cited from code, not four (`wolverine-messaging-handlers` in `LastKnownPositionEvictionService.cs` was missed).
+
 ---
 
 ## Document history
 
+- **v0.3** (2026-10-08): Decision addendum recorded: the seven parked owner calls closed in the grill session; boundary prompt frozen at Ready; vision draft brackets resolved; Pass 2.4 skill-citation count corrected to five.
 - **v0.2** (2026-10-05): Decision recorded (in place; ASB kept at the availability slice; declared files after CritterMart reports; Pricing folded). Seven owner calls parked to the boundary prompt.
 - **v0.1** (2026-10-05): Authored in the design-return planning session. Four passes, seven answers, risks, unverified items. Dual evaluation run (`docs/research/crittercab-v2-evaluation-*.md`). Draft vision at `docs/research/crittercab-v2-vision-draft.md`; draft boundary prompt at `docs/prompts/crittercab-v2-boundary.md` (unfrozen). No code changed, nothing committed, no ADR written.
