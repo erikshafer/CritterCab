@@ -1,24 +1,22 @@
 # CritterCab.Telemetry
 
-The Telemetry bounded context owns the **location-of-record lifecycle for actively-pinging drivers** (W006). It is CritterCab's **fourth modeling shape — stream-processing**: its domain core is *not* event-sourced. Raw GPS pings are processed in flight (gRPC client-streaming → throttle/cell-change → Kafka publish) and never stored per-ping; the `LastKnownPosition` document is the overwrite-in-place location-of-record and the Kafka topic is the breadcrumb history.
+The Telemetry bounded context: where actively pinging drivers are. A stream-processing service, not an event-sourced one. Raw GPS pings are processed in flight and never stored one by one; a driver's latest position is a document overwritten in place, and the Kafka topic is the location history. The single event-sourced stream is the throttle-policy configuration (config-as-events, [ADR-011](../../docs/decisions/011-configuration-as-events-bootstrap.md)). PostgreSQL database `crittercab_telemetry`, on Marten.
 
-The **only** event-sourced stream in the BC is the configuration singleton — `TelemetryPolicyConfigured` (config-as-events, [ADR-011](../../docs/decisions/011-configuration-as-events-bootstrap.md)) — which proves config-as-events is orthogonal to whether the domain core is event-sourced.
+Telemetry knows nothing about availability: "active" means pinging, never available. The join of location and availability is Dispatch's (ADR-018).
 
-## What Telemetry owns
+## Slices (feature folders)
 
-| Concern | Mechanism | Status |
-|---|---|---|
-| Throttle policy (H3 resolution, heartbeat + min-publish intervals) | `TelemetryPolicy` singleton event stream (config-as-events) | **Slice 1 — this service's first slice** |
-| GPS ingest | gRPC client-streaming `ReportLocations` (`protos/crittercab/telemetry/v1/report_locations.proto`) | Slice 2 (pending) |
-| `DriverLocationUpdated` publication | Kafka `telemetry.driver-location-updated` (`driver_location_updated.proto`) | Slice 3 (pending) |
-| `LastKnownPosition` location-of-record | Overwrite-in-place Marten document + heartbeat-absence eviction sweep | Slice 4 (pending) |
+| Folder | What it does |
+|---|---|
+| `TelemetryPolicy/` | `POST /api/telemetry/policy` (`ConfigureTelemetryPolicy`, validated at the HTTP boundary with FluentValidation) appends `TelemetryPolicyConfigured` to one well-known stream; `TelemetryPolicy` is that stream aggregated live. `TelemetryPolicyBootstrap` (Marten `IInitialData`) seeds the default policy idempotently. |
+| `ReportLocations/` | `TelemetryService.ReportLocations`, a gRPC client stream. `TelemetryGrpcService` is an empty `[WolverineGrpcService]` stub; Wolverine generates the service and hands the whole stream to `ReportLocationsHandler`. The handler takes the driver from the `x-driver-id` request header (`HeaderDriverPrincipalAccessor`, a development stand-in for a real identity claim), rejects pings above 100 m accuracy, computes the H3 cell (`H3CellIndexer`), and on a cell change or heartbeat publishes `DriverLocationUpdated` through `IDriverLocationPublisher` before it stores the new `LastKnownPosition`. Validation lives in the handler because Wolverine does not weave middleware for client-streaming RPCs. |
+| `LastKnownPosition/` | The overwrite-in-place document. `LastKnownPositionEvictionService` (a `BackgroundService`, every 30 s) invokes `EvictStalePositions` inline, whose handler hard-deletes positions older than three heartbeat intervals. |
 
-Availability is **not** Telemetry's concern (R8): "active" means *pinging*, never *available*. The availability join lives in Dispatch (ADR-018); Telemetry only supplies location over Kafka.
+## Wiring (`Program.cs`)
 
-## Data store
+- **Marten** when the `crittercab_telemetry` connection string is present, with the policy seed and the eviction timer registered inside the same guard.
+- **gRPC** through `AddWolverineGrpc` and `MapWolverineGrpcServices`, served on the HTTPS endpoint over HTTP/2.
+- **Kafka** when the `kafka` connection string is present: `DriverLocationUpdated` is published to `telemetry.driver-location-updated` inline (awaiting the broker's ack), with an idempotent producer, binary protobuf, the driver id as partition key, and the topic auto-provisioned. `UseSyncRetryBlock` makes a failed publish throw, so the position is not stored and the next ping republishes. Without a broker, `LoggingDriverLocationPublisher` logs what would have been published.
+- Contracts: `protos/crittercab/telemetry/v1/report_locations.proto` (service and client generated here, so tests can drive a real stream) and `driver_location_updated.proto`.
 
-PostgreSQL database `crittercab_telemetry` (own store; never shared — ADR-002). Only the `TelemetryPolicy` singleton is event-sourced there; later slices add the `LastKnownPosition` document.
-
-## Local dev
-
-Runs under the Aspire AppHost (`apphost.cs`) on ports 5315 (https) / 5316 (http).
+Tests: [`tests/CritterCab.Telemetry.Tests/`](../../tests/CritterCab.Telemetry.Tests/). Design reasoning: Workshop 006 in [`docs/workshops/`](../../docs/workshops/).

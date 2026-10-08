@@ -2,145 +2,71 @@
 
 [![CI](https://github.com/erikshafer/CritterCab/actions/workflows/dotnet.yml/badge.svg)](https://github.com/erikshafer/CritterCab/actions/workflows/dotnet.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![.NET](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/download/dotnet/10.0)
-[![Wolverine](https://img.shields.io/badge/Wolverine-6.19-512BD4)](https://wolverine.netlify.app/)
-[![Marten](https://img.shields.io/badge/Marten-9.15-512BD4)](https://martendb.io/)
-[![Polecat](https://img.shields.io/badge/Polecat-4.x-512BD4)](https://polecat.jasperfx.net/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
-[![SQL Server](https://img.shields.io/badge/SQL_Server-2025-CC2927?logo=microsoftsqlserver&logoColor=white)](https://learn.microsoft.com/en-us/sql/sql-server/)
-[![Kafka](https://img.shields.io/badge/Kafka-Transport-231F20?logo=apachekafka&logoColor=white)](https://kafka.apache.org/)
-[![gRPC](https://img.shields.io/badge/gRPC-Streaming-4285F4)](https://grpc.io/)
 
-> An open-source ride-sharing reference architecture built on the [Critter Stack](https://wolverine.netlify.app/), showcasing Wolverine's gRPC feature set alongside event-driven messaging, event sourcing, and more.
+> An open-source ride-sharing reference architecture built on the [Critter Stack](https://github.com/JasperFx): separately deployed services, one per bounded context, talking only over gRPC and Wolverine messages.
 
 ---
 
-## About
+## What it demonstrates
 
-CritterCab is an open-source reference architecture for a ride-sharing platform, built on the Critter Stack, a family of .NET libraries maintained by JasperFx. Its distinguishing focus is **Wolverine's gRPC feature set**, which shipped in Wolverine 5.32. Ride-sharing was chosen because its natural shape (GPS streaming, dispatch matching, trip lifecycle) exercises gRPC in all four modes while leaving room for event sourcing, high-volume telemetry, and multi-transport messaging.
+A driver's phone streams GPS pings into the **Telemetry** service over a Wolverine gRPC client stream (`TelemetryService.ReportLocations`). Telemetry drops low-accuracy fixes, computes each ping's H3 cell, and publishes only on a cell change or a heartbeat: `DriverLocationUpdated`, as binary protobuf, to the Kafka topic `telemetry.driver-location-updated`, partitioned by driver, before it records the driver's last-known position. The **Dispatch** service consumes that topic into an `AvailableDriver` document (last writer wins per driver, guarded by a revision), and when a rider submits a ride request (`POST /api/rides/request`), Dispatch quotes a fare (against a stub Pricing client; Pricing is not built) and selects candidates with an H3 k-ring query over those documents. The availability half of `AvailableDriver` has no feeder yet: no service publishes driver availability, so a real end-to-end run honestly ends in `NoCandidatesAvailable` rather than fabricating available drivers. The integration tests drive both halves, including availability, in-process.
 
-### Technology Versions
+## Where the model lives
 
-Versions are managed centrally in [`Directory.Packages.props`](Directory.Packages.props). Marten, Polecat, and the JasperFx/Weasel libraries resolve **transitively** through the `WolverineFx.*` integration packages rather than being pinned directly, so the versions below are the currently-resolved values.
+Each service's Event Model will be a curated `*.emodel.yaml` committed beside its `Program.cs`, reviewed in the PR like code and compared against the model derived from the running application. None is authored yet; their placement, naming and schema follow what CritterMart's Orders experiment settles. Until then, the design reasoning is in the workshop minutes under [`docs/workshops/`](docs/workshops/).
 
-| Concern | Package | Version |
-|---|---|---|
-| Messaging, HTTP, gRPC, handlers | Wolverine (`WolverineFx`) | 6.19.0 (5.32 gRPC floor that motivated the project) |
-| Event sourcing + document store (PostgreSQL) | Marten | 9.15 (via `WolverineFx.Marten` 6.19) |
-| Event sourcing + document store (SQL Server) | Polecat | 4.x (via `WolverineFx.Polecat` 6.19; pinned, first SQL Server service pending) |
-| Relational engine — Marten | PostgreSQL | 18 |
-| Relational engine — Polecat | SQL Server | 2025 |
-| Local-dev orchestration | Aspire | 13.4.6 |
-| Integration test host | Alba | 8.5.3 |
+## Running it
 
-## What's Distinctive
-
-- **gRPC as a design concern.** All four modes (unary, server-streaming, client-streaming, bidirectional) exercised against natural domain use cases.
-- **Multi-transport messaging.** gRPC, Kafka (for high-volume telemetry), and likely Azure Service Bus (for business events) in one system, chosen per flow rather than defaulted.
-- **Distributed services.** Each bounded context deploys as a separate service, communicating exclusively through messages or gRPC calls.
-- **Polyglot participation.** At least one non-.NET service (Go, most likely) participates over gRPC, keeping the contract honest at the wire level.
-
-## Status
-
-Early development. Two services exist, both backed by Marten event sourcing, Wolverine.HTTP, and Alba integration tests:
-
-**Dispatch** — the first bounded-context service, with three vertical slices implemented end-to-end:
-
-- **Slice 5.1** — `SubmitRideRequest` → `RideRequested` (HTTP entry point, aggregate, projections).
-- **Slice 5.2** — `RideRequested` → `FareQuoteAutomation` → `FareQuoted` / `FareQuoteFailed` (Wolverine-driven automation against a stub `IPricingClient`; the Pricing BC itself is pending its own workshop).
-- **Slice 5.3** — `CandidateSelectionAutomation` → `CandidatesSelected` / `NoCandidatesAvailable` (driver-matching rounds against a stub `INearbyAvailableDriversSource`).
-
-**Telemetry** — the second service (stream-processing shape), currently a skeleton plus slice 1: `TelemetryPolicyConfigured` (config-as-events). Its Kafka transport is designed but not yet wired.
-
-Transports (gRPC, Kafka, Azure Service Bus) are richly designed but not yet built in code — every flow to date runs in-process over HTTP + Marten. All other bounded contexts remain pre-workshop. See [`docs/vision/README.md`](docs/vision/README.md) for the full scope and [`docs/decisions/`](docs/decisions/) for committed decisions.
-
-## Prerequisites
-
-To clone, build, and run CritterCab locally you will need:
-
-- **[.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)** — the project targets `net10.0` and uses C# 14.
-- **[Docker](https://www.docker.com/products/docker-desktop/)** (Docker Desktop or an equivalent OCI runtime) — Aspire spins up PostgreSQL 18 as a container for local dev, and the integration tests use [Testcontainers](https://testcontainers.com/) for ephemeral PostgreSQL, SQL Server, Kafka, and Azure Service Bus instances.
-- **An IDE with C# tooling** (optional but recommended) — JetBrains Rider, Visual Studio, or VS Code with the C# Dev Kit.
-
-No global tool installs are required; the AppHost is a [file-based .NET 10 program](https://learn.microsoft.com/en-us/dotnet/core/whats-new/dotnet-10/sdk#file-based-programs) (`apphost.cs`) that pulls its Aspire dependencies via `#:package` directives.
-
-## Running Locally
-
-Clone the repository and start the Aspire AppHost. This boots the PostgreSQL container and the Dispatch and Telemetry services together, and opens the Aspire dashboard at `https://localhost:5300` (pinned — see the [`aspire` skill](docs/skills/aspire/SKILL.md) § Port allocation for CritterCab's `53xx` local-dev port band).
+Prerequisites: the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) and Docker (or another OCI runtime). Aspire starts PostgreSQL and a Kafka broker as containers; the integration tests use [Testcontainers](https://testcontainers.com/) for theirs.
 
 ```bash
 git clone https://github.com/erikshafer/CritterCab.git
 cd CritterCab
 
-# Boot Postgres + Dispatch + Telemetry via the Aspire AppHost
-dotnet run apphost.cs
-```
+# PostgreSQL, Kafka, Dispatch and Telemetry, with the Aspire dashboard on https://localhost:5300
+dotnet run --project src/CritterCab.AppHost
 
-Run the full test suite (unit + Alba integration tests, the latter backed by Testcontainers):
-
-```bash
+# Unit and Alba integration tests (Testcontainers-backed)
 dotnet test CritterCab.slnx
 ```
 
-The Dispatch service exposes `POST /ride-requests` for slice 5.1 and a health endpoint at `GET /health`. Probe shape and behavior are pinned by the Alba tests under [`tests/CritterCab.Dispatch.Tests/`](tests/CritterCab.Dispatch.Tests/).
+Local ports sit in CritterCab's `53xx` band: dashboard `5300`–`5307`, Dispatch `5310` (https) / `5311` (http), Telemetry `5315` / `5316`, PostgreSQL `5390`, Kafka `5392` (see the [`aspire` skill](docs/skills/aspire/SKILL.md) § Port allocation). Each service also boots on its own with `dotnet run`; without a database or broker it degrades rather than failing (Dispatch serves a stub candidate source, Telemetry logs what it would have published).
 
-## Repository Structure
+## Repository layout
 
 ```
 .
-├── apphost.cs               # File-based Aspire AppHost (.NET 10 file-based program)
-├── Properties/              # AppHost launchSettings.json — dashboard/OTLP/MCP port pins (5300-5307)
-├── CritterCab.slnx          # Solution
-├── Directory.Build.props    # Shared MSBuild props (TFM, lang version, nullable)
-├── Directory.Packages.props # Central package versions
-├── protos/                  # Protobuf contracts (buf-managed)
+├── CritterCab.slnx            # The solution; CI builds and tests exactly what it lists
+├── Directory.Packages.props   # Every package version, pinned centrally
+├── protos/                    # Protobuf contracts (buf-linted in CI)
 ├── src/
-│   ├── CritterCab.Dispatch/  # First bounded-context service (RideRequesting, FareQuoting, CandidateSelection)
-│   └── CritterCab.Telemetry/ # Second service (stream-processing shape, TelemetryPolicy)
-├── tests/
-│   ├── CritterCab.Dispatch.Tests/
-│   └── CritterCab.Telemetry.Tests/
-└── docs/                     # Layered design artifacts (see below)
+│   ├── CritterCab.AppHost/    # Aspire AppHost: containers, services, ports
+│   ├── CritterCab.Dispatch/   # RideRequesting, FareQuoting, CandidateSelection, AvailableDrivers
+│   └── CritterCab.Telemetry/  # TelemetryPolicy, ReportLocations, LastKnownPosition
+├── tests/                     # One Alba + Testcontainers test project per service
+└── docs/                      # Design record (below)
 ```
 
-The `docs/` directory is the heart of the project — design happens there before code does. See the [Documentation](#documentation) section below.
+## Design history
 
-## Documentation
+CritterCab's first version (April to July 2026) is tagged [`v1`](https://github.com/erikshafer/CritterCab/tree/v1). The repository continued in place from that tag; [`docs/vision/README.md`](docs/vision/README.md) states what CritterCab is for and where it is going.
 
-For the comprehensive project overview (goals, tentative bounded contexts, technology stack, design principles, parked decisions, open questions), see [`docs/vision/`](docs/vision/README.md).
-
-The rest of the documentation is organized as layered artifacts:
-
-- [Workshops](docs/workshops): Event Modeling and Domain Storytelling session output.
-- [Narratives](docs/narratives): journey-scoped domain specs (NDD-informed).
-- [Skills](docs/skills): component-scoped implementation patterns and conventions.
-- [Rules](docs/rules): AI-optimized encodings of structural constraints for implementation sessions.
-- [Prompts](docs/prompts) and [Retrospectives](docs/retrospectives): the session-driven implementation workflow.
-- [Context Map](docs/context-map): DDD strategic-design cross-BC relationships.
-- [ADRs](docs/decisions): significant architectural decisions with rationale.
-- [Research](docs/research): exploratory work and spikes.
-
-## About the Critter Stack
-
-The [Critter Stack](https://github.com/JasperFx) is a family of open-source .NET libraries maintained by JasperFx: Wolverine (messaging, handlers, and now gRPC), Marten (PostgreSQL document store and event sourcing), Polecat (SQL Server document store), Weasel (database schema management), and Alba (integration testing).
-
-## Companion Library: JasperFx ai-skills
-
-Alongside the open-source Critter Stack libraries, JasperFx publishes [`ai-skills`](https://github.com/jasperfx/ai-skills) — a paid, proprietary collection of generic Critter Stack skills (Wolverine, Marten, Polecat) authored by the maintainers. CritterCab's own [skill library](docs/skills/) is deliberately layered on top: it defers to ai-skills for library mechanics and documents project-specific decisions, idioms, and trade-offs that the generic skills can't predict. CritterCab does not duplicate or paraphrase ai-skills content. Contributors with a license install them globally so they sit alongside the project-local skills. See [`docs/skills/README.md`](docs/skills/README.md#companion-jasperfx-ai-skills) for the install command and the layering rationale.
+- [Workshops](docs/workshops/): minutes of the Event Modeling and Domain Storytelling sessions.
+- [Decisions](docs/decisions/): ADRs, with a preface on how the v1 record binds.
+- [Context map](docs/context-map/README.md): relationships between bounded contexts.
+- [Rules](docs/rules/) and [skills](docs/skills/): structural constraints and implementation conventions, each grounded in code in this repository.
+- [Prompts](docs/prompts/) and [retrospectives](docs/retrospectives/): one per working session.
+- [Narratives](docs/narratives/) and [research](docs/research/): journey write-ups and background reading.
 
 ## Contributing
 
-CritterCab is a reference architecture, so the way it grows matters as much as what it grows into. Before opening a PR:
+Read the [vision](docs/vision/README.md) and any [ADR](docs/decisions/) that governs the area you are changing. Work follows the session cadence in [`docs/prompts/README.md`](docs/prompts/README.md): one prompt, one session, one PR, with its retrospective inside the PR. Everyone is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md). Issues and discussion are welcome on [GitHub Issues](https://github.com/erikshafer/CritterCab/issues).
 
-- Read the [project vision](docs/vision/README.md) and the relevant [ADR(s)](docs/decisions/) so changes stay aligned with committed decisions.
-- For implementation work, follow the session-driven workflow described in [`docs/prompts/README.md`](docs/prompts/README.md) — one prompt, one session, one PR, paired with a retrospective.
-- All contributors are expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
-
-Bug reports and discussion are welcome via [GitHub Issues](https://github.com/erikshafer/CritterCab/issues).
+CritterCab's skills defer to JasperFx's [`ai-skills`](https://github.com/jasperfx/ai-skills) (a paid collection of generic Critter Stack skills) for library mechanics and record only this project's conventions; see [`docs/skills/README.md`](docs/skills/README.md#companion-jasperfx-ai-skills).
 
 ## License
 
-[MIT](LICENSE) — see [ADR-008](docs/decisions/008-mit-license.md) for the rationale.
+[MIT](LICENSE); see [ADR-008](docs/decisions/008-mit-license.md).
 
 ---
 
