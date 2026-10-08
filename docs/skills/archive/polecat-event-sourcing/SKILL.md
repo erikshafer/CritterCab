@@ -664,5 +664,5 @@ The Payments BC also runs a Wolverine saga (`PaymentLifecycleSaga`) that orchest
 - [Polecat snapshots documentation](https://polecat.jasperfx.net/events/snapshots) — the v3.0 Snapshot<T> shortcut, lifecycle options, the under-the-hood SingleStreamProjection registration.
 - [Polecat async daemon documentation](https://polecat.jasperfx.net/events/projections/async-daemon) — polling architecture, high water mark detection, daemon settings.
 - [Polecat schema migrations](https://polecat.jasperfx.net/schema/migrations) — Weasel.SqlServer integration, AutoCreate behavior.
-- ADR in [`docs/decisions/`](../../decisions/) covering the Critter Stack as foundational technology and the per-BC engine choice between Marten and Polecat.
-- [`docs/rules/structural-constraints.md`](../../rules/structural-constraints.md) — immutable rules including the per-BC engine-choice constraint.
+- ADR in [`docs/decisions/`](../../../decisions/) covering the Critter Stack as foundational technology and the per-BC engine choice between Marten and Polecat.
+- [`docs/rules/structural-constraints.md`](../../../rules/structural-constraints.md) — immutable rules including the per-BC engine-choice constraint.

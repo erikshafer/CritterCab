@@ -33,7 +33,7 @@ CritterCab commits to three transports. Each fits a specific flow shape; none is
 | **Kafka** | Wolverine's Kafka transport, against Azure Event Hubs (cloud) or a Kafka container (local) | High-volume, append-only streams broadcast to multiple downstream consumers. |
 | **Azure Service Bus** | Wolverine's ASB transport, against ASB (cloud) or the ASB Emulator (local) | Cross-service domain events that need reliable delivery, dead-lettering, session ordering, or topic-based routing. |
 
-RabbitMQ is deliberately excluded. The three transports cover all required flow shapes; adding a fourth would bring cost without new capability. ADR-005 makes this decision explicit.
+RabbitMQ is excluded as a domain transport: the three transports cover every domain flow shape, and adding a fourth would bring cost without new capability (ADR-005). Its one admitted use is as CritterWatch's telemetry and control backplane (ADR-017) — tooling infrastructure that no handler publishes to or listens on, wired when CritterWatch enters.
 
 ---
 
@@ -110,7 +110,7 @@ These are the wrong answers that look right under pressure. Each reflects a real
 
 **Don't use gRPC for fire-and-forget event publishing.** gRPC's value is in the response (or response stream). If the producer doesn't care about the consumer's response, gRPC is the wrong shape — even if the destination is a single service. Use ASB and let the consumer subscribe to the topic. The producer publishes once; consumers (including future ones) wire themselves up at their leisure.
 
-**Don't reach for a fourth transport.** RabbitMQ, NATS, MQTT, and similar may all fit a particular flow shape better than the three Cab uses. None of them earns a fourth slot. The cost of a fourth broker — local infrastructure, deployment, operational knowledge, on-call expertise — is not justified by any of the flows the project has identified.
+**Don't reach for a fourth domain transport.** RabbitMQ (outside its ADR-017 backplane role), NATS, MQTT, and similar may all fit a particular flow shape better than the three Cab uses. None of them earns a fourth slot. The cost of a fourth broker — local infrastructure, deployment, operational knowledge, on-call expertise — is not justified by any of the flows the project has identified.
 
 ---
 

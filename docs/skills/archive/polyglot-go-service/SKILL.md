@@ -387,7 +387,7 @@ For inner-loop development, Cab's AppHost runs identity in demo mode (per `ident
 
 **External:**
 
-- ADR-009 in [`docs/decisions/`](../../decisions/) — protobuf contracts as first-class artifacts; the foundation for cross-language consumption.
+- ADR-009 in [`docs/decisions/`](../../../decisions/) — protobuf contracts as first-class artifacts; the foundation for cross-language consumption.
 - [Aspire `AddContainer` documentation](https://aspire.dev/) — the canonical reference for Aspire's container resource type. (Aspire's docs site is moving fast at 13.2; verify the exact API at the time of integration.)
 - [Aspire `AddExecutable` documentation](https://aspire.dev/) — the alternative resource type for native binaries.
 - [gRPC Health Checking Protocol](https://github.com/grpc/grpc/blob/master/doc/health-checking.md) — the standard Aspire's dashboard recognizes for non-.NET resources.

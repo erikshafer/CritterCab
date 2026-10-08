@@ -274,5 +274,5 @@ The three Cab sagas, mapped to the concerns above:
 - [Wolverine sagas documentation](https://wolverinefx.net/guide/durability/sagas.html) — upstream reference; the "Low Ceremony Sagas with Wolverine" and "Multi Step Workflows with the Critter Stack" blog posts linked from there are the canonical Critter Stack saga walkthroughs.
 - [microservices.io — Saga pattern](https://microservices.io/patterns/data/saga.html) — Chris Richardson's canonical reference for the pattern in distributed systems, including the choreography-vs-orchestration framing.
 - [Sagas (Garcia-Molina & Salem, 1987)](https://dl.acm.org/doi/10.1145/38713.38742) — the original SIGMOD paper that named the pattern. Historical context for "saga" terminology vs "process manager."
-- ADR-005 in [`docs/decisions/`](../../decisions/) — the three-transport ceiling that bounds which transports can carry saga messages.
-- [`docs/rules/structural-constraints.md`](../../rules/structural-constraints.md) — the immutable rules including saga-relevant constraints.
+- ADR-005 in [`docs/decisions/`](../../../decisions/) — the three-transport ceiling that bounds which transports can carry saga messages.
+- [`docs/rules/structural-constraints.md`](../../../rules/structural-constraints.md) — the immutable rules including saga-relevant constraints.

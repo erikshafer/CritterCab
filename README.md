@@ -17,7 +17,7 @@ Each service's Event Model will be a curated `*.emodel.yaml` committed beside it
 
 ## Running it
 
-Prerequisites: the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) and Docker (or another OCI runtime). Aspire starts PostgreSQL and a Kafka broker as containers; the integration tests use [Testcontainers](https://testcontainers.com/) for theirs.
+Prerequisites: the [.NET SDK](https://dotnet.microsoft.com/download) for the target framework in [`Directory.Build.props`](Directory.Build.props) and Docker (or another OCI runtime). Aspire starts PostgreSQL and a Kafka broker as containers; the integration tests use [Testcontainers](https://testcontainers.com/) for theirs.
 
 ```bash
 git clone https://github.com/erikshafer/CritterCab.git

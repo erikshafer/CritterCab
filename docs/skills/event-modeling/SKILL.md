@@ -122,7 +122,7 @@ A slice never carries a status (planned, in progress, done). Whether it is built
 
 - **The pattern slot holds only the four pattern names.** Framework vocabulary describes how a slice is implemented, not what it is: "aggregate handler", "start handler", "continue handler", "saga", "consumer", "overwrite-in-place document", "projection" and transport names never stand in for a pattern. Write "Command" and, separately if useful, "implemented as …".
 - **Use the domain's words**, from the people who do the work, for events, commands, views and slices. Where a framework convention and the workshop's vocabulary disagree, the workshop wins.
-- **Martin Dilger's State Change / State View vocabulary is not used here.** It is a different count of the same building blocks; the correspondence between the vocabularies is kept at portfolio level, as a crosswalk rather than as synonyms.
+- **Martin Dilger's State Change / State View vocabulary is not used here; the correspondence is kept at portfolio level as a crosswalk, not as synonyms.**
 
 ### Mapping to the Critter Stack
 
@@ -141,13 +141,13 @@ The right-hand column is a starting point, not a rule. A slice is classified by 
 
 ## Common mistakes
 
-- **Events named as commands** (`RequestRide` as an event) or with an `Event` suffix (`TripCompletedEvent`).
+- **Events named as commands** (`PlaceOrder` as an event) or with an `Event` suffix (`OrderPlacedEvent`).
 - **A view with a field no event supplies.** An event or a Translation is missing.
 - **A command with no screen and no automation.** The trigger is missing; add the wireframe or say "no screen: machine actor".
 - **Two patterns in one slice**, usually a Command that quietly includes an Automation. Cut it in two.
 - **Handler-shaped slices**, cut where a framework's transaction boundary falls ("atomic triple-emit") instead of where the behaviour changes.
 - **A framework or transport word in the pattern slot.**
-- **Mechanical events confused with decisions.** "The offer expired" (a clock fired) and "the driver declined" (a person decided) are both events, with different authority and different consequences.
+- **Mechanical events confused with decisions.** "The reservation expired" (a clock fired) and "the customer cancelled" (a person decided) are both events, with different authority and different consequences.
 - **A downstream context modelled as the origin of upstream data.**
 - **Scenarios that test infrastructure** instead of domain facts.
 - **Status written into the model.**

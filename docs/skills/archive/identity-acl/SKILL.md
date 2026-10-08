@@ -419,7 +419,7 @@ This is **not** an anti-corruption layer — the service is conformist to the OI
 
 ### External
 
-- ADR-006 in [`docs/decisions/`](../../decisions/) — the binding decision for the swappable identity provider pattern.
+- ADR-006 in [`docs/decisions/`](../../../decisions/) — the binding decision for the swappable identity provider pattern.
 - [OpenIddict documentation](https://documentation.openiddict.com/) — server and validation configuration reference.
 - [OpenIddict samples](https://github.com/openiddict/openiddict-samples) — canonical OAuth 2.0 flow implementations.
 - [Entra External ID documentation](https://learn.microsoft.com/en-us/entra/external-id/) — production provider for rider and driver identity.
