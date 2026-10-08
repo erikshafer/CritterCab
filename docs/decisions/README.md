@@ -4,6 +4,8 @@ Architectural Decision Records (ADRs) capture significant decisions, the options
 
 For the template and guidelines on when to write an ADR, see [ADR-001](./001-record-architecture-decisions.md).
 
+**ADRs 001 to 019 are the v1 record.** CritterCab v1 closed at the `v1` tag (`4d8bde4`) and v2 was declared in place on 2026-10-08 ([`docs/planning/2026-10-05-crittercab-v2-evaluation.md`](../planning/2026-10-05-crittercab-v2-evaluation.md) § Decision). The statuses below are as each ADR was written and are not changed by that boundary; each ADR is re-affirmed, amended or superseded by the first v2 PR that touches its subject, and until then binds as written. ADR-020 (the v2 topology: five contexts, five deployables, a build order) is proposed in the evaluation and is not authored until it is signed off.
+
 | ADR | Title | Status |
 |-----|-------|--------|
 | [001](./001-record-architecture-decisions.md) | Record Architecture Decisions | Accepted |

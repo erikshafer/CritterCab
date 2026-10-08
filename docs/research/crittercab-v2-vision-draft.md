@@ -1,5 +1,7 @@
 # CritterCab Vision v1.0 (DRAFT for v2)
 
+> **Went live 2026-10-08** as [`docs/vision/README.md`](../vision/README.md) v1.0, in the boundary session; that file is now the vision, and this draft is kept as the research record.
+
 > **Status: draft, not live; no brackets remain.** This is a research document holding the text of `docs/vision/README.md` v1.0 for CritterCab v2. It is not an edit to the live vision (v0.8). It becomes live in the boundary session ([`docs/prompts/crittercab-v2-boundary.md`](../prompts/crittercab-v2-boundary.md), Ready as of 2026-10-08), which replaces the live file wholesale with the text below and carries the v0.1 to v0.8 Document History entries over beneath the v1.0 entry. Every owner call that was bracketed on 2026-10-05 was resolved on 2026-10-08 and is recorded in [`docs/planning/2026-10-05-crittercab-v2-evaluation.md`](../planning/2026-10-05-crittercab-v2-evaluation.md) § Decision.
 
 ## What this is
