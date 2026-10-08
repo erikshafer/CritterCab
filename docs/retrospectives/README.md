@@ -2,7 +2,7 @@
 
 Retrospectives are the **session-close artifacts** in CritterCab's session-driven workflow. Each retrospective records what a working session actually produced, what worked, what was harder than expected, what methodology refinements emerged, and what the next session inherits. The retro closes the loop opened by the corresponding prompt in [`docs/prompts/`](../prompts/).
 
-This directory is part of the **`narrative → prompt → execute → retrospective`** loop documented in [`CLAUDE.md`](../../CLAUDE.md). Per CLAUDE.md, *"a session prompt and its retro share a slug so they sort together. The retro is part of the session's deliverable PR, not a follow-up."*
+This directory is part of the **prompt → execute → retrospective** session loop described in [`docs/prompts/README.md`](../prompts/README.md#session-and-pr-cadence): a session prompt and its retro share a slug so they sort together, and the retro is part of the session's deliverable PR, not a follow-up.
 
 ---
 
@@ -44,7 +44,7 @@ When a retro identifies follow-up work (open items, methodology gaps, unresolved
 
 ## When to write a retrospective
 
-Write the retrospective at session close, before the session's deliverable PR is opened. Per CLAUDE.md: *"the retro is part of the session's deliverable PR, not a follow-up."* The retro and the session's other artifacts (skills, narratives, code, etc.) ship together.
+Write the retrospective at session close, before the session's deliverable PR is opened. The retro is part of the session's deliverable PR, not a follow-up. The retro and the session's other artifacts (skills, narratives, code, etc.) ship together.
 
 If a session ended without a retro — possibly because it was abandoned mid-flight, or because the session-runner deferred — write the retro as soon as the session-runner re-engages, before any new work begins. A retro authored after-the-fact is fine; a retro that never lands leaves a gap in the project record.
 
@@ -52,19 +52,22 @@ If a session ended without a retro — possibly because it was abandoned mid-fli
 
 ## Format conventions inside a retro file
 
-Retro files are working documents, not essays. Each retro includes, at minimum:
+A retro records what the session shipped and what it learned that the next session must not relearn. It is short by default. Every retro written from 2026-10-08 on has exactly these five required sections, in this order:
 
-- **Metadata block** at the top: triggering prompt (path), status (Complete / Partially complete / Abandoned), date authored, output artifacts (files produced or modified), one-line outcome summary.
-- **Framing** — one or two sentences explaining what the session was for and how it fit the project's arc.
-- **Outcome summary** — concise list or table of what the session produced.
-- **What worked** — methodology elements, tools, conventions, or decisions that paid off. Specific, not vague.
-- **What was harder than expected** — challenges encountered with the lesson each surfaced. Honest, not defensive.
-- **Methodology refinements that emerged** — process changes the next session-runner should adopt. These are the durable lessons; capture them explicitly.
-- **Outstanding items / next-session inputs** — explicit list of things the next session inherits.
-- **Spec delta — landed?** — single line or short paragraph confirming whether the prompt's spec delta landed as planned, naming any divergence, and citing the spec amendment(s) made to the narrative or workshop in this session's PR. See [prompts README § Spec delta cadence](../prompts/README.md#spec-delta-cadence).
-- **Quantitative summary** *(optional, for larger sessions)* — counts, sizes, durations, or other measurable outcomes worth tracking.
+1. **Metadata** — triggering prompt (path), status (Complete / Partially complete / Abandoned), date, the PR(s), and the files the session produced or changed.
+2. **What landed** — the deliverables, as a list or table, with any verification that backs them (suite counts, CI run, a mutation that proved a guard fails).
+3. **Spec delta — landed?** — whether the prompt's spec delta landed as planned, naming any divergence and citing the amendment made to the canonical spec in this PR. A null delta is stated as null, with the reason. See [prompts README § Spec delta cadence](../prompts/README.md#spec-delta-cadence).
+4. **What disconfirmed** — the premises the session found false (in the prompt, a gate, a skill, a prior retro), the tests that failed to fail until fixed, and the forks escalated to the owner with how each resolved. If nothing disconfirmed, say so; a session that only confirmed is worth noting.
+5. **Next-session inputs** — what the next session inherits: open items, follow-ups, and anything the session deliberately left alone.
 
-Subsequent sections are session-specific. Existing retros in this directory serve as references for shape.
+Optional sections (a mapping table, a quantitative summary, session-specific detail) go after these five when a session needs them. Two kinds of observation do not go in the retro body:
+
+- **Cross-cutting methodology lessons** (true beyond this session) go to [`docs/research/methodology-log.md`](../research/methodology-log.md) as a numbered entry, and the retro links to it.
+- **Skill-file gaps** go to [`docs/skills/DEBT.md`](../skills/DEBT.md) as a row, in the same PR, and the retro names the row.
+
+**Index entries are one line.** A new retro's entry in this README, and its prompt's entry in [`docs/prompts/README.md`](../prompts/README.md), is a single line: link, one sentence on what the session produced, status. The reasoning lives in the retro, not the index.
+
+Retros and index entries written before 2026-10-08 used a longer template (framing, what worked, what was harder than expected, methodology refinements, outstanding items) and are not rewritten; they remain the record as written.
 
 ---
 
