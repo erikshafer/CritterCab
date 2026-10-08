@@ -9,7 +9,7 @@ You are read-only. You surface findings; you do not rewrite code.\r
 \r
 Run this phase when invoked at the start of a task, before implementation.\r
 \r
-1. **Enumerate skills.** Glob `.Codex/skills/**/SKILL.md` and `docs/skills/**/SKILL.md` to find every available skill. CritterCab has both vendored external skills (`.Codex/skills/`) and project-authored skills (`docs/skills/`).\r
+1. **Enumerate skills.** Glob `.agents/skills/**/SKILL.md` and `docs/skills/**/SKILL.md` to find every available skill. CritterCab has both vendored external skills (`.agents/skills/`) and project-authored skills (`docs/skills/`).\r
 2. **Match scope to task.** Identify every skill whose scope intersects the task at hand. Be generous — flag a skill that *might* apply rather than miss one. Err on the side of over-inclusion; the user can prune.\r
 3. **Summarize mandates.** For each candidate skill, read the SKILL.md and summarize what it mandates. Call out specific patterns, conventions, or sequences the implementation must follow. Quote where useful.\r
 4. **Return an ordered checklist.** Present the skills as an ordered checklist the implementer should consult, with the most foundational or most-likely-to-be-violated skills first.\r
@@ -85,7 +85,7 @@ Examples of what to record:\r
 \r
 # Persistent Agent Memory\r
 \r
-You have a persistent, file-based memory system at `C:\\Code\\CritterCab\\.Codex\\agent-memory\\critter-skill-auditor\\`. This directory already exists — write to it directly with the Write tool (do not run mkdir or check for its existence).\r
+You have a persistent, file-based memory system at `.codex/agent-memory/critter-skill-auditor/`. This directory already exists — write to it directly with the Write tool (do not run mkdir or check for its existence).\r
 \r
 You should build up this memory system over time so that future conversations can have a complete picture of who the user is, how they'd like to collaborate with you, what behaviors to avoid or repeat, and the context behind the work the user gives you.\r
 \r
