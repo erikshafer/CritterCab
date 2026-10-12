@@ -17,6 +17,7 @@
        the generated message class binds against. No Grpc.AspNetCore here — Dispatch consumes
        a Kafka message, it does not serve or call a gRPC service. -->
   <ItemGroup>
+    <PackageReference Include="Confluent.Kafka" />
     <PackageReference Include="Grpc.Tools" />
     <PackageReference Include="Google.Protobuf" />
     <PackageReference Include="pocketken.H3" />
