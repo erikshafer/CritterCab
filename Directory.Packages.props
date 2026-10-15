@@ -64,8 +64,8 @@
   <ItemGroup>
     <PackageVersion Include="Alba" Version="8.5.3" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
-    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.13.0" />
-    <PackageVersion Include="Testcontainers.Kafka" Version="4.13.0" />
+    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.16.0" />
+    <PackageVersion Include="Testcontainers.Kafka" Version="4.16.0" />
     <!-- The slice-3 round-trip test asserts on the RAW Kafka record (partition key
          + binary protobuf value), which needs ConsumerBuilder directly. Confluent.Kafka
          reaches WolverineFx.Kafka only transitively (via Confluent.SchemaRegistry.Serdes.*),
