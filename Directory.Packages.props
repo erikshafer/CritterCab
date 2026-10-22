@@ -38,9 +38,9 @@
        (Grpc.* 2.80.0, Google.Protobuf 3.35.1) — take them as a deliberate
        tidy: packages bump, not incidentally. -->
   <ItemGroup>
-    <PackageVersion Include="Grpc.AspNetCore" Version="2.76.0" />
-    <PackageVersion Include="Grpc.Tools" Version="2.76.0" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
-    <PackageVersion Include="Google.Protobuf" Version="3.31.1" />
+    <PackageVersion Include="Grpc.AspNetCore" Version="2.84.0" />
+    <PackageVersion Include="Grpc.Tools" Version="2.84.0" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
+    <PackageVersion Include="Google.Protobuf" Version="3.36.2" />
   </ItemGroup>
   <!-- H3 geospatial indexing (Telemetry cell computation).
        pocketken.H3 is the published id for github.com/pocketken/h3.net (the bare "H3" id is a
